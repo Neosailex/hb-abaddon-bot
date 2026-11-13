@@ -683,7 +683,7 @@ class Bot:
         """Experiencia por hora en ese mapa (None si todavía no estuve 10 minutos). Si gasto muchas pociones
         por minuto, cuenta menos (es caro y peligroso)."""
         y = self.world.learn.get("yield", {}).get(mk.strip().lower())
-        if not y or y.get("sec", 0) < 120:
+        if not y or y.get("sec", 0) < 60:
             return None
         rate = y["exp"] / y["sec"] * 3600
         ppm = y.get("pots", 0) / (y["sec"] / 60.0)
