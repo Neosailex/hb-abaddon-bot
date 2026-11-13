@@ -782,6 +782,8 @@ class Bot:
         dead = (hm == 0) if hm is not None else (b.get("hp") == 0 and ((b.get("mp") or 0) > 0 or (b.get("sp") or 0) > 0))
         if not dead:
             self._dead_since = 0
+            self._death_logged = 0
+            self._restart_tries = 0
             return False
         if not getattr(self, "_dead_since", 0):
             self._dead_since = now
@@ -789,7 +791,7 @@ class Bot:
         if now - self._dead_since < 3 or now - getattr(self, "_restart_click", 0) < 6:
             return True
         self._release()
-        if not getattr(self, "_death_logged", 0) or now - self._death_logged > 60:
+        if not getattr(self, "_death_logged", 0):  # una sola vez por muerte (se rearma al revivir)
             self._death_logged = now
             self.stats["deaths"] = self.stats.get("deaths", 0) + 1
             mk = (self.pos.get("map") or "").strip().lower()
@@ -823,8 +825,15 @@ class Bot:
                 pt = (w[1], w[2])
         except Exception:
             pass
+        self._restart_tries = getattr(self, "_restart_tries", 0) + 1
         if not pt and self.rect:
             pt = (int(self.rect[2] * 0.943), int(self.rect[3] * 0.85))
+            if self._restart_tries >= 3 and self._restart_tries % 3 == 0:
+                # no revivo: algo tapa el botón Restart (pasó con el minimapa corrido ahí). Lo arrastro arriba.
+                sc_ = self.rect[2] / 1280.0
+                self._drag_bg(1160 * sc_, 770 * sc_, 1160 * sc_, 110 * sc_)
+                time.sleep(0.6)
+                self.log("☠ No lograba revivir: corrí lo que tapaba el botón Restart.")
         winapi.click(*self.abs_pt(*pt))
         self._restart_click = now
         self.state, self.target = "seek", None

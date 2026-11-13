@@ -1,1 +1,1 @@
-{"version": 83, "notes": "Base de criaturas (vida, daño, experiencia, zonas) y elección del bicho según lo que el pj aguanta."}
+{"version": 84, "notes": "Arreglo: si algo tapa el botón Restart (el minimapa) lo corre y revive; cuenta bien las muertes. Eternal Field recién con VIT 50."}

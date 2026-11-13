@@ -147,7 +147,7 @@
     "Aresden Dungeon (entrada)"
    ],
    "need": {
-    "VIT": 40
+    "VIT": 50
    }
   },
   {
@@ -178,7 +178,7 @@
     "Middleland Mine"
    ],
    "need": {
-    "VIT": 50
+    "VIT": 60
    }
   },
   {
@@ -206,7 +206,8 @@
    ],
    "alt_maps": [],
    "need": {
-    "VIT": 50
+    "VIT": 60,
+    "STR": 90
    }
   },
   {
@@ -237,8 +238,8 @@
     "Promiseland"
    ],
    "need": {
-    "VIT": 50,
-    "STR": 90
+    "VIT": 70,
+    "STR": 100
    }
   },
   {
