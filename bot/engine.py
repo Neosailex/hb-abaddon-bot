@@ -1975,14 +1975,33 @@ class Bot:
         if not btn:
             hit = vision.find_level_up(img)
             if not hit:
-                if self._lu_mem():
-                    self.log("Stats: hay puntos para repartir pero no veo ni el cartel ni la ventana.")
-                return
-            self.log("Vi el cartel 'Level Up!': reparto los puntos.")
-            click(hit[0], hit[1])
-            time.sleep(1.2)
-            img = grab()
-            btn = vision.find_stat_buttons(img)
+                if not self._lu_mem() or time.time() - getattr(self, "_lu_rec_t", 0) < 90:
+                    return
+                self._lu_rec_t = time.time()
+                # la ventana puede haber quedado corrida fuera de la pantalla (a la izquierda): la traigo
+                self._drag_bg(25 * sc, 388 * sc, 470 * sc, 300 * sc)
+                img = grab()
+                btn = vision.find_stat_buttons(img)
+                if not btn:
+                    # o no está abierta: Character -> "Level Set."
+                    click(816 * sc, 918 * sc)
+                    time.sleep(1.0)
+                    click(372 * sc, 730 * sc)
+                    time.sleep(1.2)
+                    img = grab()
+                    btn = vision.find_stat_buttons(img)
+                    if not btn:
+                        click(816 * sc, 918 * sc)
+                        time.sleep(0.5)
+                        self.log("Stats: hay puntos para repartir pero no encuentro la ventana. Pruebo más tarde.")
+                        return
+                self.log("Stats: recuperé la ventana de puntos.")
+            else:
+                self.log("Vi el cartel 'Level Up!': reparto los puntos.")
+                click(hit[0], hit[1])
+                time.sleep(1.2)
+                img = grab()
+                btn = vision.find_stat_buttons(img)
         self._dbg_img("stats_1.png", img)
         if not btn:
             self.log("Stats: toqué 'Level Up!' pero no veo la ventana de puntos.")

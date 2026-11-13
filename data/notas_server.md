@@ -50,3 +50,8 @@ Pena de muerte: no figura.
 - El herrero no siempre queda en el mismo píxel: buscarlo por hover (cartel azul "BlackSmith Keeper / Neutral").
 - Equipar: doble click sobre el item en el bolso, FUERA de las tiendas (adentro del Blacksmith el doble click abre "Repair Item"). Con arma a dos manos el escudo se saca solo. Al equipar, el juego avisa "You equipped X" y el item deja de dibujarse en el bolso.
 - El bolso se puede mover: se ubica buscando el texto amarillo "UPGRADE"; origen = (x+5, y-212) en pantalla de 1280.
+- Lo puesto: ids (i16) al lado de la posición del pj: +192 cabeza, +196 pecho, +200 brazos, +204 piernas, +208 pies, +212 arma, +216 capa (0 = nada).
+- Atributos raros de un item: bytes +138..+141 del objeto (tipo, valor, tipo secundario, valor). Tipos vistos: 2 Poisoning, 3 Righteous, 5 Agile, 7 Sharp, 10 Special.
+- Listas completas de Shop y Blacksmith en data/listas_tiendas.json; una foto de cada fila en bot/assets/rows (se busca la fila por foto, nunca por posición).
+- Vender: menú Sell del vendedor -> arrastrar cada item al cartel -> botón Sell. Sin el cartel abierto NO arrastrar (el item cae al piso).
+- Si el bot huye, anota el tipo de bicho; solo lo esquiva si huyó 2 veces en 30 min, y por 45 min (antes una sola huida lo vetaba 5 niveles y dejó de cazar).
