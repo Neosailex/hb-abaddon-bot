@@ -1253,6 +1253,37 @@ class Bot:
             time.sleep(0.5)
         words, txt = self._screen_words()
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        # 1b) lista de personajes (acá vuelve el juego cuando se corta la conexión). OJO: tiene un botón
+        #     "Change Password": en esta pantalla NUNCA se escribe la contraseña, solo se aprieta Start.
+        sc_ = self.rect[2] / 1280.0
+        ntxt = norm(txt)
+        on_list = any(k in ntxt for k in ("characterlist", "character", "createnew", "logout", "newpass", "passconfirm", "change", "testserver"))
+        if on_list:
+            self._release()
+            self.stats["state"] = "reconectando: personaje"
+            fails = getattr(self, "_al_fails", 0)
+            if now - getattr(self, "_al_char_try", 0) < (20 if fails < 5 else 90):
+                return True
+            self._al_char_try = now
+            self._al_fails = fails + 1
+            if any(k in ntxt for k in ("newpass", "passconfirm")):
+                c = next((w for w in words if norm(w[0]) == "cancel"), None)
+                winapi.click(*(self.abs_pt(c[1], c[2]) if c else self.abs_pt(778 * sc_, 622 * sc_)))
+                self.log("Auto-login: había quedado abierto el cartel de cambiar contraseña: lo cancelé (no escribí nada).")
+                return True
+            if any(k in ntxt for k in ("connectionlost", "cannot", "cannotchange")):
+                ok = next((w for w in words if norm(w[0]) == "ok"), None)
+                winapi.click(*(self.abs_pt(ok[1], ok[2]) if ok else self.abs_pt(778 * sc_, 545 * sc_)))
+                time.sleep(1.0)
+                if fails == 4:
+                    self.log("Auto-login: el server no responde (Connection Lost). Sigo probando cada minuto y medio.")
+                return True
+            st = next((w for w in words if norm(w[0]) == "start"), None)
+            winapi.click(*(self.abs_pt(st[1], st[2]) if st else self.abs_pt(852 * sc_, 575 * sc_)))
+            if fails < 3:
+                self.log("Auto-login: estoy en la lista de personajes, aprieto Start.")
+            return True
+        self._al_fails = 0
         # 2) pantalla de login
         if any(k in txt for k in ("password", "contraseña", "account", "login", "log in")):
             self._release()

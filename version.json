@@ -1,1 +1,1 @@
-{"version": 87, "notes": "Mide en pelea cuánto le pegan y cuánto tarda en matar, y calcula qué le falta para pasar al bicho siguiente."}
+{"version": 88, "notes": "Arreglo de seguridad: al reconectar ya no escribe la contraseña en la lista de personajes (la confundía con el login); solo aprieta Start."}
