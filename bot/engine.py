@@ -2079,16 +2079,27 @@ class Bot:
                 img = grab()
                 btn = vision.find_stat_buttons(img)
                 if not btn:
-                    # o no está abierta: Character -> "Level Set."
-                    click(816 * sc, 918 * sc)
-                    time.sleep(1.0)
-                    click(372 * sc, 730 * sc)
+                    # o no está abierta: F5 (ventana del personaje) -> botón "Level Set." (lo busco por el texto;
+                    # la ventana puede estar en cualquier lado)
+                    self._release()
+                    winapi.press("F5")
+                    time.sleep(1.2)
+                    img = grab()
+                    ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": img.shape[0]}, scale=1.0)
+                    ls = next((w for w in ws if "".join(c for c in w[0].lower() if c.isalpha()) in ("levelset", "set")
+                               and any("level" in v[0].lower() and abs(v[2] - w[2]) < 12 * sc and 0 < w[1] - v[1] < 90 * sc for v in ws + [w])), None)
+                    lv = ls or next((w for w in ws if w[0].lower().startswith("level") and "set" in w[0].lower()), None)
+                    if lv:
+                        click(lv[1], lv[2])
+                    else:
+                        click(395 * sc, 607 * sc)
                     time.sleep(1.2)
                     img = grab()
                     btn = vision.find_stat_buttons(img)
                     if not btn:
-                        click(816 * sc, 918 * sc)
-                        time.sleep(0.5)
+                        winapi.press("ESC")
+                        time.sleep(0.3)
+                        winapi.press("ESC")
                         self.log("Stats: hay puntos para repartir pero no encuentro la ventana. Pruebo más tarde.")
                         return
                 self.log("Stats: recuperé la ventana de puntos.")
@@ -2997,8 +3008,19 @@ class Bot:
         crs = self._creatures_db()
         hpmax = self._hpmax_est()
         cand, meas = [], []
+        # zonas de bichos que todavía no aguanto: no cazo en zonas pegadas a ellas (se mezclan: los slimes de
+        # la Farm comparten lugar con los Stone Golem) y si estoy adentro me voy
+        bad = []
+        for zn in ent["zones"]:
+            cr = crs.get(zn.get("type"))
+            if cr and (self._mob_est(cr)[0] > float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl):
+                bad.append(zn["rect"])
+        near_bad = lambda px, py, m=4: any(r[0] - m <= px <= r[2] + m and r[1] - m <= py <= r[3] + m for r in bad)
         for zn in ent["zones"]:
             x1, y1, x2, y2 = zn["rect"]
+            if any(not (x2 < r[0] - 2 or x1 > r[2] + 2 or y2 < r[1] - 2 or y1 > r[3] + 2) for r in bad):
+                if zn["rect"] not in bad:
+                    continue  # se superpone con una zona peligrosa
             cr = crs.get(zn.get("type"))
             if cr:
                 # ¿lo puedo enfrentar? que no me saque más del 4% de la vida por golpe y que le pueda acertar
@@ -3026,6 +3048,15 @@ class Bot:
         live = [c_ for c_ in cand if empty.get(c_[3], 0) < now] or cand
         score, zn, ctr, key, measured = max(live, key=lambda c_: c_[0])
         x1, y1, x2, y2 = zn["rect"]
+        if near_bad(x, y, 2) and not (x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4):
+            if now - getattr(self, "_bad_said", 0) > 120:
+                self._bad_said = now
+                self.log(f"⚠ Estoy en zona de bichos que todavía no aguanto: me voy a la de {zn['mob']} ({ctr[0]},{ctr[1]}).")
+            self._release()
+            self.state, self.target = "seek", None
+            self._walk_to(mp, ctr, f"salgo de zona peligrosa hacia {zn['mob']}")
+            self.stats["state"] = "saliendo de zona peligrosa"
+            return True
         self.stats["hunt_zone"] = f"{zn['mob']} ({ctr[0]},{ctr[1]})"
         if x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4:
             self._zone_mob, self._zone_mob_t = zn["mob"], now

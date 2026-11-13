@@ -1,1 +1,1 @@
-{"version": 94, "notes": "Arreglo: la ventana del bot se quedaba sin memoria a las horas (vista en vivo). Y el cambio a modo ataque es más prudente y se deshace solo si no sirve."}
+{"version": 95, "notes": "No caza en zonas mezcladas con bichos que todavía no aguanta (golems en la Farm) y abre bien la ventana de puntos."}
