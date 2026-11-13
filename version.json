@@ -1,1 +1,1 @@
-{"version": 92, "notes": "Si queda en modo paz (pasa al reconectar) lo detecta y vuelve a modo ataque solo."}
+{"version": 93, "notes": "El cálculo de \"lo que sigue\" solo propone bichos de los mapas de la escalera (nada de mapas PvP)."}

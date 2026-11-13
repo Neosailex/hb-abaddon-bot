@@ -2940,9 +2940,15 @@ class Bot:
                 + (f", lo mato en ~{f['ttk']:.0f} s" if f.get("kn", 0) >= 5 else "")
                 + f". Tengo vida {hpmax}, defensa de equipo {dfn}" + (f", arma {wp['name']} (~{wp['avg']:.0f} por golpe sin contar fuerza)" if wp else "") + ".")
         nxt = None
-        for m in crs.values():
-            if not m["zones"] or m["exp_dice"] <= cur["exp_dice"]:
+        # solo bichos de mapas de la escalera (o del pueblo): nada de mapas PvP ni de la otra ciudad
+        okmaps = {"aresden farm", "aresden city"}
+        for ph in self._load_json("training_path.json").get("phases", []):
+            okmaps.update(x.split(" (")[0].lower() for x in ph.get("maps", []))
+        for m0 in crs.values():
+            zs = [z for z in m0["zones"] if z["map"].lower() in okmaps]
+            if not zs or m0["exp_dice"] <= cur["exp_dice"]:
                 continue
+            m = dict(m0, zones=zs)
             est, _ = self._mob_est(m)
             need_hp, need_lv = int(est / share) + 1, int(max(1, (m["defense"] - 30) / 1.5)) + 1
             if need_hp <= hpmax and need_lv <= lvl:
