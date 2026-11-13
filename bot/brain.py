@@ -29,7 +29,7 @@ def _score(it):
     return it.get("avg", 0) if it.get("slot") in ("arma", "arma2m") else it.get("def", 0)
 
 
-def gear_plan(cat, level, stats, owned, items_db=None):
+def gear_plan(cat, level, stats, owned, items_db=None, owned_bonus=None):
     """Por cada lugar del cuerpo: lo mejor que tengo y la mejor mejora que venden y ya puedo usar.
     owned: nombres de lo que hay en el bolso/puesto. items_db: tabla de items del juego (para saber qué es lo mío)."""
     owned = set(owned or [])
@@ -40,10 +40,12 @@ def gear_plan(cat, level, stats, owned, items_db=None):
     out = []
     for slot in cat.get("slot_priority", []):
         mine = [by_name[n] for n in owned if n in by_name and by_name[n].get("slot") == slot and _can_use(by_name[n], level, stats)]
-        have = max(mine, key=_score, default=None)
+        ob = owned_bonus or {}
+        mscore = lambda i: _score(i) * ob.get(i["name"], 1.0)  # los raros que tengo valen más que el común
+        have = max(mine, key=mscore, default=None)
         cands = [i for i in cat.get("items", []) if i.get("slot") == slot and i.get("price", 0) > 0
                  and (slot not in ("arma", "arma2m") or i["name"] in wn) and "(W)" not in i["name"]]
-        better = [i for i in cands if _score(i) > (_score(have) if have else 0)]
+        better = [i for i in cands if _score(i) > (mscore(have) if have else 0)]
         usable = [i for i in better if _can_use(i, level, stats)]
         nxt = max(usable, key=lambda i: (_score(i), -i["price"]), default=None)
         blocked = None
@@ -53,7 +55,7 @@ def gear_plan(cat, level, stats, owned, items_db=None):
     return out
 
 
-def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, current_map=None, items_db=None):
+def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, current_map=None, items_db=None, owned_bonus=None):
     """Devuelve el plan completo.
     reachable: función nombre_de_mapa -> bool (si el bot sabe llegar). None = solo el mapa actual."""
     level = int(level or 1)
@@ -70,7 +72,7 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
                 break
         if hunt_map:
             break
-    gp = gear_plan(cat, level, stats, owned, items_db)
+    gp = gear_plan(cat, level, stats, owned, items_db, owned_bonus)
     reserve = cat.get("reserve_gold", 0)
     wants = [g for g in gp if g["next"]]
     # primero lo que falta del todo (lugar vacío), después las mejoras; dentro de eso, lo más barato

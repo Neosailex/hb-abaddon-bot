@@ -659,6 +659,7 @@ class Bot:
         self._maybe_shop()
         self._maybe_repair()
         self._brain_step()
+        self._maybe_gear()
         if self._mission_step():
             return
         mem_ok = (cfg["mode"] not in ("pit", "templates") and cfg.get("memory", {}).get("hunt", True)
@@ -848,11 +849,16 @@ class Bot:
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()
             tt = (self.target or {}).get("etype")
-            if tt is not None:
+            if tt is not None and tt not in set(cfg.get("easy_types", [240])):
+                # una sola huida no alcanza (capaz me pegaba otro): lo esquivo recién si me pasa dos veces seguidas
                 hard = self.world.learn.setdefault("hard_types", {})
-                hard[str(tt)] = int(cfg.get("travel", {}).get("my_level", 1))
+                h = hard.get(str(tt))
+                h = h if isinstance(h, dict) and now - h.get("t", 0) < 1800 else {"n": 0}
+                h = {"lv": int(cfg.get("travel", {}).get("my_level", 1)), "t": now, "n": h.get("n", 0) + 1}
+                hard[str(tt)] = h
                 self.world.save()
-                self.log(f"Ese bicho (tipo {tt}) me pega demasiado para mi nivel: lo esquivo por ahora.")
+                if h["n"] >= 2:
+                    self.log(f"Ese bicho (tipo {tt}) me hizo huir dos veces: lo esquivo por 45 minutos.")
             self.state, self.target = "seek", None
             self.log(f"¡Vida {hp:.0f}%! Me alejo a descansar.")
             return False
@@ -2625,7 +2631,7 @@ class Bot:
         need = lf.get("meat", 99) <= self.cfg.get("buy_meat_below", 1) or lf.get("pot", 99) <= self.cfg.get("buy_pots_below", 3)
         if not need or getattr(self, "mission", None):
             return
-        for a_ in ("_shop_th", "_rep_th", "_inv_th"):
+        for a_ in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
             th = getattr(self, a_, None)
             if th is not None and th.is_alive():
                 return
@@ -2668,6 +2674,7 @@ class Bot:
                         out.append({"slot": i, "id": iid, "count": cnt,
                                     "dur": int.from_bytes(ob[134:136], "little", signed=True),
                                     "max": int.from_bytes(ob[98:100], "little", signed=True),
+                                    "attr": [ob[138], ob[139], ob[140], ob[141]],
                                     "x": int.from_bytes(ob[78:80], "little", signed=True),
                                     "y": int.from_bytes(ob[80:82], "little", signed=True)})
                     if not out:
@@ -2698,7 +2705,52 @@ class Bot:
 
     def _bag_pt(self, x, y):
         sc = self.rect[2] / 1280.0
-        return (self.BAG_OX + self.BAG_S * x) * sc, (self.BAG_OY + self.BAG_S * y) * sc
+        ox, oy = getattr(self, "_bag_oxy", None) or (self.BAG_OX, self.BAG_OY)
+        return (ox + self.BAG_S * x) * sc, (oy + self.BAG_S * y) * sc
+
+    def _bag_sync(self):
+        """El bolso se puede mover: lo ubico por el texto "UPGRADE". Devuelve dónde está o None si está cerrado."""
+        o = vision.find_bag_origin(self.screen.grab(self.rect))
+        if o:
+            self._bag_oxy = (o[0] + 5, o[1] - 212)
+        return o
+
+    def _bag_ready(self, open_=True):
+        """Abre (o cierra) el bolso y lo deja en su lugar de siempre, a la derecha."""
+        sc = self.rect[2] / 1280.0
+        winapi.move(*self.abs_pt(640 * sc, 790 * sc))
+        time.sleep(0.3)
+        o = self._bag_sync()
+        if bool(o) != bool(open_):
+            winapi.click(*self.abs_pt(875 * sc, 918 * sc))
+            time.sleep(1.2)
+            winapi.move(*self.abs_pt(640 * sc, 790 * sc))
+            time.sleep(0.3)
+            o = self._bag_sync()
+        if not open_:
+            return not o
+        for _ in range(3):
+            if not o or (abs(o[0] - 866) <= 6 and abs(o[1] - 545) <= 6):
+                break
+            gx, gy = o[0] + 150, o[1] - 262  # la tapa del bolso
+            self._drag_bg(gx * sc, gy * sc, (gx + 866 - o[0]) * sc, (gy + 545 - o[1]) * sc)
+            time.sleep(0.5)
+            o = self._bag_sync()
+        return bool(o)
+
+    EQ_OFFS = (192, 196, 200, 204, 208, 212, 216, 220, 224)   # ids de lo puesto (cabeza, pecho, brazos, piernas, ..., arma, escudo, ...)
+
+    def _equipped_ids(self):
+        """Ids de los items que tiene puestos (los guarda el juego al lado de la posición del pj). None si no se sabe."""
+        try:
+            if self.mem.learned and self.mem.addr[0] == "i16":
+                b = self.mem.proc.read(self.mem.addr[1] + 192, 36)
+                if b and len(b) == 36:
+                    ids = [int.from_bytes(b[o - 192:o - 190], "little", signed=True) for o in self.EQ_OFFS]
+                    return [i for i in ids if 0 < i < 5000]
+        except Exception:
+            pass
+        return None
 
     def _inv_item(self, item_id=None, slot=None):
         self._inv_cache = None
@@ -2740,6 +2792,8 @@ class Bot:
         """Lleva el item de ese casillero a un lugar libre del bolso. Como las cosas se tapan, puede que agarre
         otra: lo sé porque en la memoria se mueve la que agarré. Insisto hasta mover la que quiero."""
         for _ in range(tries):
+            if not self._bag_sync():
+                return None  # bolso cerrado
             it = self._inv_item(slot=slot)
             if not it:
                 return None
@@ -2801,8 +2855,9 @@ class Bot:
             inv = self._inv_mem()
             owned = [idb[i["id"]]["name"] for i in inv if i["id"] in idb] if (inv and idb) else pj.get("owned", [])
             self._owned = owned
+            from . import gear
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
-                           self._gold_mem(), owned, reach, cur, list(idb.values()))
+                           self._gold_mem(), owned, reach, cur, list(idb.values()), gear.owned_bonus(inv, idb))
             self.plan = p
             key = "|".join(p["lines"][:-1])
             if key != getattr(self, "_brain_key", None):
@@ -2819,7 +2874,7 @@ class Bot:
         o enseguida si de golpe dejo de matar."""
         if getattr(self, "mission", None) or getattr(self, "_busy_ui", False):
             return
-        for a in ("_shop_th", "_rep_th", "_inv_th"):
+        for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
             th = getattr(self, a, None)
             if th is not None and th.is_alive():
                 return
@@ -2938,7 +2993,8 @@ class Bot:
             else:
                 return
             time.sleep(2.5)
-            self._reequip()
+            self._equip_block = 0
+            self._gear_chk = 0  # la revisión de equipo se pone lo que se haya salido
 
     def _reequip(self):
         """Se vuelve a poner el equipo arrastrando cada cosa del bolso al muñeco (posiciones guardadas en config)."""
@@ -2964,6 +3020,375 @@ class Bot:
             self.log("🛡 Me volví a poner el equipo.")
         except Exception as e:
             self.log(f"🛡 Error equipando: {e!r}")
+        finally:
+            self._busy_ui = False
+
+    # ------------------------------------------------------------ equipo
+    SHOP_DOORS = {"shop": {"Aresden Farm": [63, 70], "Aresden City": [127, 167]},
+                  "smith": {"Aresden Farm": [75, 86], "Aresden City": [169, 194]}}
+
+    def _wheel(self, x, y, n):
+        """Rueda del mouse sobre el juego (n > 0 sube). Ojo: el juego a veces pierde muescas, no sirve para contar."""
+        import ctypes
+        sc = self.rect[2] / 1280.0
+        ax, ay = self.abs_pt(x * sc, y * sc)
+        winapi.move(ax, ay)
+        time.sleep(0.15)
+        for _ in range(abs(n)):
+            dl = -120 if n < 0 else 120
+            ctypes.windll.user32.PostMessageW(self.hwnd, 0x020A, (dl & 0xFFFF) << 16, ((int(ay) & 0xFFFF) << 16) | (int(ax) & 0xFFFF))
+            time.sleep(0.12)
+
+    def _gear_state(self):
+        """Qué ponerme / vender / guardar según lo que hay en el bolso, y qué comprar según el plan."""
+        from . import gear
+        self._inv_cache = None
+        inv, eq, idb = self._inv_mem(), self._equipped_ids(), self._items_db()
+        if not inv or eq is None or not idb:
+            return None
+        cat = self._load_json("tiendas.json")
+        lvl = self._level_mem() or 1
+        d = gear.decide(inv, eq, idb, cat, lvl, self._stats_mem(),
+                        self.cfg.get("keep_items", ["Magic Wand (MS0)", "Main Gauche", "Tomahoc"]),
+                        self.cfg.get("junk_items", ["Mana Potion"]), int(self.cfg.get("max_rare", 8)))
+        buys = []
+        for it in (getattr(self, "plan", None) or {}).get("buy_now", []):
+            kind = {"Blacksmith": "smith", "Shop": "shop"}.get(it.get("shop"))
+            if it.get("name") in ("Health Potion", "Meat") or not kind:
+                continue
+            if vision.row_template(it["name"]) is None:
+                if it["name"] not in getattr(self, "_no_tpl", set()):
+                    self._no_tpl = getattr(self, "_no_tpl", set()) | {it["name"]}
+                    self.log(f"🛡 Quiero comprar {it['name']} pero no conozco su fila en la lista de la tienda.")
+                continue
+            buys.append({"name": it["name"], "price": it.get("price", 0), "kind": kind, "id": it.get("id")})
+        d["buy"] = buys
+        d["free"] = self.INV_SLOTS - len(inv)
+        return d
+
+    def _maybe_gear(self):
+        """Cada tanto reviso el bolso: me pongo lo mejor, vendo lo que no sirve y compro lo que dice el plan."""
+        if getattr(self, "mission", None) or getattr(self, "_busy_ui", False):
+            return
+        for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
+            th = getattr(self, a, None)
+            if th is not None and th.is_alive():
+                return
+        now = time.time()
+        if now - getattr(self, "_gear_chk", 0) < 20:
+            return
+        self._gear_chk = now
+        cur = self.pos.get("map") or ""
+        town = next((n for n in ("Aresden Farm", "Aresden City") if self._same(cur, n)), None)
+        if not town or self._attacked_recently():
+            return
+        d = self._gear_state()
+        if not d:
+            return
+        if now < getattr(self, "_equip_block", 0):
+            d["equip"] = []
+        trip_ok = now - getattr(self, "_gear_last", 0) > self.cfg.get("gear_trip_every_min", 20) * 60
+        sell_now = d["sell"] and (d["free"] < 6 or len(d["sell"]) >= 4 or d["buy"])
+        if not d["equip"] and not (trip_ok and (sell_now or d["buy"])):
+            return
+        if not d["equip"]:
+            self._gear_last = now
+        self._gear_th = threading.Thread(target=self._gear_trip, args=(d, town, bool(trip_ok and (sell_now or d["buy"]))), daemon=True)
+        self._gear_th.start()
+
+    def _equip_items(self, entries):
+        """Se pone items del bolso con doble click (afuera de las tiendas) y verifica en la memoria que quedaron puestos."""
+        done = []
+        if not entries:
+            return done
+        cur = self.pos.get("map") or ""
+        if not any(self._same(cur, n) for n in ("Aresden Farm", "Aresden City")):
+            return done  # adentro de las tiendas el doble click abre "reparar"
+        self._busy_ui = True
+        try:
+            self._release()
+            time.sleep(1.0)
+            if not self._bag_ready(True):
+                self.log("🛡 No pude abrir el bolso para equiparme.")
+                return done
+            for e in entries:
+                for _ in range(2):
+                    if not (self.alive and self.running):
+                        return done
+                    iso = self._isolate(e["slot"])
+                    if not iso:
+                        break
+                    x, y = self._bag_pt(iso["x"] + 4, iso["y"] + 8)
+                    winapi.click(*self.abs_pt(x, y), double=True)
+                    time.sleep(1.8)
+                    if e["id"] in (self._equipped_ids() or []):
+                        done.append(e)
+                        self.log(f"🛡 Me puse {e['name']} ({e.get('why', 'nuevo')}).")
+                        break
+                else:
+                    self.log(f"🛡 No pude ponerme {e['name']}.")
+            self._bag_ready(False)
+        except Exception as ex:
+            self.log(f"🛡 Error equipando: {ex!r}")
+        finally:
+            self._busy_ui = False
+        return done
+
+    def _enter_store(self, kind, town):
+        """Va hasta la tienda y entra (en el herrero se para frente al mostrador). True si entró; deja _busy_ui prendido."""
+        sc = self.rect[2] / 1280.0
+        P = lambda x, y: self.abs_pt(x * sc, y * sc)
+        self.mission_result = None
+        self.mission = {"map": town, "goal": self.SHOP_DOORS[kind][town], "label": ("Blacksmith" if kind == "smith" else "Shop") + " (equipo)",
+                        "until": time.time() + 480}
+        t0 = time.time()
+        while time.time() - t0 < 480 and self.alive and self.running:
+            if kind in (self.pos.get("map") or "").lower():
+                break
+            time.sleep(0.1)
+        else:
+            return False
+        self._busy_ui = True
+        self._release()
+        time.sleep(1.5)
+        if kind == "smith":
+            for _ in range(14):
+                if abs((self.pos.get("x") or 0) - 47) <= 1 and abs((self.pos.get("y") or 0) - 35) <= 1:
+                    break
+                winapi.click(*P(1000, 470))
+                time.sleep(0.7)
+            time.sleep(1.0)
+        return True
+
+    def _talk_keeper(self, kind):
+        sc = self.rect[2] / 1280.0
+        P = lambda x, y: self.abs_pt(x * sc, y * sc)
+
+        def roam():
+            pts = [(x, y) for y in range(420, 720, 48) for x in range(700, 1250, 40)]
+            pts += [(x, y) for y in range(120, 800, 56) for x in range(60, 1240, 44) if not (x >= 700 and 420 <= y < 720)]
+            for x, y in pts:
+                if not (self.alive and self.running):
+                    return None
+                winapi.move(*P(x, y))
+                time.sleep(0.11)
+                if vision.neutral_pixels(self.screen.grab(self.rect), x * sc, y * sc) >= 25:
+                    return (x, y)
+            return None
+
+        for _ in range(3):
+            if not (self.alive and self.running):
+                return None
+            if kind == "smith":
+                kp = self._find_keeper(745 - ((self.pos.get("x") or 47) - 47) * 64, 345 - ((self.pos.get("y") or 35) - 35) * 64)
+            else:
+                kp = roam()
+            if not kp:
+                continue
+            winapi.click(*P(*kp))
+            time.sleep(2.5)
+            m = vision.find_npc_menu(self.screen.grab(self.rect))
+            if m:
+                return {k: (v[0] / sc, v[1] / sc) for k, v in m.items() if k != "score"}
+        return None
+
+    def _sell_items(self, entries, kind):
+        """Con el vendedor adelante: abre Sell, arrastra cada cosa al cartel y confirma. Devuelve cuántas vendió."""
+        sc = self.rect[2] / 1280.0
+        P = lambda x, y: self.abs_pt(x * sc, y * sc)
+        entries = entries[:12]
+        if not entries or not self._bag_ready(True):
+            return 0
+        m = self._talk_keeper(kind)
+        if not m:
+            self.log("💰 No pude hablarle al vendedor para vender.")
+            return 0
+        winapi.click(*P(*m["sell"]))
+        time.sleep(2.0)
+
+        def sell_btn():
+            winapi.move(*P(640, 800))
+            time.sleep(0.3)
+            b = vision.find_sell_button(self.screen.grab(self.rect))
+            return (b[0] / sc, b[1] / sc) if b else None
+
+        btn = sell_btn()
+        if not btn:
+            self.log("💰 No se abrió el cartel de venta. Pruebo en otra vuelta.")
+            return 0
+        self._inv_cache = None
+        n0, g0 = len(self._inv_mem() or []), self._gold_mem() or 0
+        put = 0
+        for e in entries:
+            if not (self.alive and self.running):
+                break
+            iso = self._isolate(e["slot"])
+            if not iso:
+                continue
+            btn = sell_btn()
+            if not btn:  # sin el cartel abierto no arrastro nada: caería al piso
+                break
+            self._drag_bg(*self._bag_pt(iso["x"], iso["y"]), (btn[0] + 102) * sc, (btn[1] - 114) * sc)
+            time.sleep(0.8)
+            put += 1
+        btn = sell_btn()
+        if not btn or not put:
+            winapi.press("ESC")
+            return 0
+        winapi.click(*P(*btn))
+        time.sleep(2.0)
+        self._inv_cache = None
+        n1, g1 = len(self._inv_mem() or []), self._gold_mem() or 0
+        sold = max(0, n0 - n1)
+        if sold:
+            self.log(f"💰 Vendí {sold} cosa(s) que no uso por {g1 - g0} de oro: " + ", ".join(e["name"] for e in entries[:put]) + ".")
+        else:
+            self.log("💰 Puse cosas a la venta pero no se vendieron.")
+            winapi.press("ESC")
+        return sold
+
+    def _open_trade(self, kind, menu=None):
+        """Abre la lista de venta y la acomoda en su lugar (PRICE en 435,159). True si quedó lista."""
+        sc = self.rect[2] / 1280.0
+        P = lambda x, y: self.abs_pt(x * sc, y * sc)
+        m = menu or self._talk_keeper(kind)
+        if not m:
+            return False
+        winapi.click(*P(*m["trade"]))
+        time.sleep(2.0)
+        pw = None
+        for _ in range(3):
+            winapi.move(*P(700, 800))
+            time.sleep(0.3)
+            h = vision.find_shop_header(self.screen.grab(self.rect))
+            if not h:
+                time.sleep(0.5)
+                continue
+            pw = (h[0] / sc, h[1] / sc)
+            if abs(pw[0] - 435) <= 8 and abs(pw[1] - 159) <= 8:
+                return True
+            gx, gy = pw[0] - 92, pw[1]
+            self._drag_bg(gx * sc, gy * sc, (gx + 435 - pw[0]) * sc, (gy + 159 - pw[1]) * sc)
+        return bool(pw) and abs(pw[0] - 435) <= 12 and abs(pw[1] - 159) <= 12
+
+    def _buy_item(self, b):
+        """Con la lista de venta abierta: busca la fila por su foto, compra y verifica en la memoria qué entró."""
+        sc = self.rect[2] / 1280.0
+        P = lambda x, y: self.abs_pt(x * sc, y * sc)
+        idb = self._items_db()
+        self._inv_cache = None
+        inv0 = self._inv_mem() or []
+        if len(inv0) >= self.INV_SLOTS:
+            self.log(f"🛡 No compro {b['name']}: el bolso está lleno.")
+            return False
+        g0 = self._gold_mem() or 0
+        if g0 < b.get("price", 0):
+            return False
+        self._wheel(300, 300, 90)
+        time.sleep(0.6)
+        y = None
+        for _ in range(45):
+            if not (self.alive and self.running):
+                return False
+            winapi.move(*P(700, 800))
+            time.sleep(0.35)
+            y = vision.find_row(self.screen.grab(self.rect), b["name"])
+            if y is not None:
+                break
+            self._wheel(300, 300, -2)
+            time.sleep(0.45)
+        if y is None:
+            self.log(f"🛡 No encontré {b['name']} en la lista de la tienda.")
+            return False
+        y /= sc
+        winapi.move(*P(272, y))
+        time.sleep(0.2)
+        winapi.click(*P(272, y))
+        time.sleep(1.3)
+        winapi.move(*P(220, 561))
+        time.sleep(0.2)
+        winapi.click(*P(220, 561))
+        time.sleep(1.8)
+        self._inv_cache = None
+        ids0 = sorted(i["id"] for i in inv0)
+        new = sorted(i["id"] for i in self._inv_mem() or [])
+        for i in ids0:
+            if i in new:
+                new.remove(i)
+        g1 = self._gold_mem() or 0
+        names = [idb.get(i, {}).get("name", str(i)) for i in new]
+        if b["name"] in names:
+            self.log(f"🛡 Compré {b['name']} por {g0 - g1} de oro (me quedan {g1}).")
+            return True
+        if names:
+            self.log(f"🛡 Quise comprar {b['name']} y entró {', '.join(names)} ({g0 - g1} de oro). Lo vendo en la próxima vuelta.")
+        else:
+            winapi.click(*P(417, 561))  # Cancel, por si quedó el cartel abierto
+            time.sleep(0.6)
+            self.log(f"🛡 No pude comprar {b['name']}.")
+        return False
+
+    def _leave_store(self, kind):
+        try:
+            if self._busy_ui:
+                self._bag_ready(False)
+            self._park_shop_dialog()
+        except Exception:
+            pass
+        self._busy_ui = False
+        t0 = time.time()
+        while time.time() - t0 < 90 and self.alive and self.running and kind in (self.pos.get("map") or "").lower():
+            time.sleep(0.3)
+        time.sleep(2.5)
+
+    def _gear_trip(self, d, town, trip):
+        """Me pongo lo mejor que tengo; si hace falta voy a las tiendas a vender lo que sobra y comprar lo del plan."""
+        try:
+            if d["equip"]:
+                if len(self._equip_items(d["equip"])) < len(d["equip"]):
+                    self._equip_block = time.time() + 600  # no salió: no insisto enseguida
+            if not trip:
+                return
+            d = self._gear_state() or d
+            smith_buys = [b for b in d["buy"] if b["kind"] == "smith"]
+            shop_buys = [b for b in d["buy"] if b["kind"] == "shop"]
+            bought = 0
+            if d["sell"] or smith_buys:
+                self.log("🛡 Voy al herrero: " + ", ".join(([f"vendo {len(d['sell'])} cosa(s)"] if d["sell"] else []) +
+                                                          [f"compro {b['name']}" for b in smith_buys]) + ".")
+                inside = self._enter_store("smith", town)
+                try:
+                    if not inside:
+                        self.log("🛡 No llegué al herrero.")
+                    else:
+                        if d["sell"]:
+                            self._sell_items(d["sell"], "smith")
+                        if smith_buys and self._open_trade("smith"):
+                            for b in smith_buys:
+                                bought += bool(self._buy_item(b))
+                finally:
+                    self._leave_store("smith")
+            if shop_buys and self.alive and self.running:
+                cur = self.pos.get("map") or ""
+                town = next((n for n in ("Aresden Farm", "Aresden City") if self._same(cur, n)), None)
+                if town:
+                    self.log("🛡 Voy a la Shop: " + ", ".join(f"compro {b['name']}" for b in shop_buys) + ".")
+                    inside = self._enter_store("shop", town)
+                    try:
+                        if not inside:
+                            self.log("🛡 No llegué a la Shop.")
+                        elif self._open_trade("shop"):
+                            for b in shop_buys:
+                                bought += bool(self._buy_item(b))
+                    finally:
+                        self._leave_store("shop")
+            if bought and self.alive and self.running:
+                d2 = self._gear_state()
+                if d2 and d2["equip"]:
+                    self._equip_items(d2["equip"])
+            self._brain_t = 0
+        except Exception as ex:
+            self.log(f"🛡 Error en la vuelta de equipo: {ex!r}")
         finally:
             self._busy_ui = False
 
@@ -3063,8 +3488,24 @@ class Bot:
             shot(2)
             steps = []
             meat_n, pot_n = int(c.get("meat_tens", 1)), int(c.get("pot_tens", 2))
-            steps += [(c.get("meat_row", [272, 421]), 1.2)] + [([361, 431], 0.35)] * meat_n + [([220, 561], 1.4)]
-            steps += [(c.get("pot_row", [272, 191]), 1.2)] + [([361, 431], 0.35)] * pot_n + [([220, 561], 1.4)]
+            sm = self._supplies_mem()
+            if sm:
+                free = self.INV_SLOTS - sm["items"] - int(self.cfg.get("bag_free_slots", 8))
+                meat_n = 1 if sm["meat"] <= int(self.cfg.get("buy_meat_below", 1)) + 2 else 0
+                pot_n = max(0, min(2, (int(self.cfg.get("pots_target", 20)) - sm["pot"] + 5) // 10))
+                while (meat_n + pot_n) * 10 > max(0, free) and (meat_n + pot_n) > 0:
+                    if pot_n > 1 or meat_n == 0:
+                        pot_n -= 1
+                    else:
+                        meat_n -= 1
+                if meat_n + pot_n == 0:
+                    self.log("🛒 No compro provisiones: no hay lugar en el bolso.")
+                    self._shop_last = time.time()
+                    return
+            if meat_n:
+                steps += [(c.get("meat_row", [272, 421]), 1.2)] + [([361, 431], 0.35)] * meat_n + [([220, 561], 1.4)]
+            if pot_n:
+                steps += [(c.get("pot_row", [272, 191]), 1.2)] + [([361, 431], 0.35)] * pot_n + [([220, 561], 1.4)]
             p_before = (self.pos.get("x"), self.pos.get("y"))
             for i, ((x, y), w) in enumerate(steps):
                 if not (self.alive and self.running):
@@ -3171,9 +3612,12 @@ class Bot:
 
     def _mon_ok(self, e):
         """¿Le puedo pegar a este bicho? (no a los que ya me hicieron huir con este nivel)"""
-        hard = self.world.learn.get("hard_types", {})
-        lv = hard.get(str(e[5]))
-        return lv is None or int(self.cfg.get("travel", {}).get("my_level", 1)) >= lv + 5
+        h = self.world.learn.get("hard_types", {}).get(str(e[5]))
+        if not isinstance(h, dict):
+            return True
+        if h.get("n", 0) < 2 or time.time() - h.get("t", 0) > 2700:
+            return True
+        return int(self.cfg.get("travel", {}).get("my_level", 1)) >= h.get("lv", 0) + 3
 
     def _mem_near(self):
         ents = self.ents.read(self.mem.proc)

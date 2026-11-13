@@ -518,3 +518,93 @@ def find_bag_origin(img):
     if not len(xs):
         return None
     return (xs[0] / sc, y / sc)
+
+
+_ROW_TPL = {}
+_SELL_TPL = None
+
+
+def _row_file(name):
+    import os
+    safe = name.replace(" +", "_p").replace("(", "").replace(")", "").replace(" ", "_")
+    return os.path.join(os.path.dirname(__file__), "assets", "rows", safe + ".png")
+
+
+def row_template(name):
+    """Foto de la fila de ese item en la lista de la tienda (máscara del texto oscuro), o None si no la tengo."""
+    if name not in _ROW_TPL:
+        t = cv2.imread(_row_file(name), cv2.IMREAD_GRAYSCALE)
+        _ROW_TPL[name] = None if t is None else ((t < 48) * 255).astype(np.float32)
+    return _ROW_TPL[name]
+
+
+def _all_rows():
+    import os
+    d = os.path.join(os.path.dirname(__file__), "assets", "rows")
+    out = {}
+    try:
+        for f in os.listdir(d):
+            if f.endswith(".png"):
+                t = cv2.imread(os.path.join(d, f), cv2.IMREAD_GRAYSCALE)
+                if t is not None:
+                    out[f[:-4]] = ((t < 48) * 255).astype(np.float32)
+    except OSError:
+        pass
+    return out
+
+
+_ALL_ROWS = None
+
+
+def find_row(img, name, thr=0.72):
+    """Busca la fila de ese item en la lista de venta (PRICE en 435,159). Devuelve la y del centro de la fila
+    en píxeles de la imagen, o None. Si otra fila conocida se parece más (ej. (M) contra (W)), no la acepta."""
+    global _ALL_ROWS
+    import os
+    t = row_template(name)
+    if img is None or t is None:
+        return None
+    sc = img.shape[1] / 1280.0
+    reg = img[int(170 * sc):int(600 * sc), int(140 * sc):int(520 * sc)]
+    g = cv2.cvtColor(reg, cv2.COLOR_BGR2GRAY)
+    if abs(sc - 1) > 0.02:
+        g = cv2.resize(g, None, fx=1 / sc, fy=1 / sc)
+    m = ((g < 48) * 255).astype(np.float32)
+    if m.shape[0] < t.shape[0] or m.shape[1] < t.shape[1]:
+        return None
+    r = cv2.matchTemplate(m, t, cv2.TM_CCOEFF_NORMED)
+    _, mx, _, loc = cv2.minMaxLoc(r)
+    if mx < thr:
+        return None
+    if _ALL_ROWS is None:
+        _ALL_ROWS = _all_rows()
+    me = os.path.basename(_row_file(name))[:-4]
+    y0, y1 = max(0, loc[1] - 5), min(m.shape[0], loc[1] + t.shape[0] + 5)
+    strip = m[y0:y1]
+    for k, o in _ALL_ROWS.items():
+        if k == me or strip.shape[0] < o.shape[0] or strip.shape[1] < o.shape[1]:
+            continue
+        if cv2.minMaxLoc(cv2.matchTemplate(strip, o, cv2.TM_CCOEFF_NORMED))[1] > mx:
+            return None
+    return (170 + loc[1] + t.shape[0] / 2.0) * sc
+
+
+def find_sell_button(img, thr=0.8):
+    """Botón 'Sell' del cartel de venta. Devuelve su centro (x, y) en píxeles de la imagen, o None."""
+    global _SELL_TPL
+    import os
+    if img is None:
+        return None
+    if _SELL_TPL is None:
+        _SELL_TPL = cv2.imread(os.path.join(os.path.dirname(__file__), "assets", "sell_btn.png"), cv2.IMREAD_GRAYSCALE)
+        if _SELL_TPL is None:
+            return None
+    sc = img.shape[1] / 1280.0
+    g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if abs(sc - 1) > 0.02:
+        g = cv2.resize(g, None, fx=1 / sc, fy=1 / sc)
+    r = cv2.matchTemplate(g, _SELL_TPL, cv2.TM_CCOEFF_NORMED)
+    _, mx, _, loc = cv2.minMaxLoc(r)
+    if mx < thr:
+        return None
+    return ((loc[0] + _SELL_TPL.shape[1] / 2.0) * sc, (loc[1] + _SELL_TPL.shape[0] / 2.0) * sc)
