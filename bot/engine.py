@@ -2740,6 +2740,26 @@ class Bot:
         ck = f"{x // ZC},{y // ZC}"
         if ck not in seen:
             seen.append(ck)
+        # lo que alcanzo a ver desde acá también cuenta: zonas vacías = vistas; zonas con bichos = para ir a probar
+        if now - getattr(self, "_zone_look", 0) > 1.0:
+            self._zone_look = now
+            try:
+                mobs = self.__dict__.setdefault("_zone_mobs", {}).setdefault(mk, set())
+                ents = self.ents.read(self.mem.proc) or []
+                with_mob = {f"{(x + e[0]) // ZC},{(y + e[1]) // ZC}" for e in ents
+                            if e[2].startswith("_") and e[3] == 0 and abs(e[0]) <= 10 and abs(e[1]) <= 7}
+                for cx in range((x - 10) // ZC, (x + 10) // ZC + 1):
+                    for cy in range((y - 7) // ZC, (y + 7) // ZC + 1):
+                        k = f"{cx},{cy}"
+                        ctr = (cx * ZC + ZC // 2, cy * ZC + ZC // 2)
+                        if k in with_mob:
+                            if z.get(k, {}).get("n", 0) < 3:
+                                mobs.add(k)
+                        elif abs(ctr[0] - x) <= 5 and abs(ctr[1] - y) <= 3 and k not in seen:
+                            seen.append(k)
+                mobs.discard(ck)
+            except Exception:
+                pass
         known = {k: v for k, v in z.items() if v.get("n", 0) >= 3 and not self._is_danger(int(v["x"]), int(v["y"]))}
         if not known:
             return False
@@ -2754,7 +2774,7 @@ class Bot:
         # ¿toca explorar? Solo mientras no conozca ninguna zona claramente mejor que la más floja
         top = max(v["xp"] for v in known.values())
         if (not scouting and top < 1.8 * base and self._town_budget_left() > 0
-                and now - getattr(self, "_scout_last", 0) > self.cfg.get("scout_every_min", 40) * 60):
+                and now - getattr(self, "_scout_last", 0) > self.cfg.get("scout_every_min", 20) * 60):
             self._scout_last = now
             self._scout_until = now + self.cfg.get("scout_minutes", 4) * 60
             self._scout_goal = None
@@ -2796,21 +2816,25 @@ class Bot:
         """Camina hacia la zona sin visitar más cercana. False si no queda nada por explorar."""
         now, ZC = time.time(), self.ZC
         g = getattr(self, "_scout_goal", None)
-        if g and (g[0] in seen or now - g[2] > 50):
+        mk = (self.pos.get("map") or "").strip().lower()
+        mobs = self.__dict__.setdefault("_zone_mobs", {}).setdefault(mk, set())
+        here = f"{x // ZC},{y // ZC}"
+        if g and (g[0] == here or (g[0] in seen and g[0] not in mobs) or now - g[2] > 50):
             if g[0] not in seen:
                 seen.append(g[0])  # no pude llegar: no insisto
+            mobs.discard(g[0])
             g = None
         if not g:
             best = None
             for cx in range(0, mp.w // ZC + 1):
                 for cy in range(0, mp.h // ZC + 1):
                     k = f"{cx},{cy}"
-                    if k in seen:
+                    if k in seen and k not in mobs:
                         continue
                     p = mp.nearest_walkable(cx * ZC + ZC // 2, cy * ZC + ZC // 2, r=5)
                     if not p or not mp.ok(p[0], p[1]) or self._is_danger(p[0], p[1]) or mp.near_tele(p[0], p[1], 3):
                         continue
-                    d = max(abs(p[0] - x), abs(p[1] - y))
+                    d = max(abs(p[0] - x), abs(p[1] - y)) - (60 if k in mobs else 0)  # primero donde vi bichos sin probar
                     if best is None or d < best[0]:
                         best = (d, k, p)
             if not best:
