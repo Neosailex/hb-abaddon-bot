@@ -206,7 +206,7 @@
    ],
    "alt_maps": [],
    "need": {
-    "VIT": 60
+    "VIT": 50
    }
   },
   {
@@ -237,7 +237,8 @@
     "Promiseland"
    ],
    "need": {
-    "VIT": 70
+    "VIT": 50,
+    "STR": 90
    }
   },
   {
@@ -296,7 +297,8 @@
     "Long Sword"
    ],
    "need": {
-    "VIT": 100
+    "VIT": 80,
+    "STR": 130
    }
   },
   {
@@ -371,7 +373,7 @@
     "Long Sword 100%"
    ],
    "need": {
-    "VIT": 180
+    "VIT": 160
    }
   }
  ],
