@@ -2847,8 +2847,8 @@ class Bot:
             x1, y1, x2, y2 = zn["rect"]
             cr = crs.get(zn.get("type"))
             if cr:
-                # ¿lo puedo enfrentar? que no me saque más del 6% de la vida por golpe y que le pueda acertar
-                if cr["dmg_avg"] > float(self.cfg.get("mob_dmg_share", 0.06)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl:
+                # ¿lo puedo enfrentar? que no me saque más del 4% de la vida por golpe y que le pueda acertar
+                if cr["dmg_avg"] > float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl:
                     continue
                 zn = dict(zn, min_level=cr["exp_dice"], hp=cr["hp"], dmg=cr["dmg_avg"])
             elif zn.get("min_level", 80) > lvl - int(self.cfg.get("mob_level_margin", 4)):

@@ -1,1 +1,1 @@
-{"version": 84, "notes": "Arreglo: si algo tapa el botón Restart (el minimapa) lo corre y revive; cuenta bien las muertes. Eternal Field recién con VIT 50."}
+{"version": 85, "notes": "Más conservador al elegir bicho: su golpe promedio no puede pasar el 4% de la vida del pj (antes 6%)."}
