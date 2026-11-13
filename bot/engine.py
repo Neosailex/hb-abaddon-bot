@@ -609,7 +609,30 @@ class Bot:
         return max(8, int(t.get("w", 32))), max(8, int(t.get("h", 32)))
 
     # ----------------------------------------------------------------- tick
+    def _town_account(self):
+        """Lleva la cuenta de cuánto tiempo se va en mandados (tiendas, ir y volver del pueblo) por minuto."""
+        now = time.time()
+        dt = min(2.0, max(0.0, now - getattr(self, "_bud_last", now)))
+        self._bud_last = now
+        m = (self.pos.get("map") or "").lower()
+        if (getattr(self, "_busy_ui", False) or getattr(self, "mission", None) or getattr(self, "_err_v", None)
+                or any(k in m for k in ("shop", "blacksmith"))):
+            b = getattr(self, "_bud", None)
+            if b is None:
+                b = self._bud = {}
+            k = int(now // 60)
+            b[k] = b.get(k, 0.0) + dt
+            for old in [x for x in b if x < k - 60]:
+                del b[old]
+
+    def _town_budget_left(self):
+        """Segundos de mandados que me quedan en la última hora (regla: 90% cazando, 10% en el pueblo)."""
+        k = int(time.time() // 60)
+        used = sum(v for x, v in (getattr(self, "_bud", None) or {}).items() if x >= k - 60)
+        return 3600.0 * float(self.cfg.get("town_share", 0.10)) - used
+
     def _tick(self):
+        self._town_account()
         if getattr(self, "_busy_ui", False):
             # otro hilo está usando ventanas del juego (comprando): no tocar nada
             self.stats["state"] = "comprando"
@@ -2128,10 +2151,10 @@ class Bot:
                     v = "el equipo está por romperse"
                 elif now - getattr(self, "_gear_last", 0) > 45 * 60:
                     d = self._gear_state()
-                    if d and d["buy"]:
-                        v = "ya puedo comprar " + ", ".join(b["name"] for b in d["buy"][:2])
-                    elif d and d["free"] < 3 and d["sell"]:
+                    if d and d["free"] < 3 and d["sell"]:
                         v = "tengo el bolso lleno"
+                    elif d and d["buy"] and (in_town or self._town_budget_left() > 240):
+                        v = "ya puedo comprar " + ", ".join(b["name"] for b in d["buy"][:2])
             if v and not in_town:
                 self._err_hold = 0
                 if v != getattr(self, "_err_said", None):
@@ -2963,9 +2986,10 @@ class Bot:
             return
         now = time.time()
         if not hasattr(self, "_rep_last"):
-            self._rep_last = now - self.cfg.get("repair_every_min", 60) * 60 + 600  # primera pasada a los 10 min
+            self._rep_last = now - self.cfg.get("repair_every_min", 180) * 60 + 600  # primera pasada a los 10 min
         stalled = len([t for t in getattr(self, "_nokill", []) if now - t < 240]) >= 5 and now - getattr(self, "_last_kill_t", 0) > 150
-        due = now - self._rep_last > self.cfg.get("repair_every_min", 60) * 60
+        # reparar "por las dudas" cada tanto solo si sobra tiempo de pueblo; lo urgente es el desgaste real (abajo)
+        due = now - self._rep_last > self.cfg.get("repair_every_min", 180) * 60 and self._town_budget_left() > 240
         if not due and now - self._rep_last > 300 and now - getattr(self, "_worn_t", 0) > 30:
             self._worn_t = now
             due = self._worn_out()
@@ -3010,7 +3034,7 @@ class Bot:
                 time.sleep(0.1)
             if not inside:
                 self.log("🔧 No llegué al herrero.")
-                self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+                self._rep_last = time.time() - self.cfg.get("repair_every_min", 180) * 60 + 600
                 return
             self._busy_ui = True
             self._release()
@@ -3026,13 +3050,13 @@ class Bot:
             time.sleep(1.0)
             if not (abs((self.pos.get("x") or 0) - 47) <= 1 and abs((self.pos.get("y") or 0) - 35) <= 1):
                 self.log(f"🔧 No pude acercarme al herrero (quedé en {self.pos.get('x')},{self.pos.get('y')}).")
-                self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+                self._rep_last = time.time() - self.cfg.get("repair_every_min", 180) * 60 + 600
                 return
             dx, dy = (self.pos.get("x") - 47) * 64, (self.pos.get("y") - 35) * 64
             kp = self._find_keeper(745 - dx, 345 - dy)
             if not kp:
                 self.log("🔧 No encontré al herrero. Pruebo más tarde.")
-                self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+                self._rep_last = time.time() - self.cfg.get("repair_every_min", 180) * 60 + 600
                 return
             before = (self.pos.get("x"), self.pos.get("y"))
             worn0 = sum(i["max"] - i["dur"] for i in (self._inv_mem() or []) if i["max"] >= 100)
@@ -3042,7 +3066,7 @@ class Bot:
                 kp = self._find_keeper(kp[0], kp[1])
                 if not kp:
                     self.log("🔧 No pude hablarle al herrero. Pruebo más tarde.")
-                    self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+                    self._rep_last = time.time() - self.cfg.get("repair_every_min", 180) * 60 + 600
                     return
                 winapi.click(*P(*kp))
                 time.sleep(2.5)
@@ -3056,7 +3080,7 @@ class Bot:
             worn1 = sum(i["max"] - i["dur"] for i in (self._inv_mem() or []) if i["max"] >= 100)
             if worn0 and worn1 >= worn0:
                 self.log("🔧 Fui al herrero pero el equipo sigue gastado: no salió la reparación. Pruebo más tarde.")
-                self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+                self._rep_last = time.time() - self.cfg.get("repair_every_min", 180) * 60 + 600
             else:
                 self.log("🔧 Equipo reparado.")
             self._want_equip = bool(reequip)
@@ -3175,6 +3199,12 @@ class Bot:
             d["equip"] = []
         trip_ok = now - getattr(self, "_gear_last", 0) > self.cfg.get("gear_trip_every_min", 20) * 60
         sell_now = d["sell"] and (d["free"] < 6 or len(d["sell"]) >= 4 or d["buy"])
+        # vender y comprar mejoras no es urgente: solo si no me pasé del 10% de tiempo en el pueblo
+        # (urgente = bolso casi lleno, o poco lugar y pocas pociones: hay que vender para poder comprarlas)
+        sm_ = self._supplies_mem() or {}
+        urgent = d["sell"] and (d["free"] < 3 or (d["free"] < 12 and sm_.get("pot", 99) < int(self.cfg.get("pots_to_leave_town", 10))))
+        if trip_ok and not urgent and self._town_budget_left() < 150:
+            trip_ok = False
         if not d["equip"] and not (trip_ok and (sell_now or d["buy"])):
             return
         if not d["equip"]:
