@@ -1,1 +1,1 @@
-{"version": 76, "notes": "Arreglo importante: en plena pelea dejaba de tomar pociones. Ahora toma desde 60% de vida y verifica por memoria."}
+{"version": 77, "notes": "La escalera de caza pide nivel Y stats (VIT) para cada mapa: no va a morir a mapas que todavía no aguanta."}

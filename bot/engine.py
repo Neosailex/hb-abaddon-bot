@@ -2111,7 +2111,9 @@ class Bot:
             return d
         lvl = int(t.get("my_level", 1))
         path = self._load_json("training_path.json")
-        phases = [ph for ph in path.get("phases", []) if ph["from"] <= lvl]
+        from . import brain as _brain
+        st_ = self._stats_mem()
+        phases = [ph for ph in path.get("phases", []) if _brain.phase_ok(ph, lvl, st_)]
         if not phases:
             return None
         cur = self.pos.get("map") or ""
@@ -2185,7 +2187,7 @@ class Bot:
                 pj = self._load_json("pj.json") or self._load_json("pj.default.json")
                 lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
                 # los mapas de la escalera de caza que ya me tocan por nivel no se frenan por "margen" ni "peligro"
-                exempt = brain.ladder_maps(self._load_json("training_path.json"), lvl)
+                exempt = brain.ladder_maps(self._load_json("training_path.json"), lvl, self._stats_mem())
                 self._avoid_v = brain.avoid_maps(self.db, lvl, getattr(self, "_owned", None) or pj.get("owned", []), self._load_json("tiendas.json"), self.cfg.get("comfort", {}), exempt)
                 # mapas donde me mataron 2 veces seguidas: los dejo descansar (1 hora por muerte) y vuelvo a probar;
                 # también vuelvo si subí 3 niveles

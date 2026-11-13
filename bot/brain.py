@@ -60,8 +60,9 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
     reachable: función nombre_de_mapa -> bool (si el bot sabe llegar). None = solo el mapa actual."""
     level = int(level or 1)
     stats = stats or {}
-    phases = [ph for ph in path.get("phases", []) if ph["from"] <= level]
-    ideal = phases[-1] if phases else None
+    by_level = [ph for ph in path.get("phases", []) if ph["from"] <= level]
+    phases = [ph for ph in by_level if phase_ok(ph, level, stats)]
+    ideal = by_level[-1] if by_level else None
     can = reachable or (lambda n: bool(current_map) and n.lower() == current_map.lower())
     hunt_map, hunt_phase = None, None
     for ph in reversed(phases):
@@ -95,7 +96,10 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
         im = ideal["maps"][0].split(" (")[0]
         nxt = next((ph for ph in path.get("phases", []) if ph["from"] > level), None)
         after = f" A nivel {nxt['from']} paso a {nxt['maps'][0].split(' (')[0]}." if nxt else ""
-        if hunt_map and hunt_map.lower() == im.lower():
+        lack = [f"{k} {v} (tengo {stats.get(k, 0)})" for k, v in (ideal.get("need") or {}).items() if stats and stats.get(k, 0) < v]
+        if lack:
+            lines.append(f"Nivel {level} → por nivel me toca {im} ({', '.join(ideal['monsters'][:3])}), pero ahí hace falta {', '.join(lack)}: con menos me matan en segundos. Hasta llegar cazo en {hunt_map or current_map or '?'} y los puntos van a eso.")
+        elif hunt_map and hunt_map.lower() == im.lower():
             lines.append(f"Nivel {level} → cazo {', '.join(ideal['monsters'][:3])} → en {hunt_map}.{after}")
         else:
             lines.append(f"Nivel {level} → me toca {im} ({', '.join(ideal['monsters'][:3])}), pero ahora no puedo ir (me mataron ahí hace poco o no conozco el camino). Mientras tanto cazo en {hunt_map or current_map or '?'}.{after}")
@@ -174,10 +178,19 @@ def avoid_maps(db, level, owned, cat, cfg=None, exempt=()):
     return sorted(out)
 
 
-def ladder_maps(path, level):
-    """Mapas de la escalera de caza que ya me tocan por nivel (los de mi tramo y los anteriores)."""
+def phase_ok(ph, level, stats):
+    """¿Ya me da el nivel y los stats para este tramo de la escalera?"""
+    if ph["from"] > int(level or 1):
+        return False
+    if not stats:
+        return True
+    return all((stats or {}).get(k, 0) >= v for k, v in (ph.get("need") or {}).items())
+
+
+def ladder_maps(path, level, stats=None):
+    """Mapas de la escalera de caza que ya me tocan por nivel y stats (los de mi tramo y los anteriores)."""
     out = set()
     for ph in path.get("phases", []):
-        if ph["from"] <= int(level or 1):
+        if phase_ok(ph, level, stats):
             out.update(m.split(" (")[0].lower() for m in ph["maps"])
     return out

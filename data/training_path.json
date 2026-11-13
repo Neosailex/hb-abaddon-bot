@@ -145,7 +145,10 @@
    "alt_maps": [
     "Aresien Garden",
     "Aresden Dungeon (entrada)"
-   ]
+   ],
+   "need": {
+    "VIT": 40
+   }
   },
   {
    "from": 30,
@@ -173,7 +176,10 @@
    "alt_maps": [
     "Silent Wood",
     "Middleland Mine"
-   ]
+   ],
+   "need": {
+    "VIT": 50
+   }
   },
   {
    "from": 40,
@@ -198,7 +204,10 @@
    "skills": [
     "Long Sword"
    ],
-   "alt_maps": []
+   "alt_maps": [],
+   "need": {
+    "VIT": 60
+   }
   },
   {
    "from": 50,
@@ -226,7 +235,10 @@
    ],
    "alt_maps": [
     "Promiseland"
-   ]
+   ],
+   "need": {
+    "VIT": 70
+   }
   },
   {
    "from": 60,
@@ -254,7 +266,10 @@
    ],
    "alt_maps": [
     "Icebound"
-   ]
+   ],
+   "need": {
+    "VIT": 80
+   }
   },
   {
    "from": 80,
@@ -279,7 +294,10 @@
    },
    "skills": [
     "Long Sword"
-   ]
+   ],
+   "need": {
+    "VIT": 100
+   }
   },
   {
    "from": 100,
@@ -303,7 +321,10 @@
    },
    "skills": [
     "Long Sword"
-   ]
+   ],
+   "need": {
+    "VIT": 120
+   }
   },
   {
    "from": 140,
@@ -326,7 +347,10 @@
    },
    "skills": [
     "Long Sword"
-   ]
+   ],
+   "need": {
+    "VIT": 160
+   }
   },
   {
    "from": 180,
@@ -345,7 +369,10 @@
    },
    "skills": [
     "Long Sword 100%"
-   ]
+   ],
+   "need": {
+    "VIT": 180
+   }
   }
  ],
  "weapons": [
@@ -2940,5 +2967,6 @@
    "text": "DEX llega a 200: Acierto y defensa"
   }
  ],
- "note_ladder": "Escalera de caza: por cada tramo de nivel, 'maps' va en orden de preferencia (el primero es el objetivo; los siguientes son a dónde bajar si en el primero me matan). 'alt_maps' son alternativas de la guía que el bot no usa solo."
+ "note_ladder": "Escalera de caza: por cada tramo de nivel, 'maps' va en orden de preferencia (el primero es el objetivo; los siguientes son a dónde bajar si en el primero me matan). 'alt_maps' son alternativas de la guía que el bot no usa solo.",
+ "note_need": "'need' = stats mínimos para pisar los mapas de ese tramo (probado en el server: con VIT 27 y nivel 38, Eternal Field y Middleland Dungeon matan en segundos aun tomando pociones). Si no los tengo, cazo en el tramo anterior."
 }
