@@ -137,7 +137,9 @@ def avoid_maps(db, level, owned, cat, cfg=None):
     out = set()
     for m in db.get("maps", []):
         name = m["name"].lower()
-        if level < _min_level(m.get("level", "")) + cfg.get("margin", 0):
+        ml = _min_level(m.get("level", ""))
+        # un mapa "30+" no es para ir recién cumplidos los 30: pido unos niveles de margen
+        if ml and level < ml + cfg.get("margin", 10):
             out.add(name)
     if not (level >= cfg.get("pvp_level", 60) and full):
         out.update(PVP)
