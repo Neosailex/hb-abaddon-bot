@@ -1,1 +1,1 @@
-{"version": 72, "notes": "Si la ventana de puntos queda fuera de la pantalla la recupera sola."}
+{"version": 73, "notes": "Escalera de caza por nivel (mapa y zona), vuelve al pueblo solo para mandados (pociones, reparar, comprar mejoras, vender) y sale de nuevo."}

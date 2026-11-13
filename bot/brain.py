@@ -93,10 +93,12 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
     lines = []
     if ideal:
         im = ideal["maps"][0].split(" (")[0]
-        if hunt_map and hunt_phase is ideal:
-            lines.append(f"Nivel {level}: me toca {hunt_map} ({', '.join(ideal['monsters'][:3])}).")
+        nxt = next((ph for ph in path.get("phases", []) if ph["from"] > level), None)
+        after = f" A nivel {nxt['from']} paso a {nxt['maps'][0].split(' (')[0]}." if nxt else ""
+        if hunt_map and hunt_map.lower() == im.lower():
+            lines.append(f"Nivel {level} → cazo {', '.join(ideal['monsters'][:3])} → en {hunt_map}.{after}")
         else:
-            lines.append(f"Nivel {level}: me tocaría {im} ({', '.join(ideal['monsters'][:3])}), pero todavía es peligroso o no conozco el camino. Cazo en {hunt_map or current_map or '?'} mientras tanto.")
+            lines.append(f"Nivel {level} → me toca {im} ({', '.join(ideal['monsters'][:3])}), pero ahora no puedo ir (me mataron ahí hace poco o no conozco el camino). Mientras tanto cazo en {hunt_map or current_map or '?'}.{after}")
     if gold is not None:
         lines.append(f"Tengo {gold} de oro.")
     for it in buy_now:
@@ -145,7 +147,7 @@ def allowed_danger(level, cfg=None):
     return 5
 
 
-def avoid_maps(db, level, owned, cat, cfg=None):
+def avoid_maps(db, level, owned, cat, cfg=None, exempt=()):
     """Mapas a los que todavía no conviene ir. No hay mapas prohibidos: cada uno se abre cuando el pj
     tiene el nivel y el equipo para estar cómodo (los de PvP y los del otro reino piden más)."""
     cfg = cfg or {}
@@ -158,15 +160,24 @@ def avoid_maps(db, level, owned, cat, cfg=None):
         name = m["name"].lower()
         ml = _min_level(m.get("level", ""))
         # un mapa "30+" no es para ir recién cumplidos los 30: pido unos niveles de margen
-        if ml and level < ml + cfg.get("margin", 10):
+        if ml and level < ml + cfg.get("margin", 10) and name not in exempt:
             out.add(name)
     # mapas con bichos demasiado bravos para mi nivel
     lim = allowed_danger(level, cfg)
     for m in db.get("maps", []):
-        if map_danger(db, m["name"]) > lim:
+        if map_danger(db, m["name"]) > lim and m["name"].lower() not in exempt:
             out.add(m["name"].lower())
     if not (level >= cfg.get("pvp_level", 60) and full):
         out.update(PVP)
     if not (level >= cfg.get("enemy_level", 100) and full):
         out.update(ENEMY)
     return sorted(out)
+
+
+def ladder_maps(path, level):
+    """Mapas de la escalera de caza que ya me tocan por nivel (los de mi tramo y los anteriores)."""
+    out = set()
+    for ph in path.get("phases", []):
+        if ph["from"] <= int(level or 1):
+            out.update(m.split(" (")[0].lower() for m in ph["maps"])
+    return out

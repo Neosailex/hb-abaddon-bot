@@ -97,7 +97,7 @@
    "to": 19,
    "maps": [
     "Aresden Farm",
-    "Aresden City (afueras)"
+    "Aresden City"
    ],
    "monsters": [
     "Giant Ant",
@@ -115,15 +115,14 @@
     "Long Sword",
     "Shield",
     "Poison Resistance"
-   ]
+   ],
+   "alt_maps": []
   },
   {
    "from": 20,
    "to": 29,
    "maps": [
-    "Eternal Field",
-    "Aresien Garden",
-    "Aresden Dungeon (entrada)"
+    "Eternal Field"
    ],
    "monsters": [
     "Skeleton",
@@ -142,6 +141,10 @@
     "Long Sword",
     "Shield",
     "Magic Resistance"
+   ],
+   "alt_maps": [
+    "Aresien Garden",
+    "Aresden Dungeon (entrada)"
    ]
   },
   {
@@ -149,8 +152,7 @@
    "to": 39,
    "maps": [
     "Middleland Dungeon",
-    "Silent Wood",
-    "Middleland Mine"
+    "Eternal Field"
    ],
    "monsters": [
     "Clay Golem",
@@ -167,14 +169,19 @@
    },
    "skills": [
     "Long Sword"
+   ],
+   "alt_maps": [
+    "Silent Wood",
+    "Middleland Mine"
    ]
   },
   {
    "from": 40,
    "to": 49,
    "maps": [
+    "Aresden Dungeon",
     "Dungeon L2",
-    "Aresden Dungeon"
+    "Middleland Dungeon"
    ],
    "monsters": [
     "Cyclops",
@@ -190,14 +197,15 @@
    },
    "skills": [
     "Long Sword"
-   ]
+   ],
+   "alt_maps": []
   },
   {
    "from": 50,
    "to": 59,
    "maps": [
     "Dungeon L3",
-    "Promiseland",
+    "Dungeon L2",
     "Aresden Dungeon"
    ],
    "monsters": [
@@ -215,6 +223,9 @@
    },
    "skills": [
     "Long Sword"
+   ],
+   "alt_maps": [
+    "Promiseland"
    ]
   },
   {
@@ -222,8 +233,7 @@
    "to": 79,
    "maps": [
     "Silent Wood",
-    "Dungeon L3",
-    "Icebound"
+    "Dungeon L3"
    ],
    "monsters": [
     "Ogre",
@@ -241,6 +251,9 @@
    },
    "skills": [
     "Long Sword"
+   ],
+   "alt_maps": [
+    "Icebound"
    ]
   },
   {
@@ -2926,5 +2939,6 @@
    "level": 175,
    "text": "DEX llega a 200: Acierto y defensa"
   }
- ]
+ ],
+ "note_ladder": "Escalera de caza: por cada tramo de nivel, 'maps' va en orden de preferencia (el primero es el objetivo; los siguientes son a dónde bajar si en el primero me matan). 'alt_maps' son alternativas de la guía que el bot no usa solo."
 }

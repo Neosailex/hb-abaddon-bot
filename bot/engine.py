@@ -783,7 +783,7 @@ class Bot:
                 self.world.save()
                 self._avoid_t = 0
                 if dm["n"] >= 2:
-                    self.log(f"☠ Dos muertes seguidas en {self.pos.get('map')}: no vuelvo hasta subir {self.cfg.get('retry_map_levels', 4)} niveles o mejorar el equipo.")
+                    self.log(f"☠ {dm['n']} muertes seguidas en {self.pos.get('map')}: lo dejo por {dm['n']} hora(s) (o hasta subir 3 niveles) y mientras cazo un escalón más abajo.")
             except Exception:
                 pass
         # botón "Restart" (abajo a la derecha, donde sale Level Up)
@@ -849,7 +849,7 @@ class Bot:
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()
             tt = (self.target or {}).get("etype")
-            if tt is not None and tt not in set(cfg.get("easy_types", [240])):
+            if False and tt is not None:
                 # una sola huida no alcanza (capaz me pegaba otro): lo esquivo recién si me pasa dos veces seguidas
                 hard = self.world.learn.setdefault("hard_types", {})
                 h = hard.get(str(tt))
@@ -2090,6 +2090,8 @@ class Bot:
         if not phases:
             return None
         cur = self.pos.get("map") or ""
+        if self._errand_due():
+            return "Aresden Farm"  # mandados (comprar, vender, reparar, provisiones): se hacen desde la Farm
         avoid = self._avoid()
         # el mapa ideal para mi nivel si sé llegar; si no, el de la etapa anterior que conozco
         for i, ph in enumerate(reversed(phases)):
@@ -2104,6 +2106,48 @@ class Bot:
         self.nav["want"] = phases[-1]["maps"][0].split(" (")[0]
         return phases[-1]["maps"][0].split(" (")[0]
 
+    def _errand_due(self):
+        """Motivo para volver al pueblo (o None). Se recalcula cada 15 s. Solo vuelvo por algo que valga el viaje."""
+        now = time.time()
+        if now - getattr(self, "_err_t", 0) < 15:
+            return getattr(self, "_err_v", None)
+        self._err_t = now
+        v = None
+        try:
+            cur = self.pos.get("map") or ""
+            in_town = any(self._same(cur, n) for n in ("Aresden Farm", "Aresden City"))
+            if cur and now > getattr(self, "_err_block", 0):
+                sm = self._supplies_mem()
+                if sm and sm["pot"] <= int(self.cfg.get("buy_pots_below", 3)) and now - getattr(self, "_shop_last", 0) > 900:
+                    v = "me quedé sin pociones"
+                elif sm and sm["meat"] <= int(self.cfg.get("buy_meat_below", 1)) and now - getattr(self, "_shop_last", 0) > 900:
+                    v = "me quedé sin comida"
+                elif self._worn_out() and now - getattr(self, "_rep_last", 0) > 600:
+                    v = "el equipo está por romperse"
+                elif now - getattr(self, "_gear_last", 0) > 45 * 60:
+                    d = self._gear_state()
+                    if d and d["buy"]:
+                        v = "ya puedo comprar " + ", ".join(b["name"] for b in d["buy"][:2])
+                    elif d and d["free"] < 3 and d["sell"]:
+                        v = "tengo el bolso lleno"
+            if v and not in_town:
+                self._err_hold = 0
+                if v != getattr(self, "_err_said", None):
+                    self._err_said = v
+                    self.log(f"🏠 Vuelvo al pueblo: {v}.")
+            elif v and in_town:
+                if not getattr(self, "_err_hold", 0):
+                    self._err_hold = now + 600  # ya en el pueblo: 10 minutos para hacer el mandado
+                elif now > self._err_hold:
+                    # no se pudo resolver: no me quedo dando vueltas, vuelvo a cazar y pruebo más tarde
+                    self._err_hold, self._err_block, v = 0, now + 45 * 60, None
+            else:
+                self._err_hold, self._err_said = 0, None
+        except Exception:
+            v = None
+        self._err_v = v
+        return v
+
     def _avoid(self):
         """Mapas que todavía no me conviene pisar según nivel y equipo (se recalcula cada minuto)."""
         now = time.time()
@@ -2112,10 +2156,14 @@ class Bot:
                 from . import brain
                 pj = self._load_json("pj.json") or self._load_json("pj.default.json")
                 lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
-                self._avoid_v = brain.avoid_maps(self.db, lvl, getattr(self, "_owned", None) or pj.get("owned", []), self._load_json("tiendas.json"), self.cfg.get("comfort", {}))
-                # mapas donde me mataron 2 veces: no vuelvo hasta subir unos niveles
+                # los mapas de la escalera de caza que ya me tocan por nivel no se frenan por "margen" ni "peligro"
+                exempt = brain.ladder_maps(self._load_json("training_path.json"), lvl)
+                self._avoid_v = brain.avoid_maps(self.db, lvl, getattr(self, "_owned", None) or pj.get("owned", []), self._load_json("tiendas.json"), self.cfg.get("comfort", {}), exempt)
+                # mapas donde me mataron 2 veces seguidas: los dejo descansar (1 hora por muerte) y vuelvo a probar;
+                # también vuelvo si subí 3 niveles
                 for mk, dm in self.world.learn.get("deaths", {}).items():
-                    if dm.get("n", 0) >= 2 and lvl < dm.get("lvl", 0) + self.cfg.get("retry_map_levels", 4):
+                    n = dm.get("n", 0)
+                    if n >= 2 and lvl < dm.get("lvl", 0) + 3 and now - dm.get("t", 0) < 3600 * n:
                         if mk not in self._avoid_v:
                             self._avoid_v.append(mk)
             except Exception:
@@ -3630,13 +3678,8 @@ class Bot:
         return None
 
     def _mon_ok(self, e):
-        """¿Le puedo pegar a este bicho? (no a los que ya me hicieron huir con este nivel)"""
-        h = self.world.learn.get("hard_types", {}).get(str(e[5]))
-        if not isinstance(h, dict):
-            return True
-        if h.get("n", 0) < 2 or time.time() - h.get("t", 0) > 2700:
-            return True
-        return int(self.cfg.get("travel", {}).get("my_level", 1)) >= h.get("lv", 0) + 3
+        """¿Le puedo pegar a este bicho? (el dato que leo de la memoria es su animación, no su especie: no sirve para vetar)"""
+        return True
 
     def _mem_near(self):
         ents = self.ents.read(self.mem.proc)

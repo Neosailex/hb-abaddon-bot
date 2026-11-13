@@ -55,3 +55,6 @@ Pena de muerte: no figura.
 - Listas completas de Shop y Blacksmith en data/listas_tiendas.json; una foto de cada fila en bot/assets/rows (se busca la fila por foto, nunca por posición).
 - Vender: menú Sell del vendedor -> arrastrar cada item al cartel -> botón Sell. Sin el cartel abierto NO arrastrar (el item cae al piso).
 - Si el bot huye, anota el tipo de bicho; solo lo esquiva si huyó 2 veces en 30 min, y por 45 min (antes una sola huida lo vetaba 5 niveles y dejó de cazar).
+- OJO: el campo +180 de cada bicho en la lista de memoria NO es la especie: es la animación (240 = quieto, 63 = muriendo...). +176 es la acción. La especie no está en ese registro; por eso no se puede elegir "tal bicho" por memoria, se elige por mapa y zona.
+- Escalera de caza: training_path.json -> phases[].maps en orden de preferencia. Esos mapas no se frenan por margen/peligro; solo por muertes (2 seguidas = 1 hora por muerte, o hasta subir 3 niveles).
+- Mandados: estando lejos, vuelve a Aresden Farm solo si se quedó sin pociones/comida, el equipo está por romperse, puede comprar una mejora o tiene el bolso lleno.
