@@ -1,1 +1,1 @@
-{"version": 77, "notes": "La escalera de caza pide nivel Y stats (VIT) para cada mapa: no va a morir a mapas que todavía no aguanta."}
+{"version": 78, "notes": "Caza por zonas según experiencia por bicho: deja los slimes cuando encuentra algo que rinde más y explora el mapa para encontrarlo."}

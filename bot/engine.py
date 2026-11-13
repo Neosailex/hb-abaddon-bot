@@ -700,6 +700,8 @@ class Bot:
         if focused and self.state != "seek":
             self._release()
             self.state, self.target = "seek", None
+        if mem_ok and not in_building and not focused and self._zone_step():
+            return
         if mem_ok and not in_building and not focused:
             if self.state in ("attack", "loot") or self._mem_near():
                 self._auto()
@@ -2660,6 +2662,144 @@ class Bot:
         mk = (self.pos.get("map") or "").strip().lower()
         return self.world.learn.setdefault("spots", {}).setdefault(mk, [])
 
+    # ---------- zonas por experiencia: cuánto rinde cada parte del mapa (los bichos fuertes dan más) ----------
+    ZC = 14  # tamaño de una zona, en baldosas
+
+    def _exp_mem(self):
+        try:
+            if self.mem.learned and self.mem.addr[0] == "i16":
+                d = self.mem.proc.read(self.mem.addr[1] + 76, 4)
+                if d:
+                    return int.from_bytes(d, "little", signed=True)
+        except Exception:
+            pass
+        return None
+
+    def _zone_kill(self):
+        """Al matar anoto cuánta experiencia dio y dónde: así sé qué zonas tienen bichos que rinden más que los slimes."""
+        try:
+            e1, e0 = self._exp_mem(), getattr(self, "_exp_t0", None)
+            self._exp_t0 = e1
+            x, y = self.pos.get("x"), self.pos.get("y")
+            if e0 is None or e1 is None or x is None or not self.pos.get("map"):
+                return
+            d = e1 - e0
+            if d <= 0 or d > 500000:
+                return
+            z = self.world.learn.setdefault("xpz", {}).setdefault(self.pos["map"].strip().lower(), {})
+            e = z.setdefault(f"{x // self.ZC},{y // self.ZC}", {"n": 0, "xp": 0.0, "x": x, "y": y})
+            e["n"] = min(e["n"] + 1, 40)
+            a = 1.0 / e["n"] if e["n"] < 8 else 0.15
+            e["xp"] += (d - e["xp"]) * a
+            e["x"] += (x - e["x"]) * 0.3
+            e["y"] += (y - e["y"]) * 0.3
+            e["t"] = int(time.time())
+        except Exception:
+            pass
+
+    def _zone_step(self):
+        """Elige dónde cazar dentro del mapa por experiencia por bicho: deja las zonas pobres (slimes) por las que
+        rinden más, y cada tanto explora partes nuevas del mapa para encontrarlas. True = estoy caminando por esto."""
+        if not self.cfg.get("zone_hunt", True) or self.state != "seek":
+            return False
+        if getattr(self, "mission", None) or self._fleeing() or self._attacked_recently():
+            return False
+        cur, x, y = self.pos.get("map") or "", self.pos.get("x"), self.pos.get("y")
+        if not cur or x is None or time.time() - self.pos.get("t", 0) > 5:
+            return False
+        dest = self.travel_dest()
+        if not dest or not self._same(cur, dest):
+            return False
+        mp = self.world.map_for(cur)
+        if not mp:
+            return False
+        now, mk, ZC = time.time(), cur.strip().lower(), self.ZC
+        z = self.world.learn.get("xpz", {}).get(mk, {})
+        seen = self.world.learn.setdefault("xpz_seen", {}).setdefault(mk, [])
+        ck = f"{x // ZC},{y // ZC}"
+        if ck not in seen:
+            seen.append(ck)
+        known = {k: v for k, v in z.items() if v.get("n", 0) >= 3 and not self._is_danger(int(v["x"]), int(v["y"]))}
+        if not known:
+            return False
+        base = min(v["xp"] for v in known.values())
+        empty = getattr(self, "_zone_empty", None)
+        if empty is None:
+            empty = self._zone_empty = {}
+        good = [(k, v) for k, v in known.items() if empty.get(mk + k, 0) < now]
+        best_k, best = max(good, key=lambda kv: kv[1]["xp"]) if good else (None, None)
+        curz = known.get(ck)
+        scouting = getattr(self, "_scout_until", 0) > now
+        # ¿toca explorar? Solo mientras no conozca ninguna zona claramente mejor que la más floja
+        top = max(v["xp"] for v in known.values())
+        if (not scouting and top < 1.8 * base and self._town_budget_left() > 0
+                and now - getattr(self, "_scout_last", 0) > self.cfg.get("scout_every_min", 40) * 60):
+            self._scout_last = now
+            self._scout_until = now + self.cfg.get("scout_minutes", 4) * 60
+            self._scout_goal = None
+            scouting = True
+            self.log(f"🔭 Acá los bichos dan poca experiencia (~{int(base)} por bicho): exploro {self.cfg.get('scout_minutes', 4)} minutos el mapa buscando algo que rinda más.")
+        if curz is None:
+            # zona sin medir: si hay bichos los mato para saber cuánto dan; si no, sigo explorando
+            if scouting and not self._mem_near():
+                return self._scout_walk(mp, seen, x, y)
+            return False
+        if scouting and curz["xp"] >= 1.5 * base:
+            self._scout_until = 0
+            scouting = False
+            self.log(f"🔭 Encontré una zona mejor: ~{int(curz['xp'])} de experiencia por bicho (los de antes daban ~{int(base)}). Me quedo cazando acá.")
+        if scouting:
+            return self._scout_walk(mp, seen, x, y)
+        if best is None or curz["xp"] >= 0.7 * best["xp"]:
+            # estoy en una zona que rinde: si se quedó sin bichos, la dejo descansar un rato
+            if self._mem_near():
+                self._zone_idle = now
+            elif now - getattr(self, "_zone_idle", now) > 45:
+                empty[mk + ck] = now + 180
+                self._zone_idle = now
+            return False
+        if best["xp"] >= 1.4 * curz["xp"]:
+            g = (int(best["x"]), int(best["y"]))
+            if max(abs(g[0] - x), abs(g[1] - y)) <= 4:
+                empty[mk + best_k] = now + 180  # llegué y no hay nada
+                return False
+            if now - getattr(self, "_zone_said", 0) > 180:
+                self._zone_said = now
+                self.log(f"🎯 Voy a la zona que más rinde: ~{int(best['xp'])} de exp por bicho (acá ~{int(curz['xp'])}).")
+            self._walk_to(mp, g, f"zona que rinde más (~{int(best['xp'])} exp por bicho)")
+            self.stats["state"] = "yendo a mejor zona"
+            return True
+        return False
+
+    def _scout_walk(self, mp, seen, x, y):
+        """Camina hacia la zona sin visitar más cercana. False si no queda nada por explorar."""
+        now, ZC = time.time(), self.ZC
+        g = getattr(self, "_scout_goal", None)
+        if g and (g[0] in seen or now - g[2] > 50):
+            if g[0] not in seen:
+                seen.append(g[0])  # no pude llegar: no insisto
+            g = None
+        if not g:
+            best = None
+            for cx in range(0, mp.w // ZC + 1):
+                for cy in range(0, mp.h // ZC + 1):
+                    k = f"{cx},{cy}"
+                    if k in seen:
+                        continue
+                    p = mp.nearest_walkable(cx * ZC + ZC // 2, cy * ZC + ZC // 2, r=5)
+                    if not p or not mp.ok(p[0], p[1]) or self._is_danger(p[0], p[1]) or mp.near_tele(p[0], p[1], 3):
+                        continue
+                    d = max(abs(p[0] - x), abs(p[1] - y))
+                    if best is None or d < best[0]:
+                        best = (d, k, p)
+            if not best:
+                self._scout_until = 0
+                return False
+            g = self._scout_goal = (best[1], best[2], now)
+        self._walk_to(mp, g[1], "explorando zonas nuevas")
+        self.stats["state"] = "explorando"
+        return True
+
     def _spot_kill(self, w=1):
         """Anota dónde maté: así aprende dónde salen los bichos (los 'pits')."""
         x, y = self.pos.get("x"), self.pos.get("y")
@@ -3791,7 +3931,8 @@ class Bot:
                     if self.stats["kills"] % 5 == 0:
                         self.world.save()
                 self._last_enemy = now
-                self._spot_kill(1 if t.get("etype") in set(self.cfg.get("easy_types", [240])) else 3)
+                self._spot_kill(1)
+                self._zone_kill()
                 self.loot_pos, self.loot_at = (t["x"], t["y"]), now + self.cfg.get("loot_delay", 2.0)
                 self.state = "loot"
                 self.stats["state"], self.stats["target"] = "levantando", ""
@@ -3829,6 +3970,7 @@ class Bot:
             self.target, self.state, self._track = m, "attack", None
             self.target_since = self.last_seen_target = self.last_target_found = now
             self._last_enemy = now
+            self._exp_t0 = self._exp_mem()
             self.stats["state"], self.stats["target"] = "atacando", e[2]
             self.nav["walking"] = False
             self._hold_on(m["x"], m["y"])
