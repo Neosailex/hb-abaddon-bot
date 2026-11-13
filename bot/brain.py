@@ -183,7 +183,7 @@ def phase_ok(ph, level, stats):
     if ph["from"] > int(level or 1):
         return False
     if not stats:
-        return True
+        return not ph.get("need")  # sin poder leer mis stats no me meto en mapas que piden aguante
     return all((stats or {}).get(k, 0) >= v for k, v in (ph.get("need") or {}).items())
 
 

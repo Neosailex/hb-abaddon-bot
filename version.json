@@ -1,1 +1,1 @@
-{"version": 90, "notes": "Auto-login: aprieta el botón Start correcto en la lista de personajes."}
+{"version": 91, "notes": "Después de reconectar encuentra enseguida la memoria del pj y, si no puede leer los stats, no se mete en mapas peligrosos."}

@@ -269,6 +269,19 @@ class PosFinder:
         self.status = "posición exacta desde la memoria"
         self.log(f"🧠 Memoria: encontré dónde guarda el juego tu posición ({k[0]} @ {k[1]:#x}).")
 
+    def _looks_like_pj(self, addr):
+        try:
+            d = self.proc.read(addr, 84)
+            if not d or len(d) < 84:
+                return False
+            i32 = lambda o: int.from_bytes(d[o:o + 4], "little", signed=True)
+            hp, mp, sp, lvl = i32(12), i32(16), i32(20), i32(72)
+            stats = [i32(o) for o in range(32, 56, 4)]
+            return (0 <= hp <= 20000 and 0 <= mp <= 20000 and 0 <= sp <= 20000 and 1 <= lvl <= 400
+                    and all(10 <= v <= 500 for v in stats) and hp + mp + sp > 0)
+        except Exception:
+            return False
+
     def _scan(self, x, y):
         self.scanning = True
         self.status = "buscando en la memoria del juego…"
@@ -276,6 +289,12 @@ class PosFinder:
         t = time.time()
         try:
             res = scan_pairs(self.proc, x, y)
+            # atajo: al lado de la posición del pj están su vida, sus stats y su nivel. Si un solo candidato tiene
+            # todo eso con valores posibles, es ese (así no hace falta caminar para descartar: sirve al reconectar)
+            good = [k for k in res if k[0] == "i16" and self._looks_like_pj(k[1])]
+            if len(good) == 1:
+                self._set(good[0])
+                return
             with self.lock:
                 self.cands = {k: 0 for k in res}
                 self.seen = [(x, y)]
