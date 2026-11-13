@@ -1,1 +1,1 @@
-{"version": 73, "notes": "Escalera de caza por nivel (mapa y zona), vuelve al pueblo solo para mandados (pociones, reparar, comprar mejoras, vender) y sale de nuevo."}
+{"version": 74, "notes": "No sale del pueblo con menos de 10 pociones, vende la comida de más para hacer lugar y compra pociones de a una si no entra la decena."}

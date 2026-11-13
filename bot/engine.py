@@ -2118,7 +2118,9 @@ class Bot:
             in_town = any(self._same(cur, n) for n in ("Aresden Farm", "Aresden City"))
             if cur and now > getattr(self, "_err_block", 0):
                 sm = self._supplies_mem()
-                if sm and sm["pot"] <= int(self.cfg.get("buy_pots_below", 3)) and now - getattr(self, "_shop_last", 0) > 900:
+                if sm and in_town and sm["pot"] < int(self.cfg.get("pots_to_leave_town", 10)):
+                    v = "tengo pocas pociones para salir"
+                elif sm and sm["pot"] <= int(self.cfg.get("buy_pots_below", 3)):
                     v = "me quedé sin pociones"
                 elif sm and sm["meat"] <= int(self.cfg.get("buy_meat_below", 1)) and now - getattr(self, "_shop_last", 0) > 900:
                     v = "me quedé sin comida"
@@ -2138,8 +2140,9 @@ class Bot:
             elif v and in_town:
                 if not getattr(self, "_err_hold", 0):
                     self._err_hold = now + 600  # ya en el pueblo: 10 minutos para hacer el mandado
-                elif now > self._err_hold:
+                elif now > self._err_hold and "pociones" not in v:
                     # no se pudo resolver: no me quedo dando vueltas, vuelvo a cazar y pruebo más tarde
+                    # (sin pociones no salgo: me quedo cazando cerca del pueblo hasta poder comprar)
                     self._err_hold, self._err_block, v = 0, now + 45 * 60, None
             else:
                 self._err_hold, self._err_said = 0, None
@@ -2696,13 +2699,24 @@ class Bot:
             self._left = {"pot": sm["pot"], "meat": sm["meat"]}
         lf = getattr(self, "_left", {})
         need = lf.get("meat", 99) <= self.cfg.get("buy_meat_below", 1) or lf.get("pot", 99) <= self.cfg.get("buy_pots_below", 3)
+        few = lf.get("pot", 99) < int(self.cfg.get("pots_to_leave_town", 10))
+        if few and str(getattr(self, "_err_v", None) or "").startswith(("tengo pocas", "me quedé sin")):
+            need = True
         if not need or getattr(self, "mission", None):
             return
+        # si hay cosas para vender y poco lugar, primero va la vuelta de equipo (libera lugar para las pociones)
+        if sm and self.INV_SLOTS - sm["items"] < 12 and time.time() - getattr(self, "_gear_last", 0) > self.cfg.get("gear_trip_every_min", 20) * 60:
+            try:
+                d = self._gear_state()
+                if d and d["sell"]:
+                    return
+            except Exception:
+                pass
         for a_ in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
             th = getattr(self, a_, None)
             if th is not None and th.is_alive():
                 return
-        if time.time() - getattr(self, "_shop_last", 0) < 900:
+        if time.time() - getattr(self, "_shop_last", 0) < (300 if few else 900):
             return
         if not self._same(self.pos.get("map") or "", "Aresden Farm"):
             return
@@ -3131,6 +3145,11 @@ class Bot:
             buys.append({"name": it["name"], "price": it.get("price", 0), "kind": kind, "id": it.get("id")})
         d["buy"] = buys
         d["free"] = self.INV_SLOTS - len(inv)
+        # la comida de más ocupa el lugar de las pociones: me quedo con unas pocas y vendo el resto
+        meats = [i for i in inv if i["id"] == self.ID_MEAT]
+        keep_m = int(self.cfg.get("meat_keep", 6))
+        if len(meats) > keep_m + 3:
+            d["sell"] += [{"slot": i["slot"], "id": i["id"], "name": "Meat", "why": "comida de más"} for i in meats[keep_m:]]
         return d
 
     def _maybe_gear(self):
@@ -3429,7 +3448,8 @@ class Bot:
                         self.log("🛡 No llegué al herrero.")
                     else:
                         if d["sell"]:
-                            self._sell_items(d["sell"], "smith")
+                            if self._sell_items(d["sell"], "smith"):
+                                self._shop_last = 0  # hay lugar nuevo: que compre pociones enseguida si faltan
                         if smith_buys and self._open_trade("smith"):
                             for b in smith_buys:
                                 bought += bool(self._buy_item(b))
@@ -3557,7 +3577,7 @@ class Bot:
             meat_n, pot_n = int(c.get("meat_tens", 1)), int(c.get("pot_tens", 2))
             sm = self._supplies_mem()
             if sm:
-                free = self.INV_SLOTS - sm["items"] - int(self.cfg.get("bag_free_slots", 8))
+                free = self.INV_SLOTS - sm["items"] - int(self.cfg.get("bag_free_slots", 2))
                 meat_n = 1 if sm["meat"] <= int(self.cfg.get("buy_meat_below", 1)) + 2 else 0
                 pot_n = max(0, min(2, (int(self.cfg.get("pots_target", 20)) - sm["pot"] + 5) // 10))
                 while (meat_n + pot_n) * 10 > max(0, free) and (meat_n + pot_n) > 0:
@@ -3565,14 +3585,22 @@ class Bot:
                         pot_n -= 1
                     else:
                         meat_n -= 1
-                if meat_n + pot_n == 0:
+                # si no entra una decena, compro pociones de a una hasta llenar el lugar que haya
+                pot_1 = 0
+                if pot_n == 0 and sm["pot"] < int(self.cfg.get("pots_target", 20)):
+                    pot_1 = max(0, min(9, free - meat_n * 10, int(self.cfg.get("pots_target", 20)) - sm["pot"]))
+                if meat_n + pot_n + pot_1 == 0:
                     self.log("🛒 No compro provisiones: no hay lugar en el bolso.")
                     self._shop_last = time.time()
                     return
+            else:
+                pot_1 = 0
             if meat_n:
                 steps += [(c.get("meat_row", [272, 421]), 1.2)] + [([361, 431], 0.35)] * meat_n + [([220, 561], 1.4)]
             if pot_n:
                 steps += [(c.get("pot_row", [272, 191]), 1.2)] + [([361, 431], 0.35)] * pot_n + [([220, 561], 1.4)]
+            for _ in range(pot_1):
+                steps += [(c.get("pot_row", [272, 191]), 1.2), ([220, 561], 1.4)]
             p_before = (self.pos.get("x"), self.pos.get("y"))
             for i, ((x, y), w) in enumerate(steps):
                 if not (self.alive and self.running):
