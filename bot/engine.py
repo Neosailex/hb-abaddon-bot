@@ -2760,6 +2760,10 @@ class Bot:
                 mobs.discard(ck)
             except Exception:
                 pass
+        # si conozco dónde sale cada bicho en este mapa (tabla de zonas), voy a la zona del mejor bicho para mi nivel
+        r_ = self._spawn_step(mp, mk, z, x, y)
+        if r_ is not None:
+            return r_
         known = {k: v for k, v in z.items() if v.get("n", 0) >= 3 and not self._is_danger(int(v["x"]), int(v["y"]))}
         if not known:
             return False
@@ -2812,6 +2816,66 @@ class Bot:
             self.stats["state"] = "yendo a mejor zona"
             return True
         return False
+
+    def _spawn_step(self, mp, mk, z, x, y):
+        """Con la tabla de zonas de bichos del mapa: elijo la zona que más rinde entre las de bichos que ya puedo
+        enfrentar (las que todavía no medí valen como "prometedoras": voy y las pruebo). None = no hay tabla."""
+        sp = getattr(self, "_spawns", None)
+        if sp is None:
+            sp = self._spawns = (self._load_json("spawns.json").get("maps") or {})
+        ent = next((v for k, v in sp.items() if self._same(k, self.pos.get("map") or "")), None)
+        if not ent:
+            return None
+        now = time.time()
+        lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        empty = self.__dict__.setdefault("_zone_empty", {})
+        cand, meas = [], []
+        for zn in ent["zones"]:
+            x1, y1, x2, y2 = zn["rect"]
+            if zn.get("min_level", 80) > lvl - int(self.cfg.get("mob_level_margin", 4)):
+                continue
+            c = mp.nearest_walkable((x1 + x2) // 2, (y1 + y2) // 2, r=6)
+            if not c or not mp.ok(c[0], c[1]) or self._is_danger(c[0], c[1]):
+                continue
+            cells = [v for v in z.values() if x1 - 3 <= v["x"] <= x2 + 3 and y1 - 3 <= v["y"] <= y2 + 3]
+            n = sum(v["n"] for v in cells)
+            xp = sum(v["xp"] * v["n"] for v in cells) / n if n >= 5 else None
+            if xp is not None:
+                meas.append(xp)
+            cand.append([xp, zn, c, f"{mk}|{x1},{y1}", xp is not None])
+        if not cand:
+            return None
+        top = max(meas) if meas else 1000.0
+        for c_ in cand:
+            if c_[0] is None:
+                c_[0] = 2.0 * top + c_[1].get("min_level", 0)  # sin medir: prometedora, más cuanto más fuerte el bicho
+        live = [c_ for c_ in cand if empty.get(c_[3], 0) < now] or cand
+        score, zn, ctr, key, measured = max(live, key=lambda c_: c_[0])
+        x1, y1, x2, y2 = zn["rect"]
+        self.stats["hunt_zone"] = f"{zn['mob']} ({ctr[0]},{ctr[1]})"
+        if x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4:
+            if self._mem_near():
+                self._zone_idle = now
+            elif now - getattr(self, "_zone_idle", now) > 40:
+                empty[key] = now + 120  # no queda nada: mientras reaparecen voy a la siguiente
+                self._zone_idle = now
+            elif max(abs(ctr[0] - x), abs(ctr[1] - y)) > 3:
+                self._walk_to(mp, ctr, f"centro de la zona de {zn['mob']}")
+                self.stats["state"] = "buscando en la zona"
+                return True
+            else:
+                self._release()
+                self.stats["state"] = "esperando que salgan bichos"
+                return True
+            return False
+        self._zone_idle = now
+        if getattr(self, "_zone_goal", None) != key:
+            self._zone_goal = key
+            how = f"~{int(score)} de exp por bicho" if measured else "todavía no la probé"
+            self.log(f"🎯 Nivel {lvl} → voy a la zona de {zn['mob']} en ({ctr[0]},{ctr[1]}) [{how}].")
+        self._walk_to(mp, ctr, f"zona de {zn['mob']}")
+        self.stats["state"] = "yendo a zona de caza"
+        return True
 
     def _scout_walk(self, mp, seen, x, y):
         """Camina hacia la zona sin visitar más cercana. False si no queda nada por explorar."""

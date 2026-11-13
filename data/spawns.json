@@ -1,0 +1,2625 @@
+{
+ "source": "Archivos públicos de servidor de Helbreath (spot-mob-generator). En Abaddon puede diferir: el bot lo confirma midiendo la experiencia por bicho.",
+ "maps": {
+  "Promiseland": {
+   "file": "2ndmiddle",
+   "zones": [
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      112,
+      110,
+      139,
+      137
+     ],
+     "max": 15,
+     "min_level": 45
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      38,
+      157,
+      73,
+      173
+     ],
+     "max": 15,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      45,
+      85,
+      66,
+      100
+     ],
+     "max": 15,
+     "min_level": 20
+    },
+    {
+     "mob": "Skeleton",
+     "type": 11,
+     "rect": [
+      81,
+      198,
+      100,
+      210
+     ],
+     "max": 15,
+     "min_level": 25
+    },
+    {
+     "mob": "Skeleton",
+     "type": 11,
+     "rect": [
+      135,
+      70,
+      160,
+      82
+     ],
+     "max": 15,
+     "min_level": 25
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      147,
+      34,
+      158,
+      48
+     ],
+     "max": 20,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      116,
+      201,
+      127,
+      210
+     ],
+     "max": 20,
+     "min_level": 18
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      192,
+      107,
+      217,
+      122
+     ],
+     "max": 15,
+     "min_level": 30
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      192,
+      144,
+      218,
+      162
+     ],
+     "max": 15,
+     "min_level": 35
+    },
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      45,
+      30,
+      67,
+      49
+     ],
+     "max": 20,
+     "min_level": 28
+    },
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      166,
+      190,
+      182,
+      208
+     ],
+     "max": 20,
+     "min_level": 28
+    }
+   ]
+  },
+  "Aresden City": {
+   "file": "aresden",
+   "zones": [
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      106,
+      43,
+      123,
+      55
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      33,
+      167,
+      60,
+      183
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      25,
+      187,
+      48,
+      203
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      132,
+      235,
+      148,
+      252
+     ],
+     "max": 20,
+     "min_level": 30
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      243,
+      191,
+      264,
+      208
+     ],
+     "max": 20,
+     "min_level": 35
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      176,
+      233,
+      196,
+      250
+     ],
+     "max": 20,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      199,
+      225,
+      229,
+      249
+     ],
+     "max": 20,
+     "min_level": 15
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      88,
+      31,
+      117,
+      46
+     ],
+     "max": 20,
+     "min_level": 20
+    }
+   ]
+  },
+  "Abaddon": {
+   "file": "abaddon",
+   "zones": [
+    {
+     "mob": "Minotaur",
+     "type": 78,
+     "rect": [
+      74,
+      23,
+      138,
+      52
+     ],
+     "max": 50,
+     "min_level": 80
+    },
+    {
+     "mob": "Tentocle",
+     "type": 80,
+     "rect": [
+      30,
+      115,
+      86,
+      146
+     ],
+     "max": 50,
+     "min_level": 80
+    },
+    {
+     "mob": "Dragon",
+     "type": 70,
+     "rect": [
+      120,
+      43,
+      174,
+      73
+     ],
+     "max": 40,
+     "min_level": 80
+    },
+    {
+     "mob": "Helclaw",
+     "type": 49,
+     "rect": [
+      127,
+      113,
+      178,
+      145
+     ],
+     "max": 25,
+     "min_level": 140
+    },
+    {
+     "mob": "Tiger Worm",
+     "type": 50,
+     "rect": [
+      34,
+      45,
+      94,
+      75
+     ],
+     "max": 20,
+     "min_level": 80
+    },
+    {
+     "mob": "Wyvern",
+     "type": 66,
+     "rect": [
+      75,
+      134,
+      133,
+      170
+     ],
+     "max": 6,
+     "min_level": 80
+    },
+    {
+     "mob": "Fire Wyvern",
+     "type": 73,
+     "rect": [
+      71,
+      64,
+      143,
+      112
+     ],
+     "max": 6,
+     "min_level": 80
+    }
+   ]
+  },
+  "Dungeon L4": {
+   "file": "dglv4",
+   "zones": [
+    {
+     "mob": "Skeleton",
+     "type": 11,
+     "rect": [
+      180,
+      180,
+      220,
+      220
+     ],
+     "max": 50,
+     "min_level": 25
+    },
+    {
+     "mob": "Demon",
+     "type": 31,
+     "rect": [
+      70,
+      70,
+      310,
+      310
+     ],
+     "max": 50,
+     "min_level": 100
+    },
+    {
+     "mob": "Demon",
+     "type": 31,
+     "rect": [
+      170,
+      170,
+      230,
+      230
+     ],
+     "max": 5,
+     "min_level": 100
+    }
+   ]
+  },
+  "Aresden Farm": {
+   "file": "arefarm",
+   "zones": [
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      116,
+      80,
+      138,
+      102
+     ],
+     "max": 15,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      193,
+      102,
+      217,
+      119
+     ],
+     "max": 15,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      68,
+      22,
+      195,
+      71
+     ],
+     "max": 15,
+     "min_level": 1
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      65,
+      173,
+      84,
+      214
+     ],
+     "max": 15,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      137,
+      203,
+      163,
+      215
+     ],
+     "max": 15,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      146,
+      88,
+      182,
+      116
+     ],
+     "max": 15,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      84,
+      149,
+      108,
+      175
+     ],
+     "max": 15,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      146,
+      26,
+      184,
+      46
+     ],
+     "max": 15,
+     "min_level": 10
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      206,
+      56,
+      218,
+      76
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      173,
+      199,
+      193,
+      217
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      185,
+      80,
+      220,
+      115
+     ],
+     "max": 10,
+     "min_level": 35
+    }
+   ]
+  },
+  "astoria": {
+   "file": "astoria",
+   "zones": [
+    {
+     "mob": "Stalker",
+     "type": 48,
+     "rect": [
+      54,
+      168,
+      110,
+      215
+     ],
+     "max": 10,
+     "min_level": 90
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      54,
+      168,
+      110,
+      215
+     ],
+     "max": 10,
+     "min_level": 18
+    },
+    {
+     "mob": "Minotaur",
+     "type": 78,
+     "rect": [
+      296,
+      192,
+      316,
+      206
+     ],
+     "max": 2,
+     "min_level": 80
+    },
+    {
+     "mob": "Master Mage Orc",
+     "type": 77,
+     "rect": [
+      241,
+      175,
+      258,
+      185
+     ],
+     "max": 15,
+     "min_level": 80
+    },
+    {
+     "mob": "Troll",
+     "type": 28,
+     "rect": [
+      195,
+      143,
+      215,
+      159
+     ],
+     "max": 10,
+     "min_level": 55
+    },
+    {
+     "mob": "Skeleton",
+     "type": 11,
+     "rect": [
+      200,
+      104,
+      239,
+      123
+     ],
+     "max": 20,
+     "min_level": 25
+    },
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      200,
+      104,
+      239,
+      123
+     ],
+     "max": 20,
+     "min_level": 28
+    },
+    {
+     "mob": "Troll",
+     "type": 28,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 25,
+     "min_level": 55
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 15,
+     "min_level": 35
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 15,
+     "min_level": 30
+    },
+    {
+     "mob": "Rudolph",
+     "type": 61,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 15,
+     "min_level": 80
+    },
+    {
+     "mob": "Giant Tree",
+     "type": 76,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 20,
+     "min_level": 80
+    },
+    {
+     "mob": "Darkelf",
+     "type": 54,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 5,
+     "min_level": 90
+    },
+    {
+     "mob": "Unicorn",
+     "type": 32,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 5,
+     "min_level": 100
+    },
+    {
+     "mob": "Demon",
+     "type": 31,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 1,
+     "min_level": 100
+    },
+    {
+     "mob": "Gargoyle",
+     "type": 52,
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "max": 1,
+     "min_level": 120
+    }
+   ]
+  },
+  "Beginner Zone": {
+   "file": "default",
+   "zones": [
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      24,
+      80,
+      45,
+      95
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      84,
+      44,
+      101,
+      55
+     ],
+     "max": 20,
+     "min_level": 1
+    }
+   ]
+  },
+  "Dungeon L2": {
+   "file": "dglv2",
+   "zones": [
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      159,
+      21,
+      200,
+      55
+     ],
+     "max": 12,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      86,
+      376,
+      134,
+      407
+     ],
+     "max": 12,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      422,
+      346,
+      466,
+      348
+     ],
+     "max": 8,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      404,
+      343,
+      446,
+      363
+     ],
+     "max": 8,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      348,
+      329,
+      390,
+      356
+     ],
+     "max": 8,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      86,
+      457,
+      108,
+      432
+     ],
+     "max": 8,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      26,
+      366,
+      108,
+      391
+     ],
+     "max": 40,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      188,
+      456,
+      217,
+      459
+     ],
+     "max": 8,
+     "min_level": 45
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      216,
+      469,
+      238,
+      468
+     ],
+     "max": 12,
+     "min_level": 45
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      352,
+      144,
+      394,
+      159
+     ],
+     "max": 25,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      462,
+      235,
+      463,
+      278
+     ],
+     "max": 25,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      21,
+      239,
+      280,
+      253
+     ],
+     "max": 25,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      200,
+      252,
+      253,
+      271
+     ],
+     "max": 25,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      322,
+      195,
+      333,
+      194
+     ],
+     "max": 10,
+     "min_level": 18
+    },
+    {
+     "mob": "Helhound",
+     "type": 27,
+     "rect": [
+      50,
+      171,
+      66,
+      189
+     ],
+     "max": 9,
+     "min_level": 45
+    },
+    {
+     "mob": "Helhound",
+     "type": 27,
+     "rect": [
+      136,
+      418,
+      147,
+      431
+     ],
+     "max": 9,
+     "min_level": 45
+    },
+    {
+     "mob": "Helhound",
+     "type": 27,
+     "rect": [
+      168,
+      236,
+      179,
+      245
+     ],
+     "max": 9,
+     "min_level": 45
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      392,
+      239,
+      419,
+      249
+     ],
+     "max": 25,
+     "min_level": 30
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      403,
+      404,
+      433,
+      409
+     ],
+     "max": 25,
+     "min_level": 30
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      147,
+      396,
+      164,
+      407
+     ],
+     "max": 17,
+     "min_level": 30
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      333,
+      274,
+      349,
+      282
+     ],
+     "max": 17,
+     "min_level": 35
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      369,
+      189,
+      387,
+      202
+     ],
+     "max": 25,
+     "min_level": 35
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      317,
+      463,
+      337,
+      473
+     ],
+     "max": 20,
+     "min_level": 35
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      433,
+      162,
+      459,
+      169
+     ],
+     "max": 20,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      411,
+      432,
+      430,
+      433
+     ],
+     "max": 20,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      397,
+      441,
+      413,
+      444
+     ],
+     "max": 20,
+     "min_level": 20
+    },
+    {
+     "mob": "Liche",
+     "type": 30,
+     "rect": [
+      268,
+      420,
+      271,
+      447
+     ],
+     "max": 7,
+     "min_level": 90
+    },
+    {
+     "mob": "Liche",
+     "type": 30,
+     "rect": [
+      174,
+      176,
+      196,
+      185
+     ],
+     "max": 3,
+     "min_level": 90
+    },
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      411,
+      279,
+      479,
+      321
+     ],
+     "max": 35,
+     "min_level": 28
+    },
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      240,
+      189,
+      281,
+      179
+     ],
+     "max": 30,
+     "min_level": 28
+    },
+    {
+     "mob": "Skeleton",
+     "type": 11,
+     "rect": [
+      184,
+      300,
+      203,
+      313
+     ],
+     "max": 20,
+     "min_level": 25
+    },
+    {
+     "mob": "Frog",
+     "type": 57,
+     "rect": [
+      416,
+      193,
+      448,
+      198
+     ],
+     "max": 10,
+     "min_level": 35
+    },
+    {
+     "mob": "Frog",
+     "type": 57,
+     "rect": [
+      30,
+      215,
+      53,
+      230
+     ],
+     "max": 15,
+     "min_level": 35
+    }
+   ]
+  },
+  "Druncnian City": {
+   "file": "druncncity",
+   "zones": [
+    {
+     "mob": "Helclaw",
+     "type": 49,
+     "rect": [
+      27,
+      55,
+      54,
+      108
+     ],
+     "max": 10,
+     "min_level": 140
+    },
+    {
+     "mob": "Nizie",
+     "type": 79,
+     "rect": [
+      140,
+      28,
+      167,
+      73
+     ],
+     "max": 50,
+     "min_level": 80
+    },
+    {
+     "mob": "Claw Turtle",
+     "type": 72,
+     "rect": [
+      29,
+      24,
+      54,
+      48
+     ],
+     "max": 50,
+     "min_level": 80
+    },
+    {
+     "mob": "Giant Crayfish",
+     "type": 74,
+     "rect": [
+      152,
+      138,
+      172,
+      163
+     ],
+     "max": 50,
+     "min_level": 80
+    },
+    {
+     "mob": "Frog",
+     "type": 57,
+     "rect": [
+      155,
+      139,
+      173,
+      164
+     ],
+     "max": 30,
+     "min_level": 35
+    }
+   ]
+  },
+  "Elvine Farm": {
+   "file": "elvfarm",
+   "zones": [
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      130,
+      115,
+      146,
+      145
+     ],
+     "max": 30,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      124,
+      39,
+      162,
+      105
+     ],
+     "max": 30,
+     "min_level": 1
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      124,
+      201,
+      153,
+      214
+     ],
+     "max": 13,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      164,
+      195,
+      191,
+      209
+     ],
+     "max": 13,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      198,
+      90,
+      216,
+      111
+     ],
+     "max": 10,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      43,
+      158,
+      69,
+      178
+     ],
+     "max": 23,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      165,
+      43,
+      185,
+      76
+     ],
+     "max": 23,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      111,
+      81,
+      131,
+      101
+     ],
+     "max": 23,
+     "min_level": 10
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      211,
+      194,
+      227,
+      227
+     ],
+     "max": 15,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      71,
+      34,
+      97,
+      53
+     ],
+     "max": 15,
+     "min_level": 15
+    }
+   ]
+  },
+  "Elvine City": {
+   "file": "elvine",
+   "zones": [
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      147,
+      30,
+      166,
+      42
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      126,
+      236,
+      142,
+      259
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      36,
+      56,
+      59,
+      71
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      252,
+      174,
+      269,
+      191
+     ],
+     "max": 20,
+     "min_level": 30
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      227,
+      210,
+      257,
+      223
+     ],
+     "max": 20,
+     "min_level": 35
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      34,
+      176,
+      61,
+      196
+     ],
+     "max": 20,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      42,
+      205,
+      66,
+      224
+     ],
+     "max": 20,
+     "min_level": 15
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      120,
+      27,
+      139,
+      43
+     ],
+     "max": 20,
+     "min_level": 20
+    }
+   ]
+  },
+  "Ice Map": {
+   "file": "icebound",
+   "zones": [
+    {
+     "mob": "Tiger Worm",
+     "type": 50,
+     "rect": [
+      28,
+      23,
+      81,
+      59
+     ],
+     "max": 4,
+     "min_level": 80
+    },
+    {
+     "mob": "Ice Golem",
+     "type": 65,
+     "rect": [
+      180,
+      218,
+      225,
+      259
+     ],
+     "max": 24,
+     "min_level": 70
+    },
+    {
+     "mob": "Beholder",
+     "type": 53,
+     "rect": [
+      103,
+      220,
+      163,
+      276
+     ],
+     "max": 6,
+     "min_level": 80
+    },
+    {
+     "mob": "Beholder",
+     "type": 53,
+     "rect": [
+      45,
+      202,
+      83,
+      233
+     ],
+     "max": 5,
+     "min_level": 80
+    },
+    {
+     "mob": "Helclaw",
+     "type": 49,
+     "rect": [
+      178,
+      26,
+      232,
+      79
+     ],
+     "max": 15,
+     "min_level": 140
+    },
+    {
+     "mob": "Frost",
+     "type": 63,
+     "rect": [
+      51,
+      85,
+      105,
+      136
+     ],
+     "max": 24,
+     "min_level": 60
+    },
+    {
+     "mob": "Frost",
+     "type": 63,
+     "rect": [
+      30,
+      216,
+      47,
+      225
+     ],
+     "max": 7,
+     "min_level": 60
+    },
+    {
+     "mob": "Frost",
+     "type": 63,
+     "rect": [
+      250,
+      181,
+      268,
+      186
+     ],
+     "max": 15,
+     "min_level": 60
+    },
+    {
+     "mob": "Ice Golem",
+     "type": 65,
+     "rect": [
+      50,
+      72,
+      86,
+      137
+     ],
+     "max": 24,
+     "min_level": 70
+    },
+    {
+     "mob": "Ice Golem",
+     "type": 65,
+     "rect": [
+      103,
+      162,
+      131,
+      166
+     ],
+     "max": 20,
+     "min_level": 70
+    },
+    {
+     "mob": "Ice Golem",
+     "type": 65,
+     "rect": [
+      130,
+      236,
+      150,
+      242
+     ],
+     "max": 15,
+     "min_level": 70
+    },
+    {
+     "mob": "Direboar",
+     "type": 62,
+     "rect": [
+      220,
+      143,
+      240,
+      155
+     ],
+     "max": 8,
+     "min_level": 60
+    },
+    {
+     "mob": "Wyvern",
+     "type": 66,
+     "rect": [
+      28,
+      23,
+      81,
+      59
+     ],
+     "max": 1,
+     "min_level": 80
+    }
+   ]
+  },
+  "Infernia A": {
+   "file": "inferniaa",
+   "zones": [
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      22,
+      21,
+      64,
+      44
+     ],
+     "max": 80,
+     "min_level": 28
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      74,
+      23,
+      125,
+      52
+     ],
+     "max": 80,
+     "min_level": 45
+    },
+    {
+     "mob": "Claw Turtle",
+     "type": 72,
+     "rect": [
+      58,
+      60,
+      129,
+      91
+     ],
+     "max": 80,
+     "min_level": 80
+    },
+    {
+     "mob": "Demon",
+     "type": 31,
+     "rect": [
+      100,
+      57,
+      126,
+      91
+     ],
+     "max": 40,
+     "min_level": 100
+    },
+    {
+     "mob": "Dragon",
+     "type": 70,
+     "rect": [
+      93,
+      99,
+      127,
+      123
+     ],
+     "max": 40,
+     "min_level": 80
+    },
+    {
+     "mob": "Fire Wyvern",
+     "type": 73,
+     "rect": [
+      31,
+      42,
+      102,
+      78
+     ],
+     "max": 4,
+     "min_level": 80
+    }
+   ]
+  },
+  "Infernia B": {
+   "file": "inferniab",
+   "zones": [
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      22,
+      20,
+      49,
+      60
+     ],
+     "max": 80,
+     "min_level": 28
+    },
+    {
+     "mob": "Cyclops",
+     "type": 13,
+     "rect": [
+      69,
+      38,
+      115,
+      73
+     ],
+     "max": 80,
+     "min_level": 45
+    },
+    {
+     "mob": "Claw Turtle",
+     "type": 72,
+     "rect": [
+      22,
+      48,
+      84,
+      88
+     ],
+     "max": 80,
+     "min_level": 80
+    },
+    {
+     "mob": "Liche",
+     "type": 30,
+     "rect": [
+      24,
+      92,
+      86,
+      126
+     ],
+     "max": 50,
+     "min_level": 90
+    },
+    {
+     "mob": "Demon",
+     "type": 31,
+     "rect": [
+      86,
+      54,
+      125,
+      102
+     ],
+     "max": 40,
+     "min_level": 100
+    },
+    {
+     "mob": "Centaur",
+     "type": 71,
+     "rect": [
+      36,
+      101,
+      74,
+      119
+     ],
+     "max": 40,
+     "min_level": 80
+    },
+    {
+     "mob": "Fire Wyvern",
+     "type": 73,
+     "rect": [
+      40,
+      20,
+      128,
+      46
+     ],
+     "max": 4,
+     "min_level": 80
+    }
+   ]
+  },
+  "istfarm": {
+   "file": "istfarm",
+   "zones": [
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      116,
+      80,
+      138,
+      102
+     ],
+     "max": 15,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      193,
+      102,
+      217,
+      119
+     ],
+     "max": 15,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      68,
+      22,
+      195,
+      71
+     ],
+     "max": 15,
+     "min_level": 1
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      65,
+      173,
+      84,
+      214
+     ],
+     "max": 15,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      137,
+      203,
+      163,
+      215
+     ],
+     "max": 15,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      146,
+      88,
+      182,
+      116
+     ],
+     "max": 15,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      84,
+      149,
+      108,
+      175
+     ],
+     "max": 15,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      146,
+      26,
+      184,
+      46
+     ],
+     "max": 15,
+     "min_level": 10
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      206,
+      56,
+      218,
+      76
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      173,
+      199,
+      193,
+      217
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      185,
+      80,
+      220,
+      115
+     ],
+     "max": 10,
+     "min_level": 35
+    }
+   ]
+  },
+  "istria": {
+   "file": "istria",
+   "zones": [
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      228,
+      187,
+      243,
+      212
+     ],
+     "max": 20,
+     "min_level": 35
+    },
+    {
+     "mob": "Stone Golem",
+     "type": 12,
+     "rect": [
+      50,
+      90,
+      75,
+      100
+     ],
+     "max": 20,
+     "min_level": 35
+    },
+    {
+     "mob": "Clay Golem",
+     "type": 23,
+     "rect": [
+      142,
+      225,
+      167,
+      240
+     ],
+     "max": 20,
+     "min_level": 30
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      217,
+      82,
+      237,
+      102
+     ],
+     "max": 25,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      199,
+      205,
+      214,
+      214
+     ],
+     "max": 25,
+     "min_level": 20
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      82,
+      66,
+      105,
+      78
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      59,
+      44,
+      81,
+      53
+     ],
+     "max": 20,
+     "min_level": 1
+    },
+    {
+     "mob": "Slime",
+     "type": 10,
+     "rect": [
+      73,
+      35,
+      96,
+      42
+     ],
+     "max": 25,
+     "min_level": 1
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      23,
+      59,
+      44,
+      67
+     ],
+     "max": 25,
+     "min_level": 15
+    }
+   ]
+  },
+  "Maze": {
+   "file": "maze",
+   "zones": [
+    {
+     "mob": "Centaur",
+     "type": 71,
+     "rect": [
+      30,
+      39,
+      169,
+      92
+     ],
+     "max": 40,
+     "min_level": 80
+    },
+    {
+     "mob": "Beholder",
+     "type": 53,
+     "rect": [
+      20,
+      49,
+      180,
+      122
+     ],
+     "max": 40,
+     "min_level": 80
+    },
+    {
+     "mob": "Minotaur",
+     "type": 78,
+     "rect": [
+      75,
+      94,
+      131,
+      132
+     ],
+     "max": 40,
+     "min_level": 80
+    },
+    {
+     "mob": "Gargoyle",
+     "type": 52,
+     "rect": [
+      24,
+      147,
+      68,
+      176
+     ],
+     "max": 25,
+     "min_level": 120
+    }
+   ]
+  },
+  "Middleland": {
+   "file": "middleland",
+   "zones": [
+    {
+     "mob": "Skeleton",
+     "type": 11,
+     "rect": [
+      120,
+      104,
+      173,
+      151
+     ],
+     "max": 15,
+     "min_level": 25
+    },
+    {
+     "mob": "Skeleton",
+     "type": 11,
+     "rect": [
+      144,
+      372,
+      209,
+      399
+     ],
+     "max": 15,
+     "min_level": 25
+    },
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      300,
+      36,
+      341,
+      91
+     ],
+     "max": 25,
+     "min_level": 28
+    },
+    {
+     "mob": "Zombie",
+     "type": 18,
+     "rect": [
+      90,
+      452,
+      125,
+      491
+     ],
+     "max": 25,
+     "min_level": 28
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      228,
+      76,
+      275,
+      107
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      252,
+      172,
+      275,
+      219
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      456,
+      304,
+      491,
+      347
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Snake",
+     "type": 22,
+     "rect": [
+      144,
+      432,
+      203,
+      479
+     ],
+     "max": 10,
+     "min_level": 15
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      48,
+      152,
+      89,
+      187
+     ],
+     "max": 18,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      54,
+      280,
+      95,
+      315
+     ],
+     "max": 18,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      426,
+      212,
+      467,
+      243
+     ],
+     "max": 18,
+     "min_level": 18
+    },
+    {
+     "mob": "Orc",
+     "type": 14,
+     "rect": [
+      378,
+      396,
+      425,
+      439
+     ],
+     "max": 18,
+     "min_level": 18
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      333,
+      35,
+      371,
+      67
+     ],
+     "max": 16,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Scorpion",
+     "type": 17,
+     "rect": [
+      390,
+      412,
+      425,
+      451
+     ],
+     "max": 16,
+     "min_level": 20
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      284,
+      216,
+      300,
+      228
+     ],
+     "max": 20,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      181,
+      266,
+      199,
+      274
+     ],
+     "max": 20,
+     "min_level": 10
+    },
+    {
+     "mob": "Giant Ant",
+     "type": 16,
+     "rect": [
+      80,
+      285,
+      93,
+      291
+     ],
+     "max": 20,
+     "min_level": 10
+    },
+    {
+     "mob": "Ogre",
+     "type": 29,
+     "rect": [
+      53,
+      380,
+      101,
+      409
+     ],
+     "max": 23,
+     "min_level": 60
+    },
+    {
+     "mob": "Ogre",
+     "type": 29,
+     "rect": [
+      34,
+      69,
+      100,
+      83
+     ],
+     "max": 23,
+     "min_level": 60
+    },
+    {
+     "mob": "Stalker",
+     "type": 48,
+     "rect": [
+      107,
+      202,
+      418,
+      304
+     ],
+     "max": 35,
+     "min_level": 90
+    },
+    {
+     "mob": "Werewolf",
+     "type": 33,
+     "rect": [
+      320,
+      420,
+      370,
+      470
+     ],
+     "max": 23,
+     "min_level": 65
+    },
+    {
+     "mob": "Werewolf",
+     "type": 33,
+     "rect": [
+      360,
+      100,
+      410,
+      150
+     ],
+     "max": 23,
+     "min_level": 65
+    },
+    {
+     "mob": "Ettin",
+     "type": 59,
+     "rect": [
+      166,
+      204,
+      216,
+      254
+     ],
+     "max": 6,
+     "min_level": 90
+    },
+    {
+     "mob": "Ettin",
+     "type": 59,
+     "rect": [
+      224,
+      225,
+      234,
+      240
+     ],
+     "max": 3,
+     "min_level": 90
+    },
+    {
+     "mob": "Ettin",
+     "type": 59,
+     "rect": [
+      150,
+      215,
+      170,
+      235
+     ],
+     "max": 3,
+     "min_level": 90
+    },
+    {
+     "mob": "Stalker",
+     "type": 48,
+     "rect": [
+      25,
+      250,
+      40,
+      260
+     ],
+     "max": 5,
+     "min_level": 90
+    },
+    {
+     "mob": "Helclaw",
+     "type": 49,
+     "rect": [
+      450,
+      125,
+      470,
+      390
+     ],
+     "max": 2,
+     "min_level": 140
+    }
+   ]
+  },
+  "Procella": {
+   "file": "procella",
+   "zones": [
+    {
+     "mob": "Plant",
+     "type": 60,
+     "rect": [
+      44,
+      82,
+      107,
+      124
+     ],
+     "max": 60,
+     "min_level": 45
+    },
+    {
+     "mob": "Stalker",
+     "type": 48,
+     "rect": [
+      109,
+      169,
+      175,
+      205
+     ],
+     "max": 60,
+     "min_level": 90
+    },
+    {
+     "mob": "Plant",
+     "type": 60,
+     "rect": [
+      179,
+      29,
+      212,
+      109
+     ],
+     "max": 60,
+     "min_level": 45
+    },
+    {
+     "mob": "Master Mage Orc",
+     "type": 77,
+     "rect": [
+      43,
+      126,
+      99,
+      209
+     ],
+     "max": 60,
+     "min_level": 80
+    },
+    {
+     "mob": "Giant Lizard",
+     "type": 75,
+     "rect": [
+      29,
+      49,
+      123,
+      193
+     ],
+     "max": 80,
+     "min_level": 80
+    },
+    {
+     "mob": "Minotaur",
+     "type": 78,
+     "rect": [
+      133,
+      49,
+      221,
+      190
+     ],
+     "max": 80,
+     "min_level": 80
+    },
+    {
+     "mob": "Centaur",
+     "type": 71,
+     "rect": [
+      173,
+      76,
+      177,
+      165
+     ],
+     "max": 40,
+     "min_level": 80
+    }
+   ]
+  },
+  "Tower of Hell 3": {
+   "file": "toh3",
+   "zones": [
+    {
+     "mob": "Darkelf",
+     "type": 54,
+     "rect": [
+      82,
+      195,
+      104,
+      215
+     ],
+     "max": 7,
+     "min_level": 90
+    },
+    {
+     "mob": "Gargoyle",
+     "type": 52,
+     "rect": [
+      130,
+      208,
+      139,
+      211
+     ],
+     "max": 1,
+     "min_level": 120
+    },
+    {
+     "mob": "Gargoyle",
+     "type": 52,
+     "rect": [
+      134,
+      249,
+      135,
+      250
+     ],
+     "max": 2,
+     "min_level": 120
+    },
+    {
+     "mob": "Demon",
+     "type": 31,
+     "rect": [
+      126,
+      264,
+      139,
+      272
+     ],
+     "max": 2,
+     "min_level": 100
+    },
+    {
+     "mob": "Liche",
+     "type": 30,
+     "rect": [
+      153,
+      236,
+      176,
+      239
+     ],
+     "max": 7,
+     "min_level": 90
+    },
+    {
+     "mob": "Darkelf",
+     "type": 54,
+     "rect": [
+      35,
+      265,
+      45,
+      285
+     ],
+     "max": 8,
+     "min_level": 90
+    },
+    {
+     "mob": "Gargoyle",
+     "type": 52,
+     "rect": [
+      220,
+      156,
+      249,
+      158
+     ],
+     "max": 2,
+     "min_level": 120
+    },
+    {
+     "mob": "Demon",
+     "type": 31,
+     "rect": [
+      205,
+      141,
+      217,
+      147
+     ],
+     "max": 1,
+     "min_level": 100
+    },
+    {
+     "mob": "Liche",
+     "type": 30,
+     "rect": [
+      167,
+      115,
+      188,
+      129
+     ],
+     "max": 3,
+     "min_level": 90
+    },
+    {
+     "mob": "Liche",
+     "type": 30,
+     "rect": [
+      130,
+      95,
+      153,
+      109
+     ],
+     "max": 3,
+     "min_level": 90
+    },
+    {
+     "mob": "Helhound",
+     "type": 27,
+     "rect": [
+      114,
+      119,
+      140,
+      121
+     ],
+     "max": 7,
+     "min_level": 45
+    },
+    {
+     "mob": "Frog",
+     "type": 57,
+     "rect": [
+      60,
+      231,
+      80,
+      238
+     ],
+     "max": 20,
+     "min_level": 35
+    }
+   ]
+  }
+ }
+}
