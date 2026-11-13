@@ -2932,6 +2932,14 @@ class Bot:
             return
         d = last - hm
         if 1 <= d <= 0.6 * max(last, 1) and (self.state == "attack" or now - getattr(self, "_last_enemy", 0) < 3):
+            # solo cuenta si hay UN bicho pegado a mí (si hay varios, o uno grande al lado, el golpe puede ser de otro)
+            try:
+                ents = self.ents.read(self.mem.proc) or []
+                near = [e for e in ents if e[2].startswith("_") and e[3] == 0 and max(abs(e[0]), abs(e[1])) <= 2]
+            except Exception:
+                near = []
+            if len(near) != 1:
+                return
             f = self.world.learn.setdefault("fight", {}).setdefault(mob, {"n": 0, "avg": 0.0, "max": 0, "kn": 0, "ttk": 0.0})
             f["n"] = min(f["n"] + 1, 400)
             f["avg"] += (d - f["avg"]) * (1.0 / f["n"] if f["n"] < 30 else 0.05)

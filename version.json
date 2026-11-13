@@ -1,1 +1,1 @@
-{"version": 95, "notes": "No caza en zonas mezcladas con bichos que todavía no aguanta (golems en la Farm) y abre bien la ventana de puntos."}
+{"version": 96, "notes": "La medición de cuánto pega cada bicho solo cuenta golpes cuando hay un solo bicho al lado (antes se mezclaban golpes de otros)."}
