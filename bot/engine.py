@@ -633,6 +633,7 @@ class Bot:
 
     def _tick(self):
         self._town_account()
+        self._zone_flush()
         if getattr(self, "_busy_ui", False):
             # otro hilo está usando ventanas del juego (comprando): no tocar nada
             self.stats["state"] = "comprando"
@@ -2676,24 +2677,44 @@ class Bot:
         return None
 
     def _zone_kill(self):
-        """Al matar anoto cuánta experiencia dio y dónde: así sé qué zonas tienen bichos que rinden más que los slimes."""
+        """Al matar anoto dónde fue; la experiencia llega un instante después, así que la cuento en _zone_flush."""
+        x, y = self.pos.get("x"), self.pos.get("y")
+        if x is not None and self.pos.get("map"):
+            self.__dict__.setdefault("_zk", []).append((time.time(), x, y, self.pos["map"].strip().lower()))
+
+    def _zone_flush(self):
+        """Reparte la experiencia ganada entre las muertes recientes y la anota por zona: así sé qué partes del
+        mapa tienen bichos que rinden más que los slimes."""
         try:
-            e1, e0 = self._exp_mem(), getattr(self, "_exp_t0", None)
-            self._exp_t0 = e1
-            x, y = self.pos.get("x"), self.pos.get("y")
-            if e0 is None or e1 is None or x is None or not self.pos.get("map"):
+            now = time.time()
+            if now - getattr(self, "_zk_t", 0) < 0.5:
                 return
-            d = e1 - e0
+            self._zk_t = now
+            zk = self.__dict__.setdefault("_zk", [])
+            e1 = self._exp_mem()
+            if e1 is None:
+                return
+            e0 = getattr(self, "_zk_exp", None)
+            if e0 is None or not zk:
+                if e0 is None or e1 < e0:
+                    self._zk_exp = e1
+                return
+            if now - zk[-1][0] < 1.2:
+                return
+            ready, self._zk = list(zk), []
+            self._zk_exp = e1
+            d = (e1 - e0) / float(len(ready))
             if d <= 0 or d > 500000:
                 return
-            z = self.world.learn.setdefault("xpz", {}).setdefault(self.pos["map"].strip().lower(), {})
-            e = z.setdefault(f"{x // self.ZC},{y // self.ZC}", {"n": 0, "xp": 0.0, "x": x, "y": y})
-            e["n"] = min(e["n"] + 1, 40)
-            a = 1.0 / e["n"] if e["n"] < 8 else 0.15
-            e["xp"] += (d - e["xp"]) * a
-            e["x"] += (x - e["x"]) * 0.3
-            e["y"] += (y - e["y"]) * 0.3
-            e["t"] = int(time.time())
+            for _, x, y, mk in ready:
+                z = self.world.learn.setdefault("xpz", {}).setdefault(mk, {})
+                e = z.setdefault(f"{x // self.ZC},{y // self.ZC}", {"n": 0, "xp": 0.0, "x": x, "y": y})
+                e["n"] = min(e["n"] + 1, 40)
+                a = 1.0 / e["n"] if e["n"] < 8 else 0.15
+                e["xp"] += (d - e["xp"]) * a
+                e["x"] += (x - e["x"]) * 0.3
+                e["y"] += (y - e["y"]) * 0.3
+                e["t"] = int(now)
         except Exception:
             pass
 
