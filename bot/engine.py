@@ -2763,7 +2763,8 @@ class Bot:
         known = {k: v for k, v in z.items() if v.get("n", 0) >= 3 and not self._is_danger(int(v["x"]), int(v["y"]))}
         if not known:
             return False
-        base = min(v["xp"] for v in known.values())
+        xs_ = sorted(v["xp"] for v in known.values())
+        base = xs_[len(xs_) // 2]  # lo "normal" del mapa (la mediana: un par de muestras flojas no la mueven)
         empty = getattr(self, "_zone_empty", None)
         if empty is None:
             empty = self._zone_empty = {}
@@ -3928,6 +3929,31 @@ class Bot:
         """¿Le puedo pegar a este bicho? (el dato que leo de la memoria es su animación, no su especie: no sirve para vetar)"""
         return True
 
+    def _reach(self, e):
+        """¿Cómo llego a este bicho? Devuelve (costo en pasos, hay que rodear) o None si no hay camino
+        (está del otro lado de una montaña, un pozo o una pared). Se recuerda 2 s por bicho."""
+        px, py = self.pos.get("x"), self.pos.get("y")
+        d = max(abs(e[0]), abs(e[1]))
+        mp = self.world.map_for(self.pos["map"]) if self.pos.get("map") else None
+        if px is None or not mp or d <= 1:
+            return (d, False)
+        now = time.time()
+        rc = self.__dict__.setdefault("_reach_c", {})
+        c = rc.get(e[2])
+        if c and now - c[0] < 2.0 and c[1] == (px, py, e[0], e[1]):
+            return c[2]
+        t = (px + e[0], py + e[1])
+        if mp.los((px, py), t):
+            r = (d, False)
+        else:
+            g = t if mp.ok(*t) else mp.nearest_walkable(t[0], t[1], r=2)
+            path = mp.astar((px, py), g, max_nodes=6000) if g else None
+            r = (len(path), True) if path and len(path) <= 45 else None
+        if len(rc) > 200:
+            rc.clear()
+        rc[e[2]] = (now, (px, py, e[0], e[1]), r)
+        return r
+
     def _mem_near(self):
         ents = self.ents.read(self.mem.proc)
         if not ents:
@@ -3991,6 +4017,28 @@ class Bot:
                 return True
             t["x"], t["y"] = int(cx + e[0] * tw), int(cy + e[1] * th - th * 0.3)
             self._last_enemy = now
+            rch = self._reach(e)
+            if rch is None:
+                # quedó del otro lado de algo que no se puede cruzar: lo dejo y busco otro
+                self._ent_bl[t["ename"]] = now + 30
+                self._release()
+                self.state, self.target = "seek", None
+                return True
+            if rch[1]:
+                # hay un obstáculo en el medio: voy caminando por el camino que lo rodea, sin apuntarle derecho
+                mp_ = self.world.map_for(self.pos["map"])
+                if now - t.setdefault("walk0", now) > 25:
+                    self._ent_bl[t["ename"]] = now + 30  # no llego: lo dejo
+                    self._release()
+                    self.state, self.target = "seek", None
+                    return True
+                if self.mod_held:
+                    self._release()
+                self._walk_to(mp_, (self.pos["x"] + e[0], self.pos["y"] + e[1]), "rodeando un obstáculo hasta el bicho")
+                self.stats["state"] = "atacando"
+                self.target_since = max(self.target_since, now - 12)  # caminar no cuenta como "no muere"
+                return True
+            self.nav["walking"] = False
             self._hold_on(t["x"], t["y"])
             self.last_attack_click = now
             return True
@@ -4005,9 +4053,17 @@ class Bot:
             if px is not None and self._near_door(2, (px + e[0], py + e[1])):
                 continue
             cands.append((max(abs(e[0]), abs(e[1])), e))
-        easy = set(self.cfg.get("easy_types", [240]))  # slimes: solo si no hay otra cosa cerca
-        cands.sort(key=lambda c: c[0] + (5 if c[1][5] in easy and int(self.cfg.get("travel", {}).get("my_level", 1)) >= 15 else 0))
-        near = [c for c in cands if abs(c[1][0]) <= 9 and abs(c[1][1]) <= 6]
+        cands.sort(key=lambda c: c[0])
+        # de los que están a la vista, me quedo con los que tienen camino y ordeno por pasos reales (no en línea recta)
+        near = []
+        for c in [c for c in cands if abs(c[1][0]) <= 9 and abs(c[1][1]) <= 6][:8]:
+            rch = self._reach(c[1])
+            if rch is None:
+                self._ent_bl[c[1][2]] = now + 20
+                continue
+            near.append((rch[0], c[1]))
+        near.sort(key=lambda c: c[0])
+        cands = [c for c in cands if c[1][2] not in self._ent_bl]
         if near:
             e = near[0][1]
             m = {"name": "monstruo", "ename": e[2], "etype": e[5], "x": int(cx + e[0] * tw), "y": int(cy + e[1] * th - th * 0.3),
