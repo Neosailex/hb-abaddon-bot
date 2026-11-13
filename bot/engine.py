@@ -683,12 +683,15 @@ class Bot:
         """Experiencia por hora en ese mapa (None si todavía no estuve 10 minutos). Si gasto muchas pociones
         por minuto, cuenta menos (es caro y peligroso)."""
         y = self.world.learn.get("yield", {}).get(mk.strip().lower())
-        if not y or y.get("sec", 0) < 600:
+        if not y or y.get("sec", 0) < 120:
             return None
         rate = y["exp"] / y["sec"] * 3600
         ppm = y.get("pots", 0) / (y["sec"] / 60.0)
-        if ppm > float(self.cfg.get("pots_per_min_max", 3.0)):
-            rate *= 0.4
+        lim = float(self.cfg.get("pots_per_min_max", 3.0))
+        if y["sec"] < 600 and ppm <= 1.5 * lim:
+            return None  # todavía poco tiempo y nada alarmante: sigo midiendo
+        if ppm > lim:
+            rate *= 0.4  # se me van las pociones: caro y peligroso (con 2 minutos ya alcanza para saberlo)
         return rate
 
     def _tab_check(self):
