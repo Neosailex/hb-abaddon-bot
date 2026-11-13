@@ -773,6 +773,18 @@ class Bot:
                     del self.world.learn["anchors"][mk]
                 self.world.save()
             self.log(f"☠ Me mataron en {self.pos.get('map')} ({self.pos.get('x')},{self.pos.get('y')}). Anoto la zona como peligrosa y revivo.")
+            try:
+                mk = (self.pos.get("map") or "").strip().lower()
+                dm = self.world.learn.setdefault("deaths", {}).setdefault(mk, {"n": 0, "lvl": 0, "t": 0})
+                dm["n"] = dm.get("n", 0) + 1 if time.time() - dm.get("t", 0) < 7200 else 1
+                dm["lvl"] = self._level_mem() or dm.get("lvl", 0)
+                dm["t"] = int(time.time())
+                self.world.save()
+                self._avoid_t = 0
+                if dm["n"] >= 2:
+                    self.log(f"☠ Dos muertes seguidas en {self.pos.get('map')}: no vuelvo hasta subir {self.cfg.get('retry_map_levels', 4)} niveles o mejorar el equipo.")
+            except Exception:
+                pass
         # botón "Restart" (abajo a la derecha, donde sale Level Up)
         img = self.img
         pt = None
@@ -2060,7 +2072,12 @@ class Bot:
                 from . import brain
                 pj = self._load_json("pj.json") or self._load_json("pj.default.json")
                 lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
-                self._avoid_v = brain.avoid_maps(self.db, lvl, pj.get("owned", []), self._load_json("tiendas.json"), self.cfg.get("comfort", {}))
+                self._avoid_v = brain.avoid_maps(self.db, lvl, getattr(self, "_owned", None) or pj.get("owned", []), self._load_json("tiendas.json"), self.cfg.get("comfort", {}))
+                # mapas donde me mataron 2 veces: no vuelvo hasta subir unos niveles
+                for mk, dm in self.world.learn.get("deaths", {}).items():
+                    if dm.get("n", 0) >= 2 and lvl < dm.get("lvl", 0) + self.cfg.get("retry_map_levels", 4):
+                        if mk not in self._avoid_v:
+                            self._avoid_v.append(mk)
             except Exception:
                 self._avoid_v = [a.lower() for a in self.cfg.get("travel", {}).get("avoid", [])]
             self._avoid_t = now
@@ -2553,6 +2570,9 @@ class Bot:
             return False
 
     def _maybe_shop(self):
+        sm = self._supplies_mem()
+        if sm:
+            self._left = {"pot": sm["pot"], "meat": sm["meat"]}
         lf = getattr(self, "_left", {})
         need = lf.get("meat", 99) <= self.cfg.get("buy_meat_below", 1) or lf.get("pot", 99) <= self.cfg.get("buy_pots_below", 3)
         if not need or getattr(self, "mission", None):
@@ -2569,18 +2589,74 @@ class Bot:
         self._shop_th = threading.Thread(target=self._shop_trip, daemon=True)
         self._shop_th.start()
 
-    def _gold_mem(self):
-        """Oro del pj desde la memoria (config memory.gold_off = distancia desde la posición). None si no se sabe."""
+    INV_OFF, INV_SLOTS = 508, 50   # punteros a los items del bolso, contados desde la posición del pj
+    ID_GOLD, ID_POT, ID_MEAT = 90, 91, 99
+
+    def _inv_mem(self):
+        """Inventario leído de la memoria del juego (sin abrir el bolso): lista de items con
+        id, cantidad, durabilidad actual/máxima y lugar en el bolso. None si no se pudo leer."""
+        now = time.time()
+        c = getattr(self, "_inv_cache", None)
+        if c and now - c[0] < 1.0:
+            return c[1]
+        out = None
         try:
-            off = self.cfg.get("memory", {}).get("gold_off")
-            if off is not None and self.mem.learned and self.mem.addr[0] == "i16":
-                d = self.mem.proc.read(self.mem.addr[1] + int(off), 4)
-                v = int.from_bytes(d, "little", signed=True) if d else -1
-                if 0 <= v <= 500_000_000:
-                    return v
+            if self.mem.learned and self.mem.addr[0] == "i16":
+                pr = self.mem.proc
+                blk = pr.read(self.mem.addr[1] + self.INV_OFF, self.INV_SLOTS * 8)
+                if blk and len(blk) == self.INV_SLOTS * 8:
+                    out = []
+                    for i in range(self.INV_SLOTS):
+                        p = int.from_bytes(blk[i * 8:i * 8 + 8], "little")
+                        if not (0x10000 < p < 0x7FFFFFFFFFFF):
+                            continue
+                        ob = pr.read(p, 160)
+                        if not ob or len(ob) < 160:
+                            continue
+                        iid = int.from_bytes(ob[50:52], "little", signed=True)
+                        cnt = int.from_bytes(ob[112:116], "little", signed=True)
+                        if not (0 < iid < 5000) or not (0 <= cnt < 2_000_000_000):
+                            continue
+                        out.append({"slot": i, "id": iid, "count": cnt,
+                                    "dur": int.from_bytes(ob[134:136], "little", signed=True),
+                                    "max": int.from_bytes(ob[98:100], "little", signed=True),
+                                    "x": int.from_bytes(ob[78:80], "little", signed=True),
+                                    "y": int.from_bytes(ob[80:82], "little", signed=True)})
+                    if not out:
+                        out = None
         except Exception:
-            pass
-        return None
+            out = None
+        self._inv_cache = (now, out)
+        return out
+
+    def _gold_mem(self):
+        """Oro del pj: el item 90 del inventario. None si no se sabe."""
+        inv = self._inv_mem()
+        if inv is None:
+            return None
+        return sum(i["count"] for i in inv if i["id"] == self.ID_GOLD)
+
+    def _supplies_mem(self):
+        """Pociones de vida y carnes que quedan, contadas en la memoria. None si no se sabe."""
+        inv = self._inv_mem()
+        if inv is None:
+            return None
+        return {"pot": sum(max(1, i["count"]) for i in inv if i["id"] == self.ID_POT),
+                "meat": sum(max(1, i["count"]) for i in inv if i["id"] == self.ID_MEAT),
+                "items": len(inv)}
+
+    def _worn_out(self):
+        """True si algo del bolso con durabilidad está por romperse (queda 12% o menos)."""
+        inv = self._inv_mem() or []
+        return any(i["max"] >= 100 and 0 <= i["dur"] <= i["max"] * 0.12 for i in inv)
+
+    def _items_db(self):
+        """Tabla de items del juego: id -> datos (nombre, precio, requisitos, daño/defensa)."""
+        d = getattr(self, "_idb", None)
+        if d is None:
+            d = {i["id"]: i for i in self._load_json("items_abaddon.json").get("items", [])}
+            self._idb = d
+        return d
 
     def _brain_step(self):
         """Cada tanto arma el plan (dónde cazar, qué comprar, para qué juntar oro) y lo anota cuando cambia."""
@@ -2596,8 +2672,12 @@ class Bot:
             cur = self.pos.get("map") or ""
             avoid = self._avoid()
             reach = lambda n: self._same(cur, n) or self._known_route(cur, n, avoid)
+            idb = self._items_db()
+            inv = self._inv_mem()
+            owned = [idb[i["id"]]["name"] for i in inv if i["id"] in idb] if (inv and idb) else pj.get("owned", [])
+            self._owned = owned
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
-                           self._gold_mem(), pj.get("owned", []), reach, cur)
+                           self._gold_mem(), owned, reach, cur, list(idb.values()))
             self.plan = p
             key = "|".join(p["lines"][:-1])
             if key != getattr(self, "_brain_key", None):
@@ -2625,12 +2705,32 @@ class Bot:
             self._rep_last = now - self.cfg.get("repair_every_min", 60) * 60 + 600  # primera pasada a los 10 min
         stalled = len([t for t in getattr(self, "_nokill", []) if now - t < 240]) >= 5 and now - getattr(self, "_last_kill_t", 0) > 150
         due = now - self._rep_last > self.cfg.get("repair_every_min", 60) * 60
+        if not due and now - self._rep_last > 300 and now - getattr(self, "_worn_t", 0) > 30:
+            self._worn_t = now
+            due = self._worn_out()
         if not (due or (stalled and now - self._rep_last > 600)):
             return
         self._rep_last = now
         self._nokill = []
         self._rep_th = threading.Thread(target=self._repair_trip, args=(stalled,), daemon=True)
         self._rep_th.start()
+
+    def _find_keeper(self, cx=745, cy=345):
+        """El vendedor no siempre queda en el mismo píxel: lo busco pasando el mouse cerca de donde suele estar
+        hasta que aparezca su cartel azul. Devuelve (x, y) en coordenadas de 1280 o None."""
+        sc = self.rect[2] / 1280.0
+        pts = sorted([(x, y) for y in range(cy - 110, cy + 111, 22) for x in range(cx - 150, cx + 151, 25)],
+                     key=lambda p: abs(p[0] - cx) + abs(p[1] - cy))
+        for x, y in pts:
+            if not (self.alive and self.running):
+                return None
+            if 590 <= x <= 700 and 370 <= y <= 520:
+                continue  # ahí estoy parado yo
+            winapi.move(*self.abs_pt(x * sc, y * sc))
+            time.sleep(0.10)
+            if vision.neutral_pixels(self.screen.grab(self.rect), x * sc, y * sc) >= 25:
+                return (x, y)
+        return None
 
     def _repair_trip(self, reequip=False):
         """Va al Blacksmith (puerta 75,86 de la Farm), BlackSmith Keeper -> Repair All -> Repair, y vuelve a cazar."""
@@ -2668,15 +2768,36 @@ class Bot:
                 self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
                 return
             dx, dy = (self.pos.get("x") - 47) * 64, (self.pos.get("y") - 35) * 64
-            winapi.click(*P(745 - dx, 345 - dy))
+            kp = self._find_keeper(745 - dx, 345 - dy)
+            if not kp:
+                self.log("🔧 No encontré al herrero. Pruebo más tarde.")
+                self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+                return
+            before = (self.pos.get("x"), self.pos.get("y"))
+            worn0 = sum(i["max"] - i["dur"] for i in (self._inv_mem() or []) if i["max"] >= 100)
+            winapi.click(*P(*kp))
             time.sleep(2.5)
-            winapi.click(*P(845 - dx, 312 - dy))  # Repair All
+            if (self.pos.get("x"), self.pos.get("y")) != before:  # caminé en vez de hablarle: lo busco de nuevo
+                kp = self._find_keeper(kp[0], kp[1])
+                if not kp:
+                    self.log("🔧 No pude hablarle al herrero. Pruebo más tarde.")
+                    self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+                    return
+                winapi.click(*P(*kp))
+                time.sleep(2.5)
+            winapi.click(*P(kp[0] + 100, kp[1] - 33))  # Repair All
             time.sleep(2.0)
             winapi.click(*P(902, 574))  # Repair
             time.sleep(1.5)
             winapi.press("ESC")
             time.sleep(0.5)
-            self.log("🔧 Equipo reparado.")
+            self._inv_cache = None
+            worn1 = sum(i["max"] - i["dur"] for i in (self._inv_mem() or []) if i["max"] >= 100)
+            if worn0 and worn1 >= worn0:
+                self.log("🔧 Fui al herrero pero el equipo sigue gastado: no salió la reparación. Pruebo más tarde.")
+                self._rep_last = time.time() - self.cfg.get("repair_every_min", 60) * 60 + 600
+            else:
+                self.log("🔧 Equipo reparado.")
             self._want_equip = bool(reequip)
         except Exception as e:
             self.log(f"🔧 Error reparando: {e!r}")

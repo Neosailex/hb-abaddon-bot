@@ -25,28 +25,35 @@ def provisions(cat, level):
     return {"pots": 20, "meat": 10}
 
 
-def gear_plan(cat, level, stats, owned):
-    """Por cada lugar del cuerpo: qué tengo y cuál es la próxima mejora que ya puedo usar."""
+def _score(it):
+    return it.get("avg", 0) if it.get("slot") in ("arma", "arma2m") else it.get("def", 0)
+
+
+def gear_plan(cat, level, stats, owned, items_db=None):
+    """Por cada lugar del cuerpo: lo mejor que tengo y la mejor mejora que venden y ya puedo usar.
+    owned: nombres de lo que hay en el bolso/puesto. items_db: tabla de items del juego (para saber qué es lo mío)."""
     owned = set(owned or [])
+    by_name = {i["name"]: i for i in (items_db or [])}
+    for i in cat.get("items", []):
+        by_name.setdefault(i["name"], i)
+    wn = set(cat.get("weapon_names", []))
     out = []
     for slot in cat.get("slot_priority", []):
-        ladder = cat.get("ladder", {}).get(slot, [])
-        have = max((i for i, n in enumerate(ladder) if n in owned), default=-1)
-        nxt = None
+        mine = [by_name[n] for n in owned if n in by_name and by_name[n].get("slot") == slot and _can_use(by_name[n], level, stats)]
+        have = max(mine, key=_score, default=None)
+        cands = [i for i in cat.get("items", []) if i.get("slot") == slot and i.get("price", 0) > 0
+                 and (slot != "arma" or i["name"] in wn) and "(W)" not in i["name"]]
+        better = [i for i in cands if _score(i) > (_score(have) if have else 0)]
+        usable = [i for i in better if _can_use(i, level, stats)]
+        nxt = max(usable, key=lambda i: (_score(i), -i["price"]), default=None)
         blocked = None
-        for i in range(len(ladder) - 1, have, -1):  # la mejor que pueda usar hoy
-            it = _item(cat, ladder[i])
-            if it is None:
-                continue
-            if _can_use(it, level, stats):
-                nxt = it
-                break
-            blocked = it
-        out.append({"slot": slot, "have": ladder[have] if have >= 0 else None, "next": nxt, "blocked": blocked})
+        if not nxt and better:
+            blocked = min(better, key=lambda i: (i.get("str", 0), i.get("level", 0)))
+        out.append({"slot": slot, "have": have["name"] if have else None, "next": nxt, "blocked": blocked})
     return out
 
 
-def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, current_map=None):
+def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, current_map=None, items_db=None):
     """Devuelve el plan completo.
     reachable: función nombre_de_mapa -> bool (si el bot sabe llegar). None = solo el mapa actual."""
     level = int(level or 1)
@@ -63,7 +70,7 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
                 break
         if hunt_map:
             break
-    gp = gear_plan(cat, level, stats, owned)
+    gp = gear_plan(cat, level, stats, owned, items_db)
     reserve = cat.get("reserve_gold", 0)
     wants = [g for g in gp if g["next"]]
     # primero lo que falta del todo (lugar vacío), después las mejoras; dentro de eso, lo más barato
@@ -73,7 +80,7 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
         left = gold - reserve
         for g in wants:
             it = g["next"]
-            if it["price"] <= left and "scroll" in it:
+            if it["price"] <= left:
                 buy_now.append(it)
                 left -= it["price"]
             elif saving is None:
@@ -88,8 +95,11 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
             lines.append(f"Nivel {level}: me toca {hunt_map} ({', '.join(ideal['monsters'][:3])}).")
         else:
             lines.append(f"Nivel {level}: me tocaría {im} ({', '.join(ideal['monsters'][:3])}), pero no sé llegar. Cazo en {hunt_map or current_map or '?'} mientras tanto.")
+    if gold is not None:
+        lines.append(f"Tengo {gold} de oro.")
     for it in buy_now:
-        lines.append(f"Compro {it['name']} ({it['price']} de oro) en el {it['shop']}.")
+        stat = f"daño medio {it['avg']}" if "avg" in it else f"defensa {it.get('def', '?')}"
+        lines.append(f"Compro {it['name']} ({it['price']} de oro, {stat}) en el {it['shop']}.")
     if saving:
         if saving["missing"] is None:
             lines.append(f"Próxima compra: {saving['item']} ({saving['price']} de oro). No sé cuánto oro tengo.")
@@ -121,9 +131,9 @@ def avoid_maps(db, level, owned, cat, cfg=None):
     tiene el nivel y el equipo para estar cómodo (los de PvP y los del otro reino piden más)."""
     cfg = cfg or {}
     level = int(level or 1)
-    slots = cat.get("ladder", {})
-    worn = sum(1 for names in slots.values() if any(n in (owned or []) for n in names))
-    full = worn >= min(5, len(slots))
+    by_name = {i["name"]: i for i in cat.get("items", [])}
+    worn = len({by_name[n].get("slot") for n in (owned or []) if n in by_name and by_name[n].get("slot")})
+    full = worn >= 5
     out = set()
     for m in db.get("maps", []):
         name = m["name"].lower()

@@ -1,5 +1,5 @@
 {
- "note": "Listas vistas en el juego (2026-11-13). scroll = muescas de rueda hacia arriba desde el fondo de la lista; row = fila (y = 191 + 29*row, x = 272) con PRICE en (435,159).",
+ "note": "Listas vistas en el juego (2026-11-13). scroll = muescas de rueda hacia arriba desde el fondo de la lista; row = fila (y = 191 + 29*row, x = 272) con PRICE en (435,159). Stats, precio y requisitos salen de data/items_abaddon.json (tabla del juego).",
  "shops": {
   "Blacksmith": {
    "door": {
@@ -39,7 +39,7 @@
     ]
    },
    "sells_unseen": [
-    "capas (dato del dueño)"
+    "capas (dato de Juan)"
    ]
   }
  },
@@ -53,42 +53,104 @@
    "slot": "arma",
    "str": 14,
    "level": 25,
-   "confirmed": false
+   "confirmed": true,
+   "id": 18,
+   "avg": 6.0,
+   "dmg": [
+    1,
+    9,
+    1
+   ]
   },
   {
    "name": "Sabre",
    "price": 150,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 1
+   "row": 1,
+   "id": 23,
+   "str": 12,
+   "level": 0,
+   "slot": "arma",
+   "avg": 4.5,
+   "dmg": [
+    1,
+    8,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Sabre +1",
    "price": 600,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 2
+   "row": 2,
+   "id": 24,
+   "str": 12,
+   "level": 20,
+   "slot": "arma",
+   "avg": 5.5,
+   "dmg": [
+    1,
+    8,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Scimitar",
    "price": 200,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 3
+   "row": 3,
+   "id": 25,
+   "str": 18,
+   "level": 0,
+   "slot": "arma",
+   "avg": 5.5,
+   "dmg": [
+    1,
+    10,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Scimitar +1",
    "price": 800,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 4
+   "row": 4,
+   "id": 26,
+   "str": 18,
+   "level": 30,
+   "slot": "arma",
+   "avg": 6.5,
+   "dmg": [
+    1,
+    10,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Falchion",
    "price": 250,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 5
+   "row": 5,
+   "id": 28,
+   "str": 22,
+   "level": 0,
+   "slot": "arma",
+   "avg": 6.5,
+   "dmg": [
+    1,
+    12,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Falchion +1",
@@ -97,51 +159,124 @@
    "scroll": 40,
    "row": 6,
    "slot": "arma",
-   "str": 25,
-   "level": 30,
-   "confirmed": false
+   "str": 22,
+   "level": 35,
+   "confirmed": true,
+   "id": 29,
+   "avg": 7.5,
+   "dmg": [
+    1,
+    12,
+    1
+   ]
   },
   {
    "name": "Esterk",
    "price": 400,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 7
+   "row": 7,
+   "id": 31,
+   "str": 12,
+   "level": 0,
+   "slot": "arma",
+   "avg": 4.5,
+   "dmg": [
+    1,
+    8,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Esterk +1",
    "price": 800,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 8
+   "row": 8,
+   "id": 32,
+   "str": 12,
+   "level": 20,
+   "slot": "arma",
+   "avg": 5.5,
+   "dmg": [
+    1,
+    8,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Rapier",
    "price": 300,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 9
+   "row": 9,
+   "id": 34,
+   "str": 11,
+   "level": 0,
+   "slot": "arma",
+   "avg": 4.0,
+   "dmg": [
+    1,
+    7,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Rapier +1",
    "price": 1300,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 10
+   "row": 10,
+   "id": 35,
+   "str": 11,
+   "level": 30,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    1,
+    7,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Broad Sword",
    "price": 250,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 11
+   "row": 11,
+   "id": 38,
+   "str": 28,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 8.0,
+   "dmg": [
+    2,
+    7,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Broad Sword +1",
    "price": 1100,
    "shop": "Blacksmith",
    "scroll": 40,
-   "row": 12
+   "row": 12,
+   "id": 39,
+   "str": 28,
+   "level": 30,
+   "slot": "arma2m",
+   "avg": 9.0,
+   "dmg": [
+    2,
+    7,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Flameberge +1",
@@ -149,88 +284,209 @@
    "shop": "Blacksmith",
    "scroll": 30,
    "row": 0,
-   "slot": "arma",
-   "str": 65,
+   "slot": "arma2m",
+   "str": 60,
    "level": 60,
    "hands": 2,
-   "confirmed": false
+   "confirmed": true,
+   "id": 55,
+   "avg": 13.0,
+   "dmg": [
+    2,
+    11,
+    1
+   ]
   },
   {
    "name": "Light Axe",
    "price": 100,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 1
+   "row": 1,
+   "id": 59,
+   "str": 14,
+   "level": 0,
+   "slot": "arma",
+   "avg": 3.5,
+   "dmg": [
+    1,
+    6,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Light Axe +1",
    "price": 350,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 2
+   "row": 2,
+   "id": 60,
+   "str": 14,
+   "level": 10,
+   "slot": "arma",
+   "avg": 4.5,
+   "dmg": [
+    1,
+    6,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Tomahoc",
    "price": 180,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 3
+   "row": 3,
+   "id": 62,
+   "str": 17,
+   "level": 0,
+   "slot": "arma",
+   "avg": 4.0,
+   "dmg": [
+    2,
+    3,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Tomahoc +1",
    "price": 700,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 4
+   "row": 4,
+   "id": 63,
+   "str": 17,
+   "level": 20,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    2,
+    3,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Double Axe",
    "price": 560,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 5
+   "row": 5,
+   "id": 68,
+   "str": 33,
+   "level": 0,
+   "slot": "arma",
+   "avg": 6.0,
+   "dmg": [
+    3,
+    3,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Double Axe +1",
    "price": 1200,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 6
+   "row": 6,
+   "id": 69,
+   "str": 33,
+   "level": 40,
+   "slot": "arma",
+   "avg": 7.0,
+   "dmg": [
+    3,
+    3,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "War Axe",
    "price": 700,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 7
+   "row": 7,
+   "id": 71,
+   "str": 44,
+   "level": 0,
+   "slot": "arma",
+   "avg": 9.0,
+   "dmg": [
+    3,
+    5,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "War Axe +1",
    "price": 2000,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 8
+   "row": 8,
+   "id": 72,
+   "str": 44,
+   "level": 60,
+   "slot": "arma",
+   "avg": 10.0,
+   "dmg": [
+    3,
+    5,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Short Bow",
    "price": 100,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 9
+   "row": 9,
+   "id": 75,
+   "str": 8,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 3.5,
+   "dmg": [
+    1,
+    6,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Long Bow",
    "price": 200,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 10
+   "row": 10,
+   "id": 76,
+   "str": 12,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 4.0,
+   "dmg": [
+    1,
+    7,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Arrow",
    "price": 1,
    "shop": "Blacksmith",
    "scroll": 30,
-   "row": 11
+   "row": 11,
+   "id": 77,
+   "str": 0,
+   "level": 0,
+   "confirmed": true
   },
   {
    "name": "Wood Shield",
@@ -241,63 +497,146 @@
    "str": 8,
    "def": 8,
    "slot": "escudo",
-   "confirmed": true
+   "confirmed": true,
+   "id": 79,
+   "level": 0
   },
   {
    "name": "Bleeding Island Ticket",
    "price": 100,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 0
+   "row": 0,
+   "id": 117,
+   "str": 0,
+   "level": 0,
+   "confirmed": true
   },
   {
    "name": "Pick Axe",
    "price": 500,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 1
+   "row": 1,
+   "id": 231,
+   "str": 10,
+   "level": 0,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    2,
+    4,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Hoe",
    "price": 300,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 2
+   "row": 2,
+   "id": 232,
+   "str": 10,
+   "level": 0,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    2,
+    4,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Magic Wand (MS20)",
    "price": 5000,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 3
+   "row": 3,
+   "id": 256,
+   "str": 10,
+   "level": 50,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    2,
+    4,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Magic Wand (MS10)",
    "price": 2500,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 4
+   "row": 4,
+   "id": 257,
+   "str": 10,
+   "level": 40,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    2,
+    4,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Magic Wand (MS0)",
    "price": 1000,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 5
+   "row": 5,
+   "id": 258,
+   "str": 10,
+   "level": 30,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    2,
+    4,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Wizard Magic Staff (MS20)",
    "price": 6000,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 6
+   "row": 6,
+   "id": 683,
+   "str": 10,
+   "level": 95,
+   "slot": "arma",
+   "avg": 3.5,
+   "dmg": [
+    1,
+    6,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Wizard Magic Staff (MS10)",
    "price": 5500,
    "shop": "Blacksmith",
    "scroll": 20,
-   "row": 7
+   "row": 7,
+   "id": 684,
+   "str": 10,
+   "level": 90,
+   "slot": "arma",
+   "avg": 3.5,
+   "dmg": [
+    1,
+    6,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Hauberk (M)",
@@ -308,7 +647,9 @@
    "str": 12,
    "def": 8,
    "slot": "brazos",
-   "confirmed": true
+   "confirmed": true,
+   "id": 454,
+   "level": 0
   },
   {
    "name": "Chain Mail (M)",
@@ -317,8 +658,11 @@
    "scroll": 20,
    "row": 9,
    "slot": "pecho",
-   "str": 40,
-   "confirmed": false
+   "str": 30,
+   "confirmed": true,
+   "id": 456,
+   "level": 0,
+   "def": 30
   },
   {
    "name": "Scale Mail (M)",
@@ -329,7 +673,9 @@
    "str": 20,
    "def": 20,
    "slot": "pecho",
-   "confirmed": true
+   "confirmed": true,
+   "id": 457,
+   "level": 0
   },
   {
    "name": "Plate Mail (M)",
@@ -339,7 +685,10 @@
    "row": 11,
    "slot": "pecho",
    "str": 100,
-   "confirmed": false
+   "confirmed": true,
+   "id": 458,
+   "level": 0,
+   "def": 37
   },
   {
    "name": "Chain Hose (M)",
@@ -350,28 +699,58 @@
    "str": 10,
    "def": 6,
    "slot": "piernas",
-   "confirmed": true
+   "confirmed": true,
+   "id": 461,
+   "level": 0
   },
   {
    "name": "Plate Leggings (W)",
    "price": 1000,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 0
+   "row": 0,
+   "id": 483,
+   "str": 20,
+   "level": 0,
+   "slot": "piernas",
+   "def": 12,
+   "confirmed": true
   },
   {
    "name": "Battle Axe",
    "price": 3500,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 1
+   "row": 1,
+   "id": 560,
+   "str": 90,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 13.5,
+   "dmg": [
+    3,
+    8,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Battle Axe +1",
    "price": 6000,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 2
+   "row": 2,
+   "id": 580,
+   "str": 90,
+   "level": 110,
+   "slot": "arma2m",
+   "avg": 14.5,
+   "dmg": [
+    3,
+    8,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Helm (M)",
@@ -382,7 +761,9 @@
    "str": 52,
    "def": 5,
    "slot": "cabeza",
-   "confirmed": true
+   "confirmed": true,
+   "id": 600,
+   "level": 0
   },
   {
    "name": "Full-Helm (M)",
@@ -391,22 +772,37 @@
    "scroll": 10,
    "row": 4,
    "slot": "cabeza",
-   "str": 70,
-   "confirmed": false
+   "str": 85,
+   "confirmed": true,
+   "id": 601,
+   "level": 0,
+   "def": 10
   },
   {
    "name": "Helm (W)",
    "price": 800,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 5
+   "row": 5,
+   "id": 602,
+   "str": 52,
+   "level": 0,
+   "slot": "cabeza",
+   "def": 5,
+   "confirmed": true
   },
   {
    "name": "Full-Helm (W)",
    "price": 1500,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 6
+   "row": 6,
+   "id": 603,
+   "str": 85,
+   "level": 0,
+   "slot": "cabeza",
+   "def": 10,
+   "confirmed": true
   },
   {
    "name": "Giant Sword",
@@ -414,53 +810,121 @@
    "shop": "Blacksmith",
    "scroll": 10,
    "row": 7,
-   "slot": "arma",
-   "str": 156,
+   "slot": "arma2m",
+   "str": 130,
    "level": 100,
    "hands": 2,
-   "confirmed": false
+   "confirmed": true,
+   "id": 615,
+   "avg": 15.0,
+   "dmg": [
+    2,
+    11,
+    3
+   ]
   },
   {
    "name": "Composite Bow",
    "price": 3000,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 8
+   "row": 8,
+   "id": 617,
+   "str": 40,
+   "level": 70,
+   "slot": "arma2m",
+   "avg": 3.5,
+   "dmg": [
+    1,
+    6,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Knight Rapier",
    "price": 3200,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 9
+   "row": 9,
+   "id": 671,
+   "str": 12,
+   "level": 95,
+   "slot": "arma",
+   "avg": 6.0,
+   "dmg": [
+    1,
+    7,
+    2
+   ],
+   "confirmed": true
   },
   {
    "name": "Knight Great Sword",
    "price": 3500,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 10
+   "row": 10,
+   "id": 672,
+   "str": 52,
+   "level": 85,
+   "slot": "arma2m",
+   "avg": 11.0,
+   "dmg": [
+    2,
+    8,
+    2
+   ],
+   "confirmed": true
   },
   {
    "name": "Knight Flameberge",
    "price": 3700,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 11
+   "row": 11,
+   "id": 673,
+   "str": 60,
+   "level": 95,
+   "slot": "arma2m",
+   "avg": 13.0,
+   "dmg": [
+    2,
+    10,
+    2
+   ],
+   "confirmed": true
   },
   {
    "name": "Knight War Axe",
    "price": 3000,
    "shop": "Blacksmith",
    "scroll": 10,
-   "row": 12
+   "row": 12,
+   "id": 674,
+   "str": 44,
+   "level": 85,
+   "slot": "arma",
+   "avg": 9.0,
+   "dmg": [
+    2,
+    6,
+    2
+   ],
+   "confirmed": true
   },
   {
    "name": "Wizard Hauberk (W)",
    "price": 2400,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 0
+   "row": 0,
+   "id": 682,
+   "str": 12,
+   "level": 90,
+   "slot": "brazos",
+   "def": 12,
+   "confirmed": true
   },
   {
    "name": "Knight Hauberk (M)",
@@ -469,15 +933,24 @@
    "scroll": 0,
    "row": 1,
    "slot": "brazos",
-   "str": 60,
-   "confirmed": false
+   "str": 12,
+   "confirmed": true,
+   "id": 687,
+   "level": 70,
+   "def": 12
   },
   {
    "name": "Knight Hauberk (W)",
    "price": 2400,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 2
+   "row": 2,
+   "id": 688,
+   "str": 12,
+   "level": 70,
+   "slot": "brazos",
+   "def": 12,
+   "confirmed": true
   },
   {
    "name": "Horned Helm (M)",
@@ -486,8 +959,11 @@
    "scroll": 0,
    "row": 3,
    "slot": "cabeza",
-   "str": 90,
-   "confirmed": false
+   "str": 160,
+   "confirmed": true,
+   "id": 750,
+   "level": 120,
+   "def": 17
   },
   {
    "name": "Wings Helm (M)",
@@ -496,94 +972,241 @@
    "scroll": 0,
    "row": 4,
    "slot": "cabeza",
-   "str": 90,
-   "confirmed": false
+   "str": 130,
+   "confirmed": true,
+   "id": 751,
+   "level": 100,
+   "def": 15
   },
   {
    "name": "Horned Helm (W)",
    "price": 4000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 5
+   "row": 5,
+   "id": 754,
+   "str": 160,
+   "level": 120,
+   "slot": "cabeza",
+   "def": 17,
+   "confirmed": true
   },
   {
    "name": "Wings Helm (W)",
    "price": 5000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 6
+   "row": 6,
+   "id": 755,
+   "str": 130,
+   "level": 100,
+   "slot": "cabeza",
+   "def": 15,
+   "confirmed": true
   },
   {
    "name": "Hammer",
    "price": 6000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 7
+   "row": 7,
+   "id": 760,
+   "str": 90,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 12.0,
+   "dmg": [
+    3,
+    7,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Battle Hammer",
    "price": 9000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 8
+   "row": 8,
+   "id": 761,
+   "str": 120,
+   "level": 110,
+   "slot": "arma2m",
+   "avg": 14.0,
+   "dmg": [
+    3,
+    7,
+    2
+   ],
+   "confirmed": true
   },
   {
    "name": "Barbarian Hammer",
    "price": 15000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 9
+   "row": 9,
+   "id": 843,
+   "str": 150,
+   "level": 120,
+   "slot": "arma2m",
+   "avg": 17.0,
+   "dmg": [
+    3,
+    9,
+    2
+   ],
+   "confirmed": true
   },
   {
    "name": "Black Shadow Sword",
    "price": 10000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 10
+   "row": 10,
+   "id": 844,
+   "str": 150,
+   "level": 120,
+   "slot": "arma2m",
+   "avg": 16.0,
+   "dmg": [
+    2,
+    12,
+    3
+   ],
+   "confirmed": true
   },
   {
    "name": "Fire-Bow",
    "price": 6000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 11
+   "row": 11,
+   "id": 873,
+   "str": 70,
+   "level": 70,
+   "slot": "arma2m",
+   "avg": 6.0,
+   "dmg": [
+    2,
+    5,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Direction-Bow",
    "price": 7000,
    "shop": "Blacksmith",
    "scroll": 0,
-   "row": 12
+   "row": 12,
+   "id": 874,
+   "str": 100,
+   "level": 70,
+   "slot": "arma2m",
+   "avg": 7.0,
+   "dmg": [
+    2,
+    6,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Dagger",
    "price": 25,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 1,
+   "str": 2,
+   "level": 0,
+   "slot": "arma",
+   "avg": 3.0,
+   "dmg": [
+    1,
+    5,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Short Sword",
    "price": 50,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 8,
+   "str": 8,
+   "level": 0,
+   "slot": "arma",
+   "avg": 3.5,
+   "dmg": [
+    1,
+    6,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Short Sword +1",
    "price": 200,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 9,
+   "str": 8,
+   "level": 10,
+   "slot": "arma",
+   "avg": 4.5,
+   "dmg": [
+    1,
+    6,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Main Gauche",
    "price": 50,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 12,
+   "str": 8,
+   "level": 0,
+   "slot": "arma",
+   "avg": 4.0,
+   "dmg": [
+    1,
+    7,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Main Gauche +1",
    "price": 200,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 13,
+   "str": 8,
+   "level": 15,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    1,
+    7,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Gradius",
    "price": 90,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 15,
+   "str": 8,
+   "level": 0,
+   "slot": "arma",
+   "avg": 4.5,
+   "dmg": [
+    1,
+    8,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Gradius +1",
@@ -591,12 +1214,31 @@
    "shop": "Blacksmith",
    "slot": "arma",
    "level": 20,
-   "confirmed": true
+   "confirmed": true,
+   "id": 16,
+   "str": 8,
+   "avg": 5.5,
+   "dmg": [
+    1,
+    8,
+    1
+   ]
   },
   {
    "name": "Long Sword",
    "price": 180,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 17,
+   "str": 14,
+   "level": 0,
+   "slot": "arma",
+   "avg": 5.0,
+   "dmg": [
+    1,
+    9,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Bastard Sword",
@@ -606,17 +1248,43 @@
   {
    "name": "Bastard Sword +1",
    "price": 1200,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 43,
+   "str": 33,
+   "level": 35,
+   "slot": "arma2m",
+   "avg": 10.0,
+   "dmg": [
+    2,
+    8,
+    1
+   ],
+   "confirmed": true
   },
   {
    "name": "Claymore",
    "price": 400,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 46,
+   "str": 40,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 10.0,
+   "dmg": [
+    2,
+    9,
+    0
+   ],
+   "confirmed": true
   },
   {
    "name": "Hand Attack Manual",
    "price": 100,
-   "shop": "Blacksmith"
+   "shop": "Blacksmith",
+   "id": 385,
+   "str": 0,
+   "level": 0,
+   "confirmed": true
   },
   {
    "name": "Health Potion",
@@ -625,7 +1293,11 @@
    "pos": [
     272,
     191
-   ]
+   ],
+   "id": 91,
+   "str": 0,
+   "level": 0,
+   "confirmed": true
   },
   {
    "name": "Meat",
@@ -634,44 +1306,22 @@
    "pos": [
     272,
     421
-   ]
+   ],
+   "id": 99,
+   "str": 0,
+   "level": 0,
+   "confirmed": true
   }
  ],
- "ladder": {
-  "arma": [
-   "Gradius +1",
-   "Long Sword +1",
-   "Falchion +1"
-  ],
-  "pecho": [
-   "Scale Mail (M)",
-   "Chain Mail (M)",
-   "Plate Mail (M)"
-  ],
-  "cabeza": [
-   "Helm (M)",
-   "Full-Helm (M)",
-   "Horned Helm (M)",
-   "Wings Helm (M)"
-  ],
-  "brazos": [
-   "Hauberk (M)",
-   "Knight Hauberk (M)"
-  ],
-  "piernas": [
-   "Chain Hose (M)"
-  ],
-  "escudo": [
-   "Wood Shield"
-  ]
- },
  "slot_priority": [
   "arma",
   "pecho",
   "escudo",
-  "brazos",
   "piernas",
-  "cabeza"
+  "brazos",
+  "cabeza",
+  "capa",
+  "pies"
  ],
  "provisions": [
   {
@@ -690,5 +1340,11 @@
    "meat": 10
   }
  ],
- "reserve_gold": 400
+ "reserve_gold": 400,
+ "weapon_names": [
+  "Gradius +1",
+  "Long Sword +1",
+  "Scimitar +1",
+  "Falchion +1"
+ ]
 }
