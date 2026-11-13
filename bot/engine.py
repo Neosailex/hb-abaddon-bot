@@ -631,6 +631,66 @@ class Bot:
         used = sum(v for x, v in (getattr(self, "_bud", None) or {}).items() if x >= k - 60)
         return 3600.0 * float(self.cfg.get("town_share", 0.10)) - used
 
+    # ---------- rendimiento por mapa: experiencia por hora, pociones por minuto ----------
+    def _yield_entry(self, mk):
+        """Datos de rendimiento del mapa; los viejos pesan menos cuanto más niveles subí desde que los medí."""
+        lvl = self._level_mem() or 1
+        y = self.world.learn.setdefault("yield", {}).setdefault(mk, {"sec": 0.0, "exp": 0.0, "pots": 0.0, "lvl": lvl})
+        if y.get("lvl") != lvl:
+            f = 0.6 ** max(1, abs(lvl - y.get("lvl", lvl)))
+            for k in ("sec", "exp", "pots"):
+                y[k] = y.get(k, 0.0) * f
+            y["lvl"] = lvl
+        return y
+
+    def _hunting_now(self):
+        cur = (self.pos.get("map") or "").lower()
+        if not cur or any(k in cur for k in ("shop", "blacksmith", "warehouse", "guild", "hall", "church", "tower")):
+            return False
+        if getattr(self, "mission", None) or getattr(self, "_busy_ui", False) or getattr(self, "_err_v", None):
+            return False
+        return not self._is_travelling()
+
+    def _yield_add(self, exp=0.0):
+        mk = (self.pos.get("map") or "").strip().lower()
+        if mk and exp > 0:
+            self._yield_entry(mk)["exp"] += exp
+
+    def _yield_tick(self):
+        now = time.time()
+        dt = min(2.0, max(0.0, now - getattr(self, "_yt", now)))
+        self._yt = now
+        if not self.running or not self._hunting_now():
+            return
+        mk = (self.pos.get("map") or "").strip().lower()
+        y = self._yield_entry(mk)
+        y["sec"] += dt
+        hp_p = self.stats.get("hp_pots", 0)
+        last = getattr(self, "_yt_pots", None)
+        if last is not None and hp_p > last:
+            y["pots"] += hp_p - last
+        self._yt_pots = hp_p
+        x, yy = self.pos.get("x"), self.pos.get("y")
+        if x is not None:
+            z = self.world.learn.setdefault("xpz", {}).setdefault(mk, {})
+            e = z.setdefault(f"{x // self.ZC},{yy // self.ZC}", {"n": 0, "xp": 0.0, "x": x, "y": yy})
+            e["sec"] = e.get("sec", 0.0) + dt
+        if now - getattr(self, "_yt_save", 0) > 120:
+            self._yt_save = now
+            self.world.save()
+
+    def _yield_score(self, mk):
+        """Experiencia por hora en ese mapa (None si todavía no estuve 10 minutos). Si gasto muchas pociones
+        por minuto, cuenta menos (es caro y peligroso)."""
+        y = self.world.learn.get("yield", {}).get(mk.strip().lower())
+        if not y or y.get("sec", 0) < 600:
+            return None
+        rate = y["exp"] / y["sec"] * 3600
+        ppm = y.get("pots", 0) / (y["sec"] / 60.0)
+        if ppm > float(self.cfg.get("pots_per_min_max", 3.0)):
+            rate *= 0.4
+        return rate
+
     def _tab_check(self):
         """Si apreté TAB y en 75 s no maté nada, me equivoqué (estaba en modo ataque): lo vuelvo como estaba."""
         p = getattr(self, "_tab_pending", 0)
@@ -648,6 +708,7 @@ class Bot:
     def _tick(self):
         self._town_account()
         self._tab_check()
+        self._yield_tick()
         self._zone_flush()
         self._fight_sample()
         if getattr(self, "_busy_ui", False):
@@ -2202,6 +2263,12 @@ class Bot:
         if self._errand_due():
             return "Aresden Farm"  # mandados (comprar, vender, reparar, provisiones): se hacen desde la Farm
         avoid = self._avoid()
+        try:
+            pick = self._yield_pick(phases, cur, avoid)
+        except Exception:
+            pick = None
+        if pick:
+            return pick
         # el mapa ideal para mi nivel si sé llegar; si no, el de la etapa anterior que conozco
         for i, ph in enumerate(reversed(phases)):
             for name in ph["maps"]:
@@ -2214,6 +2281,48 @@ class Bot:
                     return n
         self.nav["want"] = phases[-1]["maps"][0].split(" (")[0]
         return phases[-1]["maps"][0].split(" (")[0]
+
+    def _yield_pick(self, phases, cur, avoid):
+        """Elige el mapa de caza por rendimiento medido (experiencia por hora): me quedo al menos 10 minutos donde
+        llego; después comparo con lo que ya medí y con los mapas que mis stats habilitan y todavía no probé
+        (esos los pruebo primero, del más alto al más bajo). Se recalcula cada 30 s."""
+        now = time.time()
+        if now - getattr(self, "_yp_t", 0) < 30 and getattr(self, "_yp_v", None):
+            return self._yp_v
+        self._yp_t = now
+        cands = []
+        for ph in reversed(phases):
+            for name in ph["maps"]:
+                n = name.split(" (")[0]
+                if n not in cands and (self._same(cur, n) or self._known_route(cur, n, avoid)):
+                    cands.append(n)
+        if not cands:
+            return None
+        here = next((n for n in cands if self._same(cur, n)), None)
+        vis = getattr(self, "_visit", None)
+        if here and (not vis or vis[0] != here):
+            self._visit = vis = (here, now)
+        scores = {n: self._yield_score(n) for n in cands}
+        untried = [n for n in cands if scores[n] is None]
+        # recién llegué a un mapa sin medir y no hay otro sin medir más alto en la escalera: me quedo a medirlo
+        if here and scores[here] is None and untried and untried[0] == here:
+            self._yp_v = here
+            return here
+        if untried:
+            self._yp_v = pick = untried[0]  # el más alto de la escalera que todavía no medí
+        else:
+            pick = max(cands, key=lambda n: scores[n])
+            if here and pick != here and scores[pick] < 1.25 * scores[here]:
+                pick = here  # no vale la pena el viaje por poca diferencia
+        if pick != getattr(self, "_yp_said", None):
+            self._yp_said = pick
+            txt = ", ".join(f"{n} ~{int(v):,} exp/h".replace(",", ".") for n, v in scores.items() if v is not None)
+            best_n = max((n for n in cands if scores[n] is not None), key=lambda n: scores[n], default=None)
+            why = ("todavía no lo probé" if scores.get(pick) is None else
+                   "es el que más rinde" if pick == best_n else "el mejor rinde poco más: no vale el viaje")
+            self.log(f"📈 Rendimiento: {txt or 'sin medir todavía'} → voy a {pick} ({why}).")
+        self._yp_v = pick
+        return pick
 
     def _errand_due(self):
         """Motivo para volver al pueblo (o None). Se recalcula cada 15 s. Solo vuelvo por algo que valga el viaje."""
@@ -2785,12 +2894,14 @@ class Bot:
             d = (e1 - e0) / float(len(ready))
             if d <= 0 or d > 500000:
                 return
+            self._yield_add(exp=e1 - e0)
             for _, x, y, mk in ready:
                 z = self.world.learn.setdefault("xpz", {}).setdefault(mk, {})
                 e = z.setdefault(f"{x // self.ZC},{y // self.ZC}", {"n": 0, "xp": 0.0, "x": x, "y": y})
                 e["n"] = min(e["n"] + 1, 40)
                 a = 1.0 / e["n"] if e["n"] < 8 else 0.15
                 e["xp"] += (d - e["xp"]) * a
+                e["tot"] = e.get("tot", 0) + d
                 e["x"] += (x - e["x"]) * 0.3
                 e["y"] += (y - e["y"]) * 0.3
                 e["t"] = int(now)
@@ -3043,7 +3154,16 @@ class Bot:
                 continue
             cells = [v for v in z.values() if x1 - 3 <= v["x"] <= x2 + 3 and y1 - 3 <= v["y"] <= y2 + 3]
             n = sum(v["n"] for v in cells)
-            xp = sum(v["xp"] * v["n"] for v in cells) / n if n >= 5 else None
+            sec = sum(v.get("sec", 0) for v in cells)
+            tot = sum(v.get("tot", 0) for v in cells)
+            # lo que manda es la experiencia por HORA estando ahí (bichos que dan mucho pero salen pocos no sirven);
+            # con poco tiempo medido estimo por la experiencia por bicho (unos 2 bichos por minuto)
+            if sec >= 300:
+                xp = tot / sec * 3600
+            elif n >= 5:
+                xp = sum(v["xp"] * v["n"] for v in cells) / n * 120
+            else:
+                xp = None
             if xp is not None:
                 meas.append(xp)
             cand.append([xp, zn, c, f"{mk}|{x1},{y1}", xp is not None])
@@ -3054,7 +3174,14 @@ class Bot:
             if c_[0] is None:
                 c_[0] = 2.0 * top + c_[1].get("min_level", 0)  # sin medir: prometedora, más cuanto más fuerte el bicho
         live = [c_ for c_ in cand if empty.get(c_[3], 0) < now] or cand
-        score, zn, ctr, key, measured = max(live, key=lambda c_: c_[0])
+        best_c = max(live, key=lambda c_: c_[0])
+        # no salto de zona por diferencias chicas: me quedo en la actual si rinde al menos 80% de la mejor
+        cur_c = next((c_ for c_ in live if c_[3] == getattr(self, "_zone_goal", None)), None)
+        if cur_c and cur_c is not best_c and cur_c[0] >= 0.8 * best_c[0] and now - getattr(self, "_zone_since", 0) < 1200:
+            best_c = cur_c
+        if best_c[3] != getattr(self, "_zone_goal", None):
+            self._zone_since = now
+        score, zn, ctr, key, measured = best_c
         x1, y1, x2, y2 = zn["rect"]
         if near_bad(x, y, 2) and not (x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4):
             if now - getattr(self, "_bad_said", 0) > 120:
@@ -3085,7 +3212,7 @@ class Bot:
         self._zone_idle = now
         if getattr(self, "_zone_goal", None) != key:
             self._zone_goal = key
-            how = f"~{int(score)} de exp por bicho" if measured else "todavía no la probé"
+            how = f"~{int(score)} de exp por hora" if measured else "todavía no la probé"
             extra = f", vida ~{zn['hp']}, pega ~{zn['dmg']} por golpe" if "hp" in zn else ""
             self.log(f"🎯 Nivel {lvl} → cazo {zn['mob']}{extra} → zona ({ctr[0]},{ctr[1]}) [{how}].")
         self._walk_to(mp, ctr, f"zona de {zn['mob']}")
