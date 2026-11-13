@@ -1,1 +1,1 @@
-{"version": 88, "notes": "Arreglo de seguridad: al reconectar ya no escribe la contraseña en la lista de personajes (la confundía con el login); solo aprieta Start."}
+{"version": 89, "notes": "Auto-login: elige el servidor Abaddon en la primera pantalla."}

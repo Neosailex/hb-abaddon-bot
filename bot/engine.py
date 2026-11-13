@@ -1257,6 +1257,17 @@ class Bot:
         #     "Change Password": en esta pantalla NUNCA se escribe la contraseña, solo se aprieta Start.
         sc_ = self.rect[2] / 1280.0
         ntxt = norm(txt)
+        # 1a) elegir servidor (primera pantalla del juego)
+        if any(k in ntxt for k in ("selectserver", "abaddonserver", "apocalypseserver", "whichyouwantlogin")):
+            self._release()
+            self.stats["state"] = "reconectando: servidor"
+            if now - getattr(self, "_al_srv_try", 0) < 15:
+                return True
+            self._al_srv_try = now
+            w_ = next((w for w in words if norm(w[0]) == "abaddon" and w[2] > self.rect[3] * 0.33), None)
+            winapi.click(*(self.abs_pt(w_[1] + w_[3], w_[2]) if w_ else self.abs_pt(430 * sc_, 392 * sc_)))
+            self.log("Auto-login: elijo el servidor Abaddon.")
+            return True
         on_list = any(k in ntxt for k in ("characterlist", "character", "createnew", "logout", "newpass", "passconfirm", "change", "testserver"))
         if on_list:
             self._release()
