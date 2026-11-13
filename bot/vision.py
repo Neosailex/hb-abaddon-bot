@@ -497,3 +497,24 @@ def find_npc_menu(img, thr=0.6):
         return None
     x, y = loc[0] + 28 * sc, loc[1] + 12 * sc
     return {"trade": (x, y), "sell": (x + 109 * sc, y), "talk": (x + 196 * sc, y), "repair": (x + 219 * sc, y - 53 * sc), "score": float(mx)}
+
+
+def find_bag_origin(img):
+    """Ubica el bolso abierto por el texto amarillo "UPGRADE" (el bolso se puede mover).
+    Devuelve (x, y) del texto en pantalla de 1280 o None. Origen de items = (x + 5, y - 212)."""
+    import numpy as np
+    sc = img.shape[1] / 1280.0
+    im = img.astype(np.int16)
+    b, g, r = im[:, :, 0], im[:, :, 1], im[:, :, 2]
+    m = (r > 190) & (g > 160) & (b < 130) & (r - b > 80)
+    m[int(860 * sc):, :] = False
+    rows = m.sum(axis=1)
+    k = np.convolve(rows, np.ones(max(1, int(14 * sc))), mode="same")
+    y = int(np.argmax(k))
+    if k[y] < 150:
+        return None
+    band = m[max(0, y - int(8 * sc)):y + int(8 * sc)]
+    xs = np.nonzero(band.any(axis=0))[0]
+    if not len(xs):
+        return None
+    return (xs[0] / sc, y / sc)

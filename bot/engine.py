@@ -910,6 +910,21 @@ class Bot:
         else:
             winapi.click(ax, ay)
 
+    def _drop_cursor_item(self):
+        """Si no camino puede ser que haya ventanas abiertas tapando: las cierro con ESC y con sus botones."""
+        try:
+            sc = self.rect[2] / 1280.0
+            winapi.move(*self.abs_pt(640 * sc, 760 * sc))
+            for _ in range(2):
+                winapi.press("ESC")
+                time.sleep(0.25)
+            if vision.find_bag_origin(self.screen.grab(self.rect)):
+                winapi.click(*self.abs_pt(875 * sc, 918 * sc))
+                time.sleep(0.4)
+            self.log("No avanzaba: solté el mouse y cerré ventanas.")
+        except Exception:
+            pass
+
     def _release(self):
         if self.mouse_held:
             winapi.left_up()
@@ -2114,6 +2129,7 @@ class Bot:
         px, py = self.pos["x"], self.pos["y"]
         if (px, py) != self.nav.get("last_pos"):
             self.nav["last_pos"], self.nav["still_since"] = (px, py), now
+            self.nav["stuck_n"] = 0
         if now - self.nav["last_click"] < 0.35:
             return
         if max(abs(goal[0] - px), abs(goal[1] - py)) <= 1 and not m.tele[goal[1], goal[0]]:
@@ -2145,6 +2161,10 @@ class Bot:
             n_st = self.nav.get("stuck_n", 0) + 1
             self.nav["stuck_n"] = n_st
             self.nav["still_since"] = now
+            # suelto el click: si quedó apretado sobre una ventana (bolso, personaje) el juego no camina
+            self._release()
+            if n_st == 2:
+                self._drop_cursor_item()
             if n_st % 3:
                 # trabado: doy el paso siguiente del camino, de a una baldosa, en vez de apuntar lejos
                 wp = path[min(1, len(path) - 1)]
@@ -2154,8 +2174,6 @@ class Bot:
                     if m.ok(*wp) and m.los((px, py), wp) and not m.near_tele(wp[0], wp[1], 1):
                         break
                 self.log("Trabado: pruebo para otro lado.")
-        elif now - self.nav["still_since"] < 1.0:
-            self.nav["stuck_n"] = 0
         tw, th = self._tile()
         cx, cy = self._char()
         # en Helbreath se camina manteniendo el click: muevo el cursor hacia el próximo punto y lo dejo apretado
