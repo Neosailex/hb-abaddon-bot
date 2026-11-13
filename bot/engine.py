@@ -671,14 +671,19 @@ class Bot:
         if in_building and self.state != "seek":
             self._release()
             self.state, self.target = "seek", None
-        if mem_ok and not in_building:
+        # Si estoy yendo a algún lado (otro mapa), no me distraigo con cada bicho: solo peleo si me pegan.
+        focused = self._is_travelling() and not self._attacked_recently()
+        if focused and self.state != "seek":
+            self._release()
+            self.state, self.target = "seek", None
+        if mem_ok and not in_building and not focused:
             if self.state in ("attack", "loot") or self._mem_near():
                 self._auto()
                 return
             if not self._fleeing() and self._goto_spot():
                 return
         # mirar alrededor aunque esté viajando o explorando
-        if (not mem_ok and self.state == "seek" and self.nav.get("walking") and self.cfg.get("hover_confirm", True)
+        if (not mem_ok and not focused and self.state == "seek" and self.nav.get("walking") and self.cfg.get("hover_confirm", True)
                 and time.time() - getattr(self, "_last_scan", 0) > self.cfg.get("scan_while_walking_every", 2.0)):
             self._last_scan = time.time()
             self._release()
@@ -2164,8 +2169,8 @@ class Bot:
             return True
         if force_dest:
             pass
-        elif self.state in ("attack", "loot") or time.time() - getattr(self, "_last_enemy", 0) < 6:
-            return False  # si está peleando o acaba de ver un monstruo, que siga cazando
+        elif (self.state in ("attack", "loot") or time.time() - getattr(self, "_last_enemy", 0) < 6) and not self._is_travelling():
+            return False  # ya estoy en mi mapa de caza: si está peleando o acaba de ver un monstruo, que siga cazando
         elif self._under_attack():
             self._defend_until = time.time() + 8
         if not force_dest and time.time() < getattr(self, "_defend_until", 0):
@@ -2442,6 +2447,29 @@ class Bot:
             if self._enemy_at(x, y, before):
                 return (x, y)
         return None
+
+    def _is_travelling(self):
+        """True si tengo que ir a otro mapa y sé el camino (se recalcula cada 2 s)."""
+        now = time.time()
+        if now - getattr(self, "_trav_t", 0) > 2:
+            self._trav_t = now
+            v = False
+            try:
+                t = self.cfg.get("travel", {})
+                cur = self.pos.get("map") or ""
+                if t.get("enabled") and cur:
+                    dest = self.travel_dest()
+                    v = bool(dest and not self._same(cur, dest) and self._known_route(cur, dest, self._avoid()))
+            except Exception:
+                v = False
+            self._trav_v = v
+        return getattr(self, "_trav_v", False)
+
+    def _attacked_recently(self):
+        """Me están pegando (o me pegaron hace menos de 8 s): ahí sí corresponde frenar y pelear."""
+        if self._under_attack():
+            self._defend_until = time.time() + 8
+        return time.time() < getattr(self, "_defend_until", 0)
 
     def _under_attack(self):
         """True si la vida bajó en los últimos 3 segundos."""

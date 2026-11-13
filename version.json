@@ -1,1 +1,1 @@
-{"version": 63, "notes": "Pociones con la tecla 1 del juego (sin abrir el bolso), con vuelta automática al método del bolso si no anda."}
+{"version": 64, "notes": "Cuando viaja a otro mapa no se distrae con cada bicho: solo frena a pelear si le pegan."}
