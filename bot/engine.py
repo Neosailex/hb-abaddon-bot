@@ -2829,10 +2829,20 @@ class Bot:
         now = time.time()
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         empty = self.__dict__.setdefault("_zone_empty", {})
+        crs = getattr(self, "_creatures", None)
+        if crs is None:
+            crs = self._creatures = {m["type"]: m for m in self._load_json("criaturas.json").get("creatures", [])}
+        hpmax = max(getattr(self, "_hp_max", 0) or 0, self._hp_mem() or 0)
         cand, meas = [], []
         for zn in ent["zones"]:
             x1, y1, x2, y2 = zn["rect"]
-            if zn.get("min_level", 80) > lvl - int(self.cfg.get("mob_level_margin", 4)):
+            cr = crs.get(zn.get("type"))
+            if cr:
+                # ¿lo puedo enfrentar? que no me saque más del 6% de la vida por golpe y que le pueda acertar
+                if cr["dmg_avg"] > float(self.cfg.get("mob_dmg_share", 0.06)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl:
+                    continue
+                zn = dict(zn, min_level=cr["exp_dice"], hp=cr["hp"], dmg=cr["dmg_avg"])
+            elif zn.get("min_level", 80) > lvl - int(self.cfg.get("mob_level_margin", 4)):
                 continue
             c = mp.nearest_walkable((x1 + x2) // 2, (y1 + y2) // 2, r=6)
             if not c or not mp.ok(c[0], c[1]) or self._is_danger(c[0], c[1]):
@@ -2872,7 +2882,8 @@ class Bot:
         if getattr(self, "_zone_goal", None) != key:
             self._zone_goal = key
             how = f"~{int(score)} de exp por bicho" if measured else "todavía no la probé"
-            self.log(f"🎯 Nivel {lvl} → voy a la zona de {zn['mob']} en ({ctr[0]},{ctr[1]}) [{how}].")
+            extra = f", vida ~{zn['hp']}, pega ~{zn['dmg']} por golpe" if "hp" in zn else ""
+            self.log(f"🎯 Nivel {lvl} → cazo {zn['mob']}{extra} → zona ({ctr[0]},{ctr[1]}) [{how}].")
         self._walk_to(mp, ctr, f"zona de {zn['mob']}")
         self.stats["state"] = "yendo a zona de caza"
         return True

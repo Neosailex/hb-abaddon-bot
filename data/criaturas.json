@@ -1,0 +1,3711 @@
+{
+ "source": "Stats clásicos de Helbreath (archivos públicos de servidor: Npc.cfg y zonas de MAPDATA). En Abaddon la experiencia está multiplicada y algún valor puede diferir: el bot mide la experiencia real por zona y manda eso.",
+ "fields": {
+  "hp": "vida promedio (dados de vida x 4.5)",
+  "defense": "qué tan difícil es pegarle",
+  "hit": "qué tan seguido pega",
+  "exp_dice": "experiencia base (para comparar entre bichos)",
+  "dmg": "dados de daño por golpe",
+  "zones": "dónde sale: mapa, rectángulo y centro"
+ },
+ "creatures": [
+  {
+   "name": "Slime",
+   "file_name": "Slime",
+   "type": 10,
+   "hit_dice": 2,
+   "hp": 9,
+   "defense": 10,
+   "hit": 30,
+   "exp_dice": 4,
+   "dmg": "1d4",
+   "dmg_avg": 2.5,
+   "dmg_max": 4,
+   "gold_max": 30,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Aresden City",
+     "rect": [
+      106,
+      43,
+      123,
+      55
+     ],
+     "center": [
+      114,
+      49
+     ],
+     "max": 20
+    },
+    {
+     "map": "Aresden City",
+     "rect": [
+      33,
+      167,
+      60,
+      183
+     ],
+     "center": [
+      46,
+      175
+     ],
+     "max": 20
+    },
+    {
+     "map": "Aresden City",
+     "rect": [
+      25,
+      187,
+      48,
+      203
+     ],
+     "center": [
+      36,
+      195
+     ],
+     "max": 20
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      116,
+      80,
+      138,
+      102
+     ],
+     "center": [
+      127,
+      91
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      193,
+      102,
+      217,
+      119
+     ],
+     "center": [
+      205,
+      110
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      68,
+      22,
+      195,
+      71
+     ],
+     "center": [
+      131,
+      46
+     ],
+     "max": 15
+    },
+    {
+     "map": "Beginner Zone",
+     "rect": [
+      24,
+      80,
+      45,
+      95
+     ],
+     "center": [
+      34,
+      87
+     ],
+     "max": 20
+    },
+    {
+     "map": "Beginner Zone",
+     "rect": [
+      84,
+      44,
+      101,
+      55
+     ],
+     "center": [
+      92,
+      49
+     ],
+     "max": 20
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      130,
+      115,
+      146,
+      145
+     ],
+     "center": [
+      138,
+      130
+     ],
+     "max": 30
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      124,
+      39,
+      162,
+      105
+     ],
+     "center": [
+      143,
+      72
+     ],
+     "max": 30
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      147,
+      30,
+      166,
+      42
+     ],
+     "center": [
+      156,
+      36
+     ],
+     "max": 20
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      126,
+      236,
+      142,
+      259
+     ],
+     "center": [
+      134,
+      247
+     ],
+     "max": 20
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      36,
+      56,
+      59,
+      71
+     ],
+     "center": [
+      47,
+      63
+     ],
+     "max": 20
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      116,
+      80,
+      138,
+      102
+     ],
+     "center": [
+      127,
+      91
+     ],
+     "max": 15
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      193,
+      102,
+      217,
+      119
+     ],
+     "center": [
+      205,
+      110
+     ],
+     "max": 15
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      68,
+      22,
+      195,
+      71
+     ],
+     "center": [
+      131,
+      46
+     ],
+     "max": 15
+    },
+    {
+     "map": "istria",
+     "rect": [
+      82,
+      66,
+      105,
+      78
+     ],
+     "center": [
+      93,
+      72
+     ],
+     "max": 20
+    },
+    {
+     "map": "istria",
+     "rect": [
+      59,
+      44,
+      81,
+      53
+     ],
+     "center": [
+      70,
+      48
+     ],
+     "max": 20
+    },
+    {
+     "map": "istria",
+     "rect": [
+      73,
+      35,
+      96,
+      42
+     ],
+     "center": [
+      84,
+      38
+     ],
+     "max": 25
+    }
+   ]
+  },
+  {
+   "name": "Giant Ant",
+   "file_name": "Giant-Ant",
+   "type": 16,
+   "hit_dice": 3,
+   "hp": 14,
+   "defense": 15,
+   "hit": 40,
+   "exp_dice": 8,
+   "dmg": "2d3",
+   "dmg_avg": 4.0,
+   "dmg_max": 6,
+   "gold_max": 0,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      146,
+      88,
+      182,
+      116
+     ],
+     "center": [
+      164,
+      102
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      84,
+      149,
+      108,
+      175
+     ],
+     "center": [
+      96,
+      162
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      146,
+      26,
+      184,
+      46
+     ],
+     "center": [
+      165,
+      36
+     ],
+     "max": 15
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      43,
+      158,
+      69,
+      178
+     ],
+     "center": [
+      56,
+      168
+     ],
+     "max": 23
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      165,
+      43,
+      185,
+      76
+     ],
+     "center": [
+      175,
+      59
+     ],
+     "max": 23
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      111,
+      81,
+      131,
+      101
+     ],
+     "center": [
+      121,
+      91
+     ],
+     "max": 23
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      146,
+      88,
+      182,
+      116
+     ],
+     "center": [
+      164,
+      102
+     ],
+     "max": 15
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      84,
+      149,
+      108,
+      175
+     ],
+     "center": [
+      96,
+      162
+     ],
+     "max": 15
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      146,
+      26,
+      184,
+      46
+     ],
+     "center": [
+      165,
+      36
+     ],
+     "max": 15
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      284,
+      216,
+      300,
+      228
+     ],
+     "center": [
+      292,
+      222
+     ],
+     "max": 20
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      181,
+      266,
+      199,
+      274
+     ],
+     "center": [
+      190,
+      270
+     ],
+     "max": 20
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      80,
+      285,
+      93,
+      291
+     ],
+     "center": [
+      86,
+      288
+     ],
+     "max": 20
+    }
+   ]
+  },
+  {
+   "name": "Snake",
+   "file_name": "Amphis",
+   "type": 22,
+   "hit_dice": 4,
+   "hp": 18,
+   "defense": 30,
+   "hit": 50,
+   "exp_dice": 12,
+   "dmg": "2d4",
+   "dmg_avg": 5.0,
+   "dmg_max": 8,
+   "gold_max": 30,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Aresden City",
+     "rect": [
+      176,
+      233,
+      196,
+      250
+     ],
+     "center": [
+      186,
+      241
+     ],
+     "max": 20
+    },
+    {
+     "map": "Aresden City",
+     "rect": [
+      199,
+      225,
+      229,
+      249
+     ],
+     "center": [
+      214,
+      237
+     ],
+     "max": 20
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      206,
+      56,
+      218,
+      76
+     ],
+     "center": [
+      212,
+      66
+     ],
+     "max": 10
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      173,
+      199,
+      193,
+      217
+     ],
+     "center": [
+      183,
+      208
+     ],
+     "max": 10
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      211,
+      194,
+      227,
+      227
+     ],
+     "center": [
+      219,
+      210
+     ],
+     "max": 15
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      71,
+      34,
+      97,
+      53
+     ],
+     "center": [
+      84,
+      43
+     ],
+     "max": 15
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      34,
+      176,
+      61,
+      196
+     ],
+     "center": [
+      47,
+      186
+     ],
+     "max": 20
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      42,
+      205,
+      66,
+      224
+     ],
+     "center": [
+      54,
+      214
+     ],
+     "max": 20
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      206,
+      56,
+      218,
+      76
+     ],
+     "center": [
+      212,
+      66
+     ],
+     "max": 10
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      173,
+      199,
+      193,
+      217
+     ],
+     "center": [
+      183,
+      208
+     ],
+     "max": 10
+    },
+    {
+     "map": "istria",
+     "rect": [
+      23,
+      59,
+      44,
+      67
+     ],
+     "center": [
+      33,
+      63
+     ],
+     "max": 25
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      228,
+      76,
+      275,
+      107
+     ],
+     "center": [
+      251,
+      91
+     ],
+     "max": 10
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      252,
+      172,
+      275,
+      219
+     ],
+     "center": [
+      263,
+      195
+     ],
+     "max": 10
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      456,
+      304,
+      491,
+      347
+     ],
+     "center": [
+      473,
+      325
+     ],
+     "max": 10
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      144,
+      432,
+      203,
+      479
+     ],
+     "center": [
+      173,
+      455
+     ],
+     "max": 10
+    }
+   ]
+  },
+  {
+   "name": "Orc",
+   "file_name": "Orc",
+   "type": 14,
+   "hit_dice": 4,
+   "hp": 18,
+   "defense": 35,
+   "hit": 70,
+   "exp_dice": 20,
+   "dmg": "3d3",
+   "dmg_avg": 6.0,
+   "dmg_max": 9,
+   "gold_max": 30,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Promiseland",
+     "rect": [
+      147,
+      34,
+      158,
+      48
+     ],
+     "center": [
+      152,
+      41
+     ],
+     "max": 20
+    },
+    {
+     "map": "Promiseland",
+     "rect": [
+      116,
+      201,
+      127,
+      210
+     ],
+     "center": [
+      121,
+      205
+     ],
+     "max": 20
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      54,
+      168,
+      110,
+      215
+     ],
+     "center": [
+      82,
+      191
+     ],
+     "max": 10
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      352,
+      144,
+      394,
+      159
+     ],
+     "center": [
+      373,
+      151
+     ],
+     "max": 25
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      462,
+      235,
+      463,
+      278
+     ],
+     "center": [
+      462,
+      256
+     ],
+     "max": 25
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      21,
+      239,
+      280,
+      253
+     ],
+     "center": [
+      150,
+      246
+     ],
+     "max": 25
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      200,
+      252,
+      253,
+      271
+     ],
+     "center": [
+      226,
+      261
+     ],
+     "max": 25
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      322,
+      195,
+      333,
+      194
+     ],
+     "center": [
+      327,
+      194
+     ],
+     "max": 10
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      48,
+      152,
+      89,
+      187
+     ],
+     "center": [
+      68,
+      169
+     ],
+     "max": 18
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      54,
+      280,
+      95,
+      315
+     ],
+     "center": [
+      74,
+      297
+     ],
+     "max": 18
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      426,
+      212,
+      467,
+      243
+     ],
+     "center": [
+      446,
+      227
+     ],
+     "max": 18
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      378,
+      396,
+      425,
+      439
+     ],
+     "center": [
+      401,
+      417
+     ],
+     "max": 18
+    }
+   ]
+  },
+  {
+   "name": "Giant Scorpion",
+   "file_name": "Scorpion",
+   "type": 17,
+   "hit_dice": 6,
+   "hp": 27,
+   "defense": 35,
+   "hit": 80,
+   "exp_dice": 28,
+   "dmg": "5d3",
+   "dmg_avg": 10.0,
+   "dmg_max": 15,
+   "gold_max": 30,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Promiseland",
+     "rect": [
+      38,
+      157,
+      73,
+      173
+     ],
+     "center": [
+      55,
+      165
+     ],
+     "max": 15
+    },
+    {
+     "map": "Promiseland",
+     "rect": [
+      45,
+      85,
+      66,
+      100
+     ],
+     "center": [
+      55,
+      92
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden City",
+     "rect": [
+      88,
+      31,
+      117,
+      46
+     ],
+     "center": [
+      102,
+      38
+     ],
+     "max": 20
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      65,
+      173,
+      84,
+      214
+     ],
+     "center": [
+      74,
+      193
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      137,
+      203,
+      163,
+      215
+     ],
+     "center": [
+      150,
+      209
+     ],
+     "max": 15
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      433,
+      162,
+      459,
+      169
+     ],
+     "center": [
+      446,
+      165
+     ],
+     "max": 20
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      411,
+      432,
+      430,
+      433
+     ],
+     "center": [
+      420,
+      432
+     ],
+     "max": 20
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      397,
+      441,
+      413,
+      444
+     ],
+     "center": [
+      405,
+      442
+     ],
+     "max": 20
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      124,
+      201,
+      153,
+      214
+     ],
+     "center": [
+      138,
+      207
+     ],
+     "max": 13
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      164,
+      195,
+      191,
+      209
+     ],
+     "center": [
+      177,
+      202
+     ],
+     "max": 13
+    },
+    {
+     "map": "Elvine Farm",
+     "rect": [
+      198,
+      90,
+      216,
+      111
+     ],
+     "center": [
+      207,
+      100
+     ],
+     "max": 10
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      120,
+      27,
+      139,
+      43
+     ],
+     "center": [
+      129,
+      35
+     ],
+     "max": 20
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      65,
+      173,
+      84,
+      214
+     ],
+     "center": [
+      74,
+      193
+     ],
+     "max": 15
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      137,
+      203,
+      163,
+      215
+     ],
+     "center": [
+      150,
+      209
+     ],
+     "max": 15
+    },
+    {
+     "map": "istria",
+     "rect": [
+      217,
+      82,
+      237,
+      102
+     ],
+     "center": [
+      227,
+      92
+     ],
+     "max": 25
+    },
+    {
+     "map": "istria",
+     "rect": [
+      199,
+      205,
+      214,
+      214
+     ],
+     "center": [
+      206,
+      209
+     ],
+     "max": 25
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      333,
+      35,
+      371,
+      67
+     ],
+     "center": [
+      352,
+      51
+     ],
+     "max": 16
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      390,
+      412,
+      425,
+      451
+     ],
+     "center": [
+      407,
+      431
+     ],
+     "max": 16
+    }
+   ]
+  },
+  {
+   "name": "Zombie",
+   "file_name": "Zombie",
+   "type": 18,
+   "hit_dice": 10,
+   "hp": 45,
+   "defense": 40,
+   "hit": 90,
+   "exp_dice": 32,
+   "dmg": "4d4",
+   "dmg_avg": 10.0,
+   "dmg_max": 16,
+   "gold_max": 32,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Promiseland",
+     "rect": [
+      45,
+      30,
+      67,
+      49
+     ],
+     "center": [
+      56,
+      39
+     ],
+     "max": 20
+    },
+    {
+     "map": "Promiseland",
+     "rect": [
+      166,
+      190,
+      182,
+      208
+     ],
+     "center": [
+      174,
+      199
+     ],
+     "max": 20
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      200,
+      104,
+      239,
+      123
+     ],
+     "center": [
+      219,
+      113
+     ],
+     "max": 20
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      411,
+      279,
+      479,
+      321
+     ],
+     "center": [
+      445,
+      300
+     ],
+     "max": 35
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      240,
+      189,
+      281,
+      179
+     ],
+     "center": [
+      260,
+      184
+     ],
+     "max": 30
+    },
+    {
+     "map": "Infernia A",
+     "rect": [
+      22,
+      21,
+      64,
+      44
+     ],
+     "center": [
+      43,
+      32
+     ],
+     "max": 80
+    },
+    {
+     "map": "Infernia B",
+     "rect": [
+      22,
+      20,
+      49,
+      60
+     ],
+     "center": [
+      35,
+      40
+     ],
+     "max": 80
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      300,
+      36,
+      341,
+      91
+     ],
+     "center": [
+      320,
+      63
+     ],
+     "max": 25
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      90,
+      452,
+      125,
+      491
+     ],
+     "center": [
+      107,
+      471
+     ],
+     "max": 25
+    }
+   ]
+  },
+  {
+   "name": "Skeleton",
+   "file_name": "Skeleton",
+   "type": 11,
+   "hit_dice": 8,
+   "hp": 36,
+   "defense": 40,
+   "hit": 100,
+   "exp_dice": 40,
+   "dmg": "5d4",
+   "dmg_avg": 12.5,
+   "dmg_max": 20,
+   "gold_max": 30,
+   "magic": false,
+   "range": 2,
+   "zones": [
+    {
+     "map": "Promiseland",
+     "rect": [
+      81,
+      198,
+      100,
+      210
+     ],
+     "center": [
+      90,
+      204
+     ],
+     "max": 15
+    },
+    {
+     "map": "Promiseland",
+     "rect": [
+      135,
+      70,
+      160,
+      82
+     ],
+     "center": [
+      147,
+      76
+     ],
+     "max": 15
+    },
+    {
+     "map": "Dungeon L4",
+     "rect": [
+      180,
+      180,
+      220,
+      220
+     ],
+     "center": [
+      200,
+      200
+     ],
+     "max": 50
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      200,
+      104,
+      239,
+      123
+     ],
+     "center": [
+      219,
+      113
+     ],
+     "max": 20
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      184,
+      300,
+      203,
+      313
+     ],
+     "center": [
+      193,
+      306
+     ],
+     "max": 20
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      120,
+      104,
+      173,
+      151
+     ],
+     "center": [
+      146,
+      127
+     ],
+     "max": 15
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      144,
+      372,
+      209,
+      399
+     ],
+     "center": [
+      176,
+      385
+     ],
+     "max": 15
+    }
+   ]
+  },
+  {
+   "name": "Stone Golem",
+   "file_name": "Stone-Golem",
+   "type": 12,
+   "hit_dice": 25,
+   "hp": 112,
+   "defense": 110,
+   "hit": 150,
+   "exp_dice": 110,
+   "dmg": "7d4",
+   "dmg_avg": 17.5,
+   "dmg_max": 28,
+   "gold_max": 40,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Promiseland",
+     "rect": [
+      192,
+      144,
+      218,
+      162
+     ],
+     "center": [
+      205,
+      153
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden City",
+     "rect": [
+      243,
+      191,
+      264,
+      208
+     ],
+     "center": [
+      253,
+      199
+     ],
+     "max": 20
+    },
+    {
+     "map": "Aresden Farm",
+     "rect": [
+      185,
+      80,
+      220,
+      115
+     ],
+     "center": [
+      202,
+      97
+     ],
+     "max": 10
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 15
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      333,
+      274,
+      349,
+      282
+     ],
+     "center": [
+      341,
+      278
+     ],
+     "max": 17
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      369,
+      189,
+      387,
+      202
+     ],
+     "center": [
+      378,
+      195
+     ],
+     "max": 25
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      317,
+      463,
+      337,
+      473
+     ],
+     "center": [
+      327,
+      468
+     ],
+     "max": 20
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      227,
+      210,
+      257,
+      223
+     ],
+     "center": [
+      242,
+      216
+     ],
+     "max": 20
+    },
+    {
+     "map": "istfarm",
+     "rect": [
+      185,
+      80,
+      220,
+      115
+     ],
+     "center": [
+      202,
+      97
+     ],
+     "max": 10
+    },
+    {
+     "map": "istria",
+     "rect": [
+      228,
+      187,
+      243,
+      212
+     ],
+     "center": [
+      235,
+      199
+     ],
+     "max": 20
+    },
+    {
+     "map": "istria",
+     "rect": [
+      50,
+      90,
+      75,
+      100
+     ],
+     "center": [
+      62,
+      95
+     ],
+     "max": 20
+    }
+   ]
+  },
+  {
+   "name": "Clay Golem",
+   "file_name": "Clay-Golem",
+   "type": 23,
+   "hit_dice": 30,
+   "hp": 135,
+   "defense": 100,
+   "hit": 150,
+   "exp_dice": 110,
+   "dmg": "7d4",
+   "dmg_avg": 17.5,
+   "dmg_max": 28,
+   "gold_max": 40,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Promiseland",
+     "rect": [
+      192,
+      107,
+      217,
+      122
+     ],
+     "center": [
+      204,
+      114
+     ],
+     "max": 15
+    },
+    {
+     "map": "Aresden City",
+     "rect": [
+      132,
+      235,
+      148,
+      252
+     ],
+     "center": [
+      140,
+      243
+     ],
+     "max": 20
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 15
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      392,
+      239,
+      419,
+      249
+     ],
+     "center": [
+      405,
+      244
+     ],
+     "max": 25
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      403,
+      404,
+      433,
+      409
+     ],
+     "center": [
+      418,
+      406
+     ],
+     "max": 25
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      147,
+      396,
+      164,
+      407
+     ],
+     "center": [
+      155,
+      401
+     ],
+     "max": 17
+    },
+    {
+     "map": "Elvine City",
+     "rect": [
+      252,
+      174,
+      269,
+      191
+     ],
+     "center": [
+      260,
+      182
+     ],
+     "max": 20
+    },
+    {
+     "map": "istria",
+     "rect": [
+      142,
+      225,
+      167,
+      240
+     ],
+     "center": [
+      154,
+      232
+     ],
+     "max": 20
+    }
+   ]
+  },
+  {
+   "name": "Frog",
+   "file_name": "Giant-Frog",
+   "type": 57,
+   "hit_dice": 35,
+   "hp": 158,
+   "defense": 90,
+   "hit": 170,
+   "exp_dice": 150,
+   "dmg": "7d5",
+   "dmg_avg": 21.0,
+   "dmg_max": 35,
+   "gold_max": 60,
+   "magic": false,
+   "range": 2,
+   "zones": [
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      416,
+      193,
+      448,
+      198
+     ],
+     "center": [
+      432,
+      195
+     ],
+     "max": 10
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      30,
+      215,
+      53,
+      230
+     ],
+     "center": [
+      41,
+      222
+     ],
+     "max": 15
+    },
+    {
+     "map": "Druncnian City",
+     "rect": [
+      155,
+      139,
+      173,
+      164
+     ],
+     "center": [
+      164,
+      151
+     ],
+     "max": 30
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      60,
+      231,
+      80,
+      238
+     ],
+     "center": [
+      70,
+      234
+     ],
+     "max": 20
+    }
+   ]
+  },
+  {
+   "name": "Helhound",
+   "file_name": "Hellbound",
+   "type": 27,
+   "hit_dice": 35,
+   "hp": 158,
+   "defense": 90,
+   "hit": 170,
+   "exp_dice": 160,
+   "dmg": "7d5",
+   "dmg_avg": 21.0,
+   "dmg_max": 35,
+   "gold_max": 60,
+   "magic": true,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      50,
+      171,
+      66,
+      189
+     ],
+     "center": [
+      58,
+      180
+     ],
+     "max": 9
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      136,
+      418,
+      147,
+      431
+     ],
+     "center": [
+      141,
+      424
+     ],
+     "max": 9
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      168,
+      236,
+      179,
+      245
+     ],
+     "center": [
+      173,
+      240
+     ],
+     "max": 9
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      114,
+      119,
+      140,
+      121
+     ],
+     "center": [
+      127,
+      120
+     ],
+     "max": 7
+    }
+   ]
+  },
+  {
+   "name": "Rudolph",
+   "file_name": "Rudolph",
+   "type": 61,
+   "hit_dice": 40,
+   "hp": 180,
+   "defense": 100,
+   "hit": 180,
+   "exp_dice": 180,
+   "dmg": "7d5",
+   "dmg_avg": 21.0,
+   "dmg_max": 35,
+   "gold_max": 60,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 15
+    }
+   ]
+  },
+  {
+   "name": "Troll",
+   "file_name": "Troll",
+   "type": 28,
+   "hit_dice": 55,
+   "hp": 248,
+   "defense": 85,
+   "hit": 200,
+   "exp_dice": 300,
+   "dmg": "8d5",
+   "dmg_avg": 24.0,
+   "dmg_max": 40,
+   "gold_max": 80,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "astoria",
+     "rect": [
+      195,
+      143,
+      215,
+      159
+     ],
+     "center": [
+      205,
+      151
+     ],
+     "max": 10
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 25
+    }
+   ]
+  },
+  {
+   "name": "Beholder",
+   "file_name": "Beholder",
+   "type": 53,
+   "hit_dice": 100,
+   "hp": 450,
+   "defense": 100,
+   "hit": 450,
+   "exp_dice": 320,
+   "dmg": "8d8",
+   "dmg_avg": 36.0,
+   "dmg_max": 64,
+   "gold_max": 120,
+   "magic": false,
+   "range": 4,
+   "zones": [
+    {
+     "map": "Ice Map",
+     "rect": [
+      103,
+      220,
+      163,
+      276
+     ],
+     "center": [
+      133,
+      248
+     ],
+     "max": 6
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      45,
+      202,
+      83,
+      233
+     ],
+     "center": [
+      64,
+      217
+     ],
+     "max": 5
+    },
+    {
+     "map": "Maze",
+     "rect": [
+      20,
+      49,
+      180,
+      122
+     ],
+     "center": [
+      100,
+      85
+     ],
+     "max": 40
+    }
+   ]
+  },
+  {
+   "name": "Plant",
+   "file_name": "Cannibal-Plant",
+   "type": 60,
+   "hit_dice": 105,
+   "hp": 472,
+   "defense": 80,
+   "hit": 230,
+   "exp_dice": 330,
+   "dmg": "8d8",
+   "dmg_avg": 36.0,
+   "dmg_max": 64,
+   "gold_max": 120,
+   "magic": true,
+   "range": 2,
+   "zones": [
+    {
+     "map": "Procella",
+     "rect": [
+      44,
+      82,
+      107,
+      124
+     ],
+     "center": [
+      75,
+      103
+     ],
+     "max": 60
+    },
+    {
+     "map": "Procella",
+     "rect": [
+      179,
+      29,
+      212,
+      109
+     ],
+     "center": [
+      195,
+      69
+     ],
+     "max": 60
+    }
+   ]
+  },
+  {
+   "name": "Ice Golem",
+   "file_name": "Ice-Golem",
+   "type": 65,
+   "hit_dice": 85,
+   "hp": 382,
+   "defense": 50,
+   "hit": 100,
+   "exp_dice": 340,
+   "dmg": "8d6",
+   "dmg_avg": 28.0,
+   "dmg_max": 48,
+   "gold_max": 60,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Ice Map",
+     "rect": [
+      180,
+      218,
+      225,
+      259
+     ],
+     "center": [
+      202,
+      238
+     ],
+     "max": 24
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      50,
+      72,
+      86,
+      137
+     ],
+     "center": [
+      68,
+      104
+     ],
+     "max": 24
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      103,
+      162,
+      131,
+      166
+     ],
+     "center": [
+      117,
+      164
+     ],
+     "max": 20
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      130,
+      236,
+      150,
+      242
+     ],
+     "center": [
+      140,
+      239
+     ],
+     "max": 15
+    }
+   ]
+  },
+  {
+   "name": "Cyclops",
+   "file_name": "Cyclops",
+   "type": 13,
+   "hit_dice": 60,
+   "hp": 270,
+   "defense": 100,
+   "hit": 180,
+   "exp_dice": 360,
+   "dmg": "8d6",
+   "dmg_avg": 28.0,
+   "dmg_max": 48,
+   "gold_max": 80,
+   "magic": true,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Promiseland",
+     "rect": [
+      112,
+      110,
+      139,
+      137
+     ],
+     "center": [
+      125,
+      123
+     ],
+     "max": 15
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      159,
+      21,
+      200,
+      55
+     ],
+     "center": [
+      179,
+      38
+     ],
+     "max": 12
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      86,
+      376,
+      134,
+      407
+     ],
+     "center": [
+      110,
+      391
+     ],
+     "max": 12
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      422,
+      346,
+      466,
+      348
+     ],
+     "center": [
+      444,
+      347
+     ],
+     "max": 8
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      404,
+      343,
+      446,
+      363
+     ],
+     "center": [
+      425,
+      353
+     ],
+     "max": 8
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      348,
+      329,
+      390,
+      356
+     ],
+     "center": [
+      369,
+      342
+     ],
+     "max": 8
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      86,
+      457,
+      108,
+      432
+     ],
+     "center": [
+      97,
+      444
+     ],
+     "max": 8
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      26,
+      366,
+      108,
+      391
+     ],
+     "center": [
+      67,
+      378
+     ],
+     "max": 40
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      188,
+      456,
+      217,
+      459
+     ],
+     "center": [
+      202,
+      457
+     ],
+     "max": 8
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      216,
+      469,
+      238,
+      468
+     ],
+     "center": [
+      227,
+      468
+     ],
+     "max": 12
+    },
+    {
+     "map": "Infernia A",
+     "rect": [
+      74,
+      23,
+      125,
+      52
+     ],
+     "center": [
+      99,
+      37
+     ],
+     "max": 80
+    },
+    {
+     "map": "Infernia B",
+     "rect": [
+      69,
+      38,
+      115,
+      73
+     ],
+     "center": [
+      92,
+      55
+     ],
+     "max": 80
+    }
+   ]
+  },
+  {
+   "name": "Mountain Giant",
+   "file_name": "Mountain-Giant",
+   "type": 58,
+   "hit_dice": 100,
+   "hp": 450,
+   "defense": 250,
+   "hit": 230,
+   "exp_dice": 400,
+   "dmg": "8d7",
+   "dmg_avg": 32.0,
+   "dmg_max": 56,
+   "gold_max": 120,
+   "magic": false,
+   "range": 2,
+   "zones": []
+  },
+  {
+   "name": "Giant Crayfish",
+   "file_name": "Giant-Crayfish",
+   "type": 74,
+   "hit_dice": 70,
+   "hp": 315,
+   "defense": 150,
+   "hit": 200,
+   "exp_dice": 480,
+   "dmg": "7d7",
+   "dmg_avg": 28.0,
+   "dmg_max": 49,
+   "gold_max": 160,
+   "magic": false,
+   "range": 2,
+   "zones": [
+    {
+     "map": "Druncnian City",
+     "rect": [
+      152,
+      138,
+      172,
+      163
+     ],
+     "center": [
+      162,
+      150
+     ],
+     "max": 50
+    }
+   ]
+  },
+  {
+   "name": "Tentocle",
+   "file_name": "Tentocle",
+   "type": 80,
+   "hit_dice": 80,
+   "hp": 360,
+   "defense": 150,
+   "hit": 180,
+   "exp_dice": 500,
+   "dmg": "7d6",
+   "dmg_avg": 24.5,
+   "dmg_max": 42,
+   "gold_max": 80,
+   "magic": true,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Abaddon",
+     "rect": [
+      30,
+      115,
+      86,
+      146
+     ],
+     "center": [
+      58,
+      130
+     ],
+     "max": 50
+    }
+   ]
+  },
+  {
+   "name": "Frost",
+   "file_name": "Frost",
+   "type": 63,
+   "hit_dice": 130,
+   "hp": 585,
+   "defense": 300,
+   "hit": 230,
+   "exp_dice": 500,
+   "dmg": "8d6",
+   "dmg_avg": 28.0,
+   "dmg_max": 48,
+   "gold_max": 150,
+   "magic": true,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Ice Map",
+     "rect": [
+      51,
+      85,
+      105,
+      136
+     ],
+     "center": [
+      78,
+      110
+     ],
+     "max": 24
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      30,
+      216,
+      47,
+      225
+     ],
+     "center": [
+      38,
+      220
+     ],
+     "max": 7
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      250,
+      181,
+      268,
+      186
+     ],
+     "center": [
+      259,
+      183
+     ],
+     "max": 15
+    }
+   ]
+  },
+  {
+   "name": "Ogre",
+   "file_name": "Orge",
+   "type": 29,
+   "hit_dice": 115,
+   "hp": 518,
+   "defense": 150,
+   "hit": 230,
+   "exp_dice": 540,
+   "dmg": "8d7",
+   "dmg_avg": 32.0,
+   "dmg_max": 56,
+   "gold_max": 80,
+   "magic": false,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Middleland",
+     "rect": [
+      53,
+      380,
+      101,
+      409
+     ],
+     "center": [
+      77,
+      394
+     ],
+     "max": 23
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      34,
+      69,
+      100,
+      83
+     ],
+     "center": [
+      67,
+      76
+     ],
+     "max": 23
+    }
+   ]
+  },
+  {
+   "name": "Liche",
+   "file_name": "Liche",
+   "type": 30,
+   "hit_dice": 130,
+   "hp": 585,
+   "defense": 300,
+   "hit": 230,
+   "exp_dice": 540,
+   "dmg": "8d6",
+   "dmg_avg": 28.0,
+   "dmg_max": 48,
+   "gold_max": 150,
+   "magic": true,
+   "range": 5,
+   "zones": [
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      268,
+      420,
+      271,
+      447
+     ],
+     "center": [
+      269,
+      433
+     ],
+     "max": 7
+    },
+    {
+     "map": "Dungeon L2",
+     "rect": [
+      174,
+      176,
+      196,
+      185
+     ],
+     "center": [
+      185,
+      180
+     ],
+     "max": 3
+    },
+    {
+     "map": "Infernia B",
+     "rect": [
+      24,
+      92,
+      86,
+      126
+     ],
+     "center": [
+      55,
+      109
+     ],
+     "max": 50
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      153,
+      236,
+      176,
+      239
+     ],
+     "center": [
+      164,
+      237
+     ],
+     "max": 7
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      167,
+      115,
+      188,
+      129
+     ],
+     "center": [
+      177,
+      122
+     ],
+     "max": 3
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      130,
+      95,
+      153,
+      109
+     ],
+     "center": [
+      141,
+      102
+     ],
+     "max": 3
+    }
+   ]
+  },
+  {
+   "name": "Stalker",
+   "file_name": "Stalker",
+   "type": 48,
+   "hit_dice": 130,
+   "hp": 585,
+   "defense": 200,
+   "hit": 300,
+   "exp_dice": 540,
+   "dmg": "8d9",
+   "dmg_avg": 40.0,
+   "dmg_max": 72,
+   "gold_max": 150,
+   "magic": false,
+   "range": 4,
+   "zones": [
+    {
+     "map": "astoria",
+     "rect": [
+      54,
+      168,
+      110,
+      215
+     ],
+     "center": [
+      82,
+      191
+     ],
+     "max": 10
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      107,
+      202,
+      418,
+      304
+     ],
+     "center": [
+      262,
+      253
+     ],
+     "max": 35
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      25,
+      250,
+      40,
+      260
+     ],
+     "center": [
+      32,
+      255
+     ],
+     "max": 5
+    },
+    {
+     "map": "Procella",
+     "rect": [
+      109,
+      169,
+      175,
+      205
+     ],
+     "center": [
+      142,
+      187
+     ],
+     "max": 60
+    }
+   ]
+  },
+  {
+   "name": "Direboar",
+   "file_name": "DireBoar",
+   "type": 62,
+   "hit_dice": 130,
+   "hp": 585,
+   "defense": 80,
+   "hit": 230,
+   "exp_dice": 550,
+   "dmg": "8d8",
+   "dmg_avg": 36.0,
+   "dmg_max": 64,
+   "gold_max": 150,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Ice Map",
+     "rect": [
+      220,
+      143,
+      240,
+      155
+     ],
+     "center": [
+      230,
+      149
+     ],
+     "max": 8
+    }
+   ]
+  },
+  {
+   "name": "Giant Tree",
+   "file_name": "Giant-Plant",
+   "type": 76,
+   "hit_dice": 100,
+   "hp": 450,
+   "defense": 120,
+   "hit": 200,
+   "exp_dice": 560,
+   "dmg": "8d6",
+   "dmg_avg": 28.0,
+   "dmg_max": 48,
+   "gold_max": 120,
+   "magic": false,
+   "range": 2,
+   "zones": [
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 20
+    }
+   ]
+  },
+  {
+   "name": "Darkelf",
+   "file_name": "Dark-Elf",
+   "type": 54,
+   "hit_dice": 140,
+   "hp": 630,
+   "defense": 200,
+   "hit": 450,
+   "exp_dice": 560,
+   "dmg": "8d4",
+   "dmg_avg": 20.0,
+   "dmg_max": 32,
+   "gold_max": 160,
+   "magic": false,
+   "range": 8,
+   "zones": [
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 5
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      82,
+      195,
+      104,
+      215
+     ],
+     "center": [
+      93,
+      205
+     ],
+     "max": 7
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      35,
+      265,
+      45,
+      285
+     ],
+     "center": [
+      40,
+      275
+     ],
+     "max": 8
+    }
+   ]
+  },
+  {
+   "name": "Werewolf",
+   "file_name": "WereWolf",
+   "type": 33,
+   "hit_dice": 140,
+   "hp": 630,
+   "defense": 180,
+   "hit": 300,
+   "exp_dice": 640,
+   "dmg": "8d8",
+   "dmg_avg": 36.0,
+   "dmg_max": 64,
+   "gold_max": 160,
+   "magic": false,
+   "range": 1,
+   "zones": [
+    {
+     "map": "Middleland",
+     "rect": [
+      320,
+      420,
+      370,
+      470
+     ],
+     "center": [
+      345,
+      445
+     ],
+     "max": 23
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      360,
+      100,
+      410,
+      150
+     ],
+     "center": [
+      385,
+      125
+     ],
+     "max": 23
+    }
+   ]
+  },
+  {
+   "name": "Claw Turtle",
+   "file_name": "Claw-Turtle",
+   "type": 72,
+   "hit_dice": 120,
+   "hp": 540,
+   "defense": 200,
+   "hit": 280,
+   "exp_dice": 700,
+   "dmg": "8d9",
+   "dmg_avg": 40.0,
+   "dmg_max": 72,
+   "gold_max": 130,
+   "magic": false,
+   "range": 2,
+   "zones": [
+    {
+     "map": "Druncnian City",
+     "rect": [
+      29,
+      24,
+      54,
+      48
+     ],
+     "center": [
+      41,
+      36
+     ],
+     "max": 50
+    },
+    {
+     "map": "Infernia A",
+     "rect": [
+      58,
+      60,
+      129,
+      91
+     ],
+     "center": [
+      93,
+      75
+     ],
+     "max": 80
+    },
+    {
+     "map": "Infernia B",
+     "rect": [
+      22,
+      48,
+      84,
+      88
+     ],
+     "center": [
+      53,
+      68
+     ],
+     "max": 80
+    }
+   ]
+  },
+  {
+   "name": "Ettin",
+   "file_name": "Ettin",
+   "type": 59,
+   "hit_dice": 250,
+   "hp": 1125,
+   "defense": 350,
+   "hit": 350,
+   "exp_dice": 700,
+   "dmg": "8d9",
+   "dmg_avg": 40.0,
+   "dmg_max": 72,
+   "gold_max": 170,
+   "magic": false,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Middleland",
+     "rect": [
+      166,
+      204,
+      216,
+      254
+     ],
+     "center": [
+      191,
+      229
+     ],
+     "max": 6
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      224,
+      225,
+      234,
+      240
+     ],
+     "center": [
+      229,
+      232
+     ],
+     "max": 3
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      150,
+      215,
+      170,
+      235
+     ],
+     "center": [
+      160,
+      225
+     ],
+     "max": 3
+    }
+   ]
+  },
+  {
+   "name": "Master Mage Orc",
+   "file_name": "MasterMage-Orc",
+   "type": 77,
+   "hit_dice": 250,
+   "hp": 1125,
+   "defense": 300,
+   "hit": 300,
+   "exp_dice": 1000,
+   "dmg": "8d7",
+   "dmg_avg": 32.0,
+   "dmg_max": 56,
+   "gold_max": 180,
+   "magic": true,
+   "range": 3,
+   "zones": [
+    {
+     "map": "astoria",
+     "rect": [
+      241,
+      175,
+      258,
+      185
+     ],
+     "center": [
+      249,
+      180
+     ],
+     "max": 15
+    },
+    {
+     "map": "Procella",
+     "rect": [
+      43,
+      126,
+      99,
+      209
+     ],
+     "center": [
+      71,
+      167
+     ],
+     "max": 60
+    }
+   ]
+  },
+  {
+   "name": "Nizie",
+   "file_name": "Nizie",
+   "type": 79,
+   "hit_dice": 280,
+   "hp": 1260,
+   "defense": 300,
+   "hit": 300,
+   "exp_dice": 1360,
+   "dmg": "10d10",
+   "dmg_avg": 55.0,
+   "dmg_max": 100,
+   "gold_max": 250,
+   "magic": true,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Druncnian City",
+     "rect": [
+      140,
+      28,
+      167,
+      73
+     ],
+     "center": [
+      153,
+      50
+     ],
+     "max": 50
+    }
+   ]
+  },
+  {
+   "name": "Dragon",
+   "file_name": "Barlog",
+   "type": 70,
+   "hit_dice": 500,
+   "hp": 2250,
+   "defense": 400,
+   "hit": 500,
+   "exp_dice": 1400,
+   "dmg": "9d10",
+   "dmg_avg": 49.5,
+   "dmg_max": 90,
+   "gold_max": 300,
+   "magic": true,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Abaddon",
+     "rect": [
+      120,
+      43,
+      174,
+      73
+     ],
+     "center": [
+      147,
+      58
+     ],
+     "max": 40
+    },
+    {
+     "map": "Infernia A",
+     "rect": [
+      93,
+      99,
+      127,
+      123
+     ],
+     "center": [
+      110,
+      111
+     ],
+     "max": 40
+    }
+   ]
+  },
+  {
+   "name": "Giant Lizard",
+   "file_name": "Giant-Lizard",
+   "type": 75,
+   "hit_dice": 450,
+   "hp": 2025,
+   "defense": 400,
+   "hit": 400,
+   "exp_dice": 1500,
+   "dmg": "10d10",
+   "dmg_avg": 55.0,
+   "dmg_max": 100,
+   "gold_max": 350,
+   "magic": true,
+   "range": 2,
+   "zones": [
+    {
+     "map": "Procella",
+     "rect": [
+      29,
+      49,
+      123,
+      193
+     ],
+     "center": [
+      76,
+      121
+     ],
+     "max": 80
+    }
+   ]
+  },
+  {
+   "name": "Demon",
+   "file_name": "Demon",
+   "type": 31,
+   "hit_dice": 340,
+   "hp": 1530,
+   "defense": 450,
+   "hit": 500,
+   "exp_dice": 1720,
+   "dmg": "10d10",
+   "dmg_avg": 55.0,
+   "dmg_max": 100,
+   "gold_max": 300,
+   "magic": true,
+   "range": 4,
+   "zones": [
+    {
+     "map": "Dungeon L4",
+     "rect": [
+      70,
+      70,
+      310,
+      310
+     ],
+     "center": [
+      190,
+      190
+     ],
+     "max": 50
+    },
+    {
+     "map": "Dungeon L4",
+     "rect": [
+      170,
+      170,
+      230,
+      230
+     ],
+     "center": [
+      200,
+      200
+     ],
+     "max": 5
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 1
+    },
+    {
+     "map": "Infernia A",
+     "rect": [
+      100,
+      57,
+      126,
+      91
+     ],
+     "center": [
+      113,
+      74
+     ],
+     "max": 40
+    },
+    {
+     "map": "Infernia B",
+     "rect": [
+      86,
+      54,
+      125,
+      102
+     ],
+     "center": [
+      105,
+      78
+     ],
+     "max": 40
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      126,
+      264,
+      139,
+      272
+     ],
+     "center": [
+      132,
+      268
+     ],
+     "max": 2
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      205,
+      141,
+      217,
+      147
+     ],
+     "center": [
+      211,
+      144
+     ],
+     "max": 1
+    }
+   ]
+  },
+  {
+   "name": "Centaur",
+   "file_name": "Centaurus",
+   "type": 71,
+   "hit_dice": 350,
+   "hp": 1575,
+   "defense": 450,
+   "hit": 500,
+   "exp_dice": 2000,
+   "dmg": "12d11",
+   "dmg_avg": 72.0,
+   "dmg_max": 132,
+   "gold_max": 200,
+   "magic": true,
+   "range": 3,
+   "zones": [
+    {
+     "map": "Infernia B",
+     "rect": [
+      36,
+      101,
+      74,
+      119
+     ],
+     "center": [
+      55,
+      110
+     ],
+     "max": 40
+    },
+    {
+     "map": "Maze",
+     "rect": [
+      30,
+      39,
+      169,
+      92
+     ],
+     "center": [
+      99,
+      65
+     ],
+     "max": 40
+    },
+    {
+     "map": "Procella",
+     "rect": [
+      173,
+      76,
+      177,
+      165
+     ],
+     "center": [
+      175,
+      120
+     ],
+     "max": 40
+    }
+   ]
+  },
+  {
+   "name": "Minotaur",
+   "file_name": "Minotaurs",
+   "type": 78,
+   "hit_dice": 340,
+   "hp": 1530,
+   "defense": 500,
+   "hit": 500,
+   "exp_dice": 2000,
+   "dmg": "13d11",
+   "dmg_avg": 78.0,
+   "dmg_max": 143,
+   "gold_max": 250,
+   "magic": false,
+   "range": 2,
+   "zones": [
+    {
+     "map": "Abaddon",
+     "rect": [
+      74,
+      23,
+      138,
+      52
+     ],
+     "center": [
+      106,
+      37
+     ],
+     "max": 50
+    },
+    {
+     "map": "astoria",
+     "rect": [
+      296,
+      192,
+      316,
+      206
+     ],
+     "center": [
+      306,
+      199
+     ],
+     "max": 2
+    },
+    {
+     "map": "Maze",
+     "rect": [
+      75,
+      94,
+      131,
+      132
+     ],
+     "center": [
+      103,
+      113
+     ],
+     "max": 40
+    },
+    {
+     "map": "Procella",
+     "rect": [
+      133,
+      49,
+      221,
+      190
+     ],
+     "center": [
+      177,
+      119
+     ],
+     "max": 80
+    }
+   ]
+  },
+  {
+   "name": "Gargoyle",
+   "file_name": "Gagoyle",
+   "type": 52,
+   "hit_dice": 400,
+   "hp": 1800,
+   "defense": 450,
+   "hit": 500,
+   "exp_dice": 2400,
+   "dmg": "13d10",
+   "dmg_avg": 71.5,
+   "dmg_max": 130,
+   "gold_max": 350,
+   "magic": true,
+   "range": 5,
+   "zones": [
+    {
+     "map": "astoria",
+     "rect": [
+      95,
+      29,
+      222,
+      89
+     ],
+     "center": [
+      158,
+      59
+     ],
+     "max": 1
+    },
+    {
+     "map": "Maze",
+     "rect": [
+      24,
+      147,
+      68,
+      176
+     ],
+     "center": [
+      46,
+      161
+     ],
+     "max": 25
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      130,
+      208,
+      139,
+      211
+     ],
+     "center": [
+      134,
+      209
+     ],
+     "max": 1
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      134,
+      249,
+      135,
+      250
+     ],
+     "center": [
+      134,
+      249
+     ],
+     "max": 2
+    },
+    {
+     "map": "Tower of Hell 3",
+     "rect": [
+      220,
+      156,
+      249,
+      158
+     ],
+     "center": [
+      234,
+      157
+     ],
+     "max": 2
+    }
+   ]
+  },
+  {
+   "name": "Helclaw",
+   "file_name": "Hellclaw",
+   "type": 49,
+   "hit_dice": 1000,
+   "hp": 4500,
+   "defense": 450,
+   "hit": 1000,
+   "exp_dice": 4800,
+   "dmg": "15d14",
+   "dmg_avg": 112.5,
+   "dmg_max": 210,
+   "gold_max": 700,
+   "magic": false,
+   "range": 5,
+   "zones": [
+    {
+     "map": "Abaddon",
+     "rect": [
+      127,
+      113,
+      178,
+      145
+     ],
+     "center": [
+      152,
+      129
+     ],
+     "max": 25
+    },
+    {
+     "map": "Druncnian City",
+     "rect": [
+      27,
+      55,
+      54,
+      108
+     ],
+     "center": [
+      40,
+      81
+     ],
+     "max": 10
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      178,
+      26,
+      232,
+      79
+     ],
+     "center": [
+      205,
+      52
+     ],
+     "max": 15
+    },
+    {
+     "map": "Middleland",
+     "rect": [
+      450,
+      125,
+      470,
+      390
+     ],
+     "center": [
+      460,
+      257
+     ],
+     "max": 2
+    }
+   ]
+  },
+  {
+   "name": "Wyvern",
+   "file_name": "Wyvern",
+   "type": 66,
+   "hit_dice": 2500,
+   "hp": 11250,
+   "defense": 1000,
+   "hit": 1300,
+   "exp_dice": 8000,
+   "dmg": "16d15",
+   "dmg_avg": 128.0,
+   "dmg_max": 240,
+   "gold_max": 900,
+   "magic": true,
+   "range": 5,
+   "zones": [
+    {
+     "map": "Abaddon",
+     "rect": [
+      75,
+      134,
+      133,
+      170
+     ],
+     "center": [
+      104,
+      152
+     ],
+     "max": 6
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      28,
+      23,
+      81,
+      59
+     ],
+     "center": [
+      54,
+      41
+     ],
+     "max": 1
+    }
+   ]
+  },
+  {
+   "name": "Fire Wyvern",
+   "file_name": "Fire-Wyvern",
+   "type": 73,
+   "hit_dice": 3000,
+   "hp": 13500,
+   "defense": 1000,
+   "hit": 1300,
+   "exp_dice": 9000,
+   "dmg": "16d15",
+   "dmg_avg": 128.0,
+   "dmg_max": 240,
+   "gold_max": 1000,
+   "magic": true,
+   "range": 7,
+   "zones": [
+    {
+     "map": "Abaddon",
+     "rect": [
+      71,
+      64,
+      143,
+      112
+     ],
+     "center": [
+      107,
+      88
+     ],
+     "max": 6
+    },
+    {
+     "map": "Infernia A",
+     "rect": [
+      31,
+      42,
+      102,
+      78
+     ],
+     "center": [
+      66,
+      60
+     ],
+     "max": 4
+    },
+    {
+     "map": "Infernia B",
+     "rect": [
+      40,
+      20,
+      128,
+      46
+     ],
+     "center": [
+      84,
+      33
+     ],
+     "max": 4
+    }
+   ]
+  },
+  {
+   "name": "Tiger Worm",
+   "file_name": "Tigerworm",
+   "type": 50,
+   "hit_dice": 2000,
+   "hp": 9000,
+   "defense": 450,
+   "hit": 1200,
+   "exp_dice": 12000,
+   "dmg": "15d14",
+   "dmg_avg": 112.5,
+   "dmg_max": 210,
+   "gold_max": 800,
+   "magic": true,
+   "range": 6,
+   "zones": [
+    {
+     "map": "Abaddon",
+     "rect": [
+      34,
+      45,
+      94,
+      75
+     ],
+     "center": [
+      64,
+      60
+     ],
+     "max": 20
+    },
+    {
+     "map": "Ice Map",
+     "rect": [
+      28,
+      23,
+      81,
+      59
+     ],
+     "center": [
+      54,
+      41
+     ],
+     "max": 4
+    }
+   ]
+  },
+  {
+   "name": "Abaddon",
+   "file_name": "Abaddon",
+   "type": 81,
+   "hit_dice": 15000,
+   "hp": 67500,
+   "defense": 1500,
+   "hit": 1600,
+   "exp_dice": 100000,
+   "dmg": "18d18",
+   "dmg_avg": 171.0,
+   "dmg_max": 324,
+   "gold_max": 10000,
+   "magic": true,
+   "range": 7,
+   "zones": []
+  }
+ ]
+}

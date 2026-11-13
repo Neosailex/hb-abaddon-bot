@@ -1,1 +1,1 @@
-{"version": 82, "notes": "Sabe en qué zona del mapa sale cada bicho (tabla por mapa) y va a la del mejor bicho para su nivel."}
+{"version": 83, "notes": "Base de criaturas (vida, daño, experiencia, zonas) y elección del bicho según lo que el pj aguanta."}
