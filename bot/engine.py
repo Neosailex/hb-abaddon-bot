@@ -1289,7 +1289,8 @@ class Bot:
                 if fails == 4:
                     self.log("Auto-login: el server no responde (Connection Lost). Sigo probando cada minuto y medio.")
                 return True
-            st = next((w for w in words if norm(w[0]) == "start"), None)
+            # el botón Start está a la derecha; a la izquierda hay un texto de ayuda que también dice "START"
+            st = next((w for w in words if norm(w[0]) == "start" and w[1] > self.rect[2] * 0.55), None)
             winapi.click(*(self.abs_pt(st[1], st[2]) if st else self.abs_pt(852 * sc_, 575 * sc_)))
             if fails < 3:
                 self.log("Auto-login: estoy en la lista de personajes, aprieto Start.")
