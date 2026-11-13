@@ -39,7 +39,7 @@
     ]
    },
    "sells_unseen": [
-    "capas (dato de Juan)"
+    "capas (dato del dueño)"
    ]
   }
  },
@@ -1311,12 +1311,141 @@
    "str": 0,
    "level": 0,
    "confirmed": true
+  },
+  {
+   "name": "Flameberge",
+   "price": 700,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 54,
+   "str": 60,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 12.0,
+   "dmg": [
+    2,
+    11,
+    0
+   ]
+  },
+  {
+   "name": "Great Sword",
+   "price": 500,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 50,
+   "str": 52,
+   "level": 0,
+   "slot": "arma2m",
+   "avg": 11.0,
+   "dmg": [
+    2,
+    10,
+    0
+   ]
+  },
+  {
+   "name": "Great Sword +1",
+   "price": 2300,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 51,
+   "str": 52,
+   "level": 50,
+   "slot": "arma2m",
+   "avg": 12.0,
+   "dmg": [
+    2,
+    10,
+    1
+   ]
+  },
+  {
+   "name": "Claymore +1",
+   "price": 1800,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 47,
+   "str": 40,
+   "level": 40,
+   "slot": "arma2m",
+   "avg": 11.0,
+   "dmg": [
+    2,
+    9,
+    1
+   ]
+  },
+  {
+   "name": "Plate Leggings (M)",
+   "price": 1000,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 462,
+   "str": 20,
+   "level": 0,
+   "slot": "piernas",
+   "def": 12
+  },
+  {
+   "name": "Knight Plate Mail (M)",
+   "price": 6000,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 675,
+   "str": 100,
+   "level": 85,
+   "slot": "pecho",
+   "def": 40
+  },
+  {
+   "name": "Knight Full-Helm (M)",
+   "price": 3500,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 679,
+   "str": 85,
+   "level": 80,
+   "slot": "cabeza",
+   "def": 12
+  },
+  {
+   "name": "Knight Plate Leggings (M)",
+   "price": 3000,
+   "shop": "Blacksmith",
+   "confirmed": true,
+   "id": 677,
+   "str": 20,
+   "level": 80,
+   "slot": "piernas",
+   "def": 15
+  },
+  {
+   "name": "Cape",
+   "price": 1000,
+   "shop": "Shop",
+   "confirmed": true,
+   "id": 402,
+   "str": 2,
+   "level": 0,
+   "slot": "capa",
+   "def": 2
+  },
+  {
+   "name": "Long Boots",
+   "price": 100,
+   "shop": "Shop",
+   "confirmed": true,
+   "id": 451,
+   "str": 5,
+   "level": 0,
+   "slot": "pies",
+   "def": 1
   }
  ],
  "slot_priority": [
-  "arma",
+  "arma2m",
   "pecho",
-  "escudo",
   "piernas",
   "brazos",
   "cabeza",
@@ -1342,9 +1471,15 @@
  ],
  "reserve_gold": 400,
  "weapon_names": [
-  "Gradius +1",
-  "Long Sword +1",
-  "Scimitar +1",
-  "Falchion +1"
- ]
+  "Flameberge",
+  "Flameberge +1",
+  "Knight Flameberge",
+  "Giant Sword",
+  "Black Shadow Sword",
+  "Great Sword",
+  "Great Sword +1",
+  "Claymore",
+  "Claymore +1"
+ ],
+ "weapon_slot": "arma2m"
 }

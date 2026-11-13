@@ -42,7 +42,7 @@ def gear_plan(cat, level, stats, owned, items_db=None):
         mine = [by_name[n] for n in owned if n in by_name and by_name[n].get("slot") == slot and _can_use(by_name[n], level, stats)]
         have = max(mine, key=_score, default=None)
         cands = [i for i in cat.get("items", []) if i.get("slot") == slot and i.get("price", 0) > 0
-                 and (slot != "arma" or i["name"] in wn) and "(W)" not in i["name"]]
+                 and (slot not in ("arma", "arma2m") or i["name"] in wn) and "(W)" not in i["name"]]
         better = [i for i in cands if _score(i) > (_score(have) if have else 0)]
         usable = [i for i in better if _can_use(i, level, stats)]
         nxt = max(usable, key=lambda i: (_score(i), -i["price"]), default=None)
@@ -94,7 +94,7 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
         if hunt_map and hunt_phase is ideal:
             lines.append(f"Nivel {level}: me toca {hunt_map} ({', '.join(ideal['monsters'][:3])}).")
         else:
-            lines.append(f"Nivel {level}: me tocaría {im} ({', '.join(ideal['monsters'][:3])}), pero no sé llegar. Cazo en {hunt_map or current_map or '?'} mientras tanto.")
+            lines.append(f"Nivel {level}: me tocaría {im} ({', '.join(ideal['monsters'][:3])}), pero todavía es peligroso o no conozco el camino. Cazo en {hunt_map or current_map or '?'} mientras tanto.")
     if gold is not None:
         lines.append(f"Tengo {gold} de oro.")
     for it in buy_now:

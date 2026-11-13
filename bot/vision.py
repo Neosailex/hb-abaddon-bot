@@ -470,3 +470,30 @@ def find_shop_header(img, thr=0.5):
     if mx < thr:
         return None
     return (loc[0] + 200 * sc, loc[1] + 13 * sc, float(mx))
+
+
+_MENU_TPL = None
+
+
+def find_npc_menu(img, thr=0.6):
+    """Menú del vendedor (Trade / Sell / Talk / Repair All). Devuelve los centros de cada opción, o None.
+    El menú no sale siempre en el mismo lugar, así que busco la palabra 'Trade' y ubico el resto desde ahí."""
+    global _MENU_TPL
+    if img is None:
+        return None
+    if _MENU_TPL is None:
+        import os
+        t = cv2.imread(os.path.join(os.path.dirname(__file__), "assets", "menu_trade.png"), cv2.IMREAD_GRAYSCALE)
+        if t is None:
+            return None
+        _MENU_TPL = ((t < 90) * 255).astype(np.uint8)
+    sc = img.shape[1] / 1280.0
+    t = _MENU_TPL if abs(sc - 1) < 0.02 else cv2.resize(_MENU_TPL, None, fx=sc, fy=sc, interpolation=cv2.INTER_NEAREST)
+    g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    m = ((g < 90) * 255).astype(np.uint8)
+    r = cv2.matchTemplate(m.astype(np.float32), t.astype(np.float32), cv2.TM_CCOEFF_NORMED)
+    _, mx, _, loc = cv2.minMaxLoc(r)
+    if mx < thr:
+        return None
+    x, y = loc[0] + 28 * sc, loc[1] + 12 * sc
+    return {"trade": (x, y), "sell": (x + 109 * sc, y), "talk": (x + 196 * sc, y), "repair": (x + 219 * sc, y - 53 * sc), "score": float(mx)}

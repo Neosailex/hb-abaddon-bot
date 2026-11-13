@@ -291,7 +291,7 @@ class Bot:
         if c in ("scan", "peek", "regions", "memstatus"):
             return self._mem_cmd(c, cmd)
         if c == "py":
-            # análisis a medida (lo manda Claude desde la conversación de Juan)
+            # análisis a medida (lo manda Claude desde la conversación)
             import numpy as np
             env = {"bot": self, "memory": memory, "np": np, "os": os, "time": time, "vision": vision,
                    "proc": self.mem.proc, "DATA": cfgmod.DATA}
