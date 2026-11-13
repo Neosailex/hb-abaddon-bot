@@ -136,6 +136,32 @@ class MapData:
             self._tn = (r, m)
         return 0 <= x < self.w and 0 <= y < self.h and bool(self._tn[1][y, x])
 
+    def los(self, a, b):
+        """True si se puede ir derecho de a hasta b sin chocar: todas las baldosas de la línea se pueden pisar
+        y no corta esquinas. Sirve para saber hasta dónde apuntar el mouse en pasillos y laberintos."""
+        x0, y0 = a
+        x1, y1 = b
+        dx, dy = abs(x1 - x0), abs(y1 - y0)
+        sx = 1 if x1 > x0 else -1
+        sy = 1 if y1 > y0 else -1
+        err = dx - dy
+        x, y = x0, y0
+        while (x, y) != (x1, y1):
+            e2 = 2 * err
+            nx, ny = x, y
+            if e2 > -dy:
+                err -= dy
+                nx += sx
+            if e2 < dx:
+                err += dx
+                ny += sy
+            if nx != x and ny != y and not (self.ok(nx, y) and self.ok(x, ny)):
+                return False
+            x, y = nx, ny
+            if not self.ok(x, y) and (x, y) != (x1, y1):
+                return False
+        return True
+
     def astar(self, start, goal, max_nodes=60000, allow_tele_goal=True):
         """Camino de baldosas (8 direcciones). Devuelve lista de (x, y) o None.
         Esquiva las puertas (2 baldosas alrededor) salvo cerca del inicio o del destino,

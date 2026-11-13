@@ -2136,15 +2136,26 @@ class Bot:
                 break
             if not (goal_is_door and max(abs(p[0] - goal[0]), abs(p[1] - goal[1])) <= 3) and self._line_hits_door(m, (px, py), p):
                 break
+            # el juego camina derecho hacia el mouse: apunto solo hasta donde hay línea libre (pozos, paredes, pasillos)
+            if not m.los((px, py), p):
+                break
             wp = p
         stuck = now - self.nav["still_since"] > 4
         if stuck:
-            for _ in range(10):
-                wp = (px + random.randint(-3, 3), py + random.randint(-3, 3))
-                if m.ok(*wp) and not m.near_tele(wp[0], wp[1], 1):
-                    break
+            n_st = self.nav.get("stuck_n", 0) + 1
+            self.nav["stuck_n"] = n_st
             self.nav["still_since"] = now
-            self.log("Trabado: pruebo para otro lado.")
+            if n_st % 3:
+                # trabado: doy el paso siguiente del camino, de a una baldosa, en vez de apuntar lejos
+                wp = path[min(1, len(path) - 1)]
+            else:
+                for _ in range(10):
+                    wp = (px + random.randint(-3, 3), py + random.randint(-3, 3))
+                    if m.ok(*wp) and m.los((px, py), wp) and not m.near_tele(wp[0], wp[1], 1):
+                        break
+                self.log("Trabado: pruebo para otro lado.")
+        elif now - self.nav["still_since"] < 1.0:
+            self.nav["stuck_n"] = 0
         tw, th = self._tile()
         cx, cy = self._char()
         # en Helbreath se camina manteniendo el click: muevo el cursor hacia el próximo punto y lo dejo apretado
