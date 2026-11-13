@@ -2842,6 +2842,10 @@ class Bot:
         if crs is None:
             crs = self._creatures = {m["type"]: m for m in self._load_json("criaturas.json").get("creatures", [])}
         hpmax = max(getattr(self, "_hp_max", 0) or 0, self._hp_mem() or 0)
+        st_ = self._stats_mem() or {}
+        if st_.get("VIT"):
+            # vida máxima por fórmula (VIT x3 + nivel x2 + STR/2: da 256 con VIT 45, nivel 43, STR 71, igual que en el juego)
+            hpmax = max(hpmax, st_["VIT"] * 3 + lvl * 2 + st_.get("STR", 0) // 2)
         cand, meas = [], []
         for zn in ent["zones"]:
             x1, y1, x2, y2 = zn["rect"]
