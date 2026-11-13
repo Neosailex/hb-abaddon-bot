@@ -334,29 +334,37 @@ class World:
                 out.append(((x, y), v))
         return out
 
-    def route(self, from_name, to_name, forbidden=()):
-        """BFS por portales conocidos. Devuelve [(mapa, portal_xy)] a recorrer, [] si ya estoy, None si no sé."""
+    def route(self, from_name, to_name, forbidden=(), cost=None):
+        """Camino por portales conocidos, eligiendo el MÁS SEGURO y no el más corto: cada mapa que piso suma
+        cost(mapa) (1 si no se pasa función). Devuelve [(mapa, portal_xy)], [] si ya estoy, None si no sé."""
         a, b = from_name.strip().lower(), to_name.strip().lower()
         if a == b:
             return []
+        cost = cost or (lambda name: 1.0)
+        dist = {a: 0.0}
         prev = {a: None}
-        q = [a]
-        while q:
-            cur = q.pop(0)
+        heap = [(0.0, a)]
+        while heap:
+            d, cur = heapq.heappop(heap)
+            if d > dist.get(cur, 1e18):
+                continue
+            if cur == b:
+                steps = []
+                n = b
+                while prev[n]:
+                    m, t = prev[n]
+                    steps.append((m, t))
+                    n = m
+                return steps[::-1]
             for tile, v in self.links_from(cur):
                 nxt = v["to"]
-                if nxt in prev or nxt in forbidden:
+                if nxt in forbidden:
                     continue
-                prev[nxt] = (cur, tile)
-                if nxt == b:
-                    steps = []
-                    n = b
-                    while prev[n]:
-                        m, t = prev[n]
-                        steps.append((m, t))
-                        n = m
-                    return steps[::-1]
-                q.append(nxt)
+                nd = d + max(0.1, float(cost(nxt))) + (0.3 if v.get("base") else 0.0)
+                if nd < dist.get(nxt, 1e18):
+                    dist[nxt] = nd
+                    prev[nxt] = (cur, tile)
+                    heapq.heappush(heap, (nd, nxt))
         return None
 
 

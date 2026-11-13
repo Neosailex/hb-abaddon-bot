@@ -126,6 +126,23 @@ def _min_level(txt):
     return int(m.group(1)) if m else 0
 
 
+def map_danger(db, name):
+    """Peligro del mapa = el bicho más bravo que vive ahí (1 a 5, según la base)."""
+    dg = {m["name"].lower(): m.get("danger", 1) for m in db.get("monsters", [])}
+    for m in db.get("maps", []):
+        if m["name"].lower() == (name or "").lower():
+            return max([dg.get(x.split(" (")[0].lower(), 2) for x in m.get("monsters", [])] or [1])
+    return 0
+
+
+def allowed_danger(level, cfg=None):
+    cfg = cfg or {}
+    for upto, d in cfg.get("danger_by_level", [[44, 2], [79, 3], [119, 4]]):
+        if level <= upto:
+            return d
+    return 5
+
+
 def avoid_maps(db, level, owned, cat, cfg=None):
     """Mapas a los que todavía no conviene ir. No hay mapas prohibidos: cada uno se abre cuando el pj
     tiene el nivel y el equipo para estar cómodo (los de PvP y los del otro reino piden más)."""
@@ -141,6 +158,11 @@ def avoid_maps(db, level, owned, cat, cfg=None):
         # un mapa "30+" no es para ir recién cumplidos los 30: pido unos niveles de margen
         if ml and level < ml + cfg.get("margin", 10):
             out.add(name)
+    # mapas con bichos demasiado bravos para mi nivel
+    lim = allowed_danger(level, cfg)
+    for m in db.get("maps", []):
+        if map_danger(db, m["name"]) > lim:
+            out.add(m["name"].lower())
     if not (level >= cfg.get("pvp_level", 60) and full):
         out.update(PVP)
     if not (level >= cfg.get("enemy_level", 100) and full):

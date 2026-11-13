@@ -2083,12 +2083,31 @@ class Bot:
             self._avoid_t = now
         return self._avoid_v
 
+    def _map_cost(self, name):
+        """Cuánto me cuesta pisar un mapa al armar un camino: ciudad y farm casi nada; mapas con bichos bravos
+        para mi nivel, dungeons o lugares donde ya me mataron, mucho. Así el viaje va por lo seguro."""
+        try:
+            from . import brain
+            n = (name or "").lower()
+            lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+            c = 1.0
+            dg = brain.map_danger(self.db, n)
+            c += 2.0 * max(0, dg - 1) + 6.0 * max(0, dg - brain.allowed_danger(lvl, self.cfg.get("comfort", {})))
+            if any(k in n for k in ("dungeon", "tower", "mine")):
+                c += 4.0
+            dm = self.world.learn.get("deaths", {}).get(n)
+            if dm:
+                c += 8.0 * dm.get("n", 0)
+            return c
+        except Exception:
+            return 1.0
+
     def _known_route(self, cur, dest, avoid=()):
         if not cur:
             return False
         known = {v["to"] for v in self.world.learn["links"].values()}
         dk = next((k for k in known if self._same(k, dest)), None)
-        return bool(dk and self.world.route(cur, dk, forbidden=avoid))
+        return bool(dk and self.world.route(cur, dk, forbidden=avoid, cost=self._map_cost))
 
     def _walk_to(self, m, goal, label):
         now = time.time()
@@ -2276,11 +2295,11 @@ class Bot:
         # nombre "real" del destino según lo aprendido
         known = {v["to"] for _, v in [(k, v) for k, v in self.world.learn["links"].items()]}
         dest_key = next((k for k in known if self._same(k, dest)), dest.lower())
-        route = self.world.route(cur, dest_key, forbidden=avoid)
+        route = self.world.route(cur, dest_key, forbidden=avoid, cost=self._map_cost)
         home = t.get("home", "aresden")
         if not route and not self._same(cur, home):
             # no sé llegar al destino: primero voy a mi ciudad y exploro desde ahí
-            route = self.world.route(cur, home, forbidden=avoid)
+            route = self.world.route(cur, home, forbidden=avoid, cost=self._map_cost)
         if route:
             _, tile = route[0]
             self._walk_to(m, tile, f"portal hacia {dest}")
@@ -2644,6 +2663,83 @@ class Bot:
         return {"pot": sum(max(1, i["count"]) for i in inv if i["id"] == self.ID_POT),
                 "meat": sum(max(1, i["count"]) for i in inv if i["id"] == self.ID_MEAT),
                 "items": len(inv)}
+
+    # ---------- manejar el bolso sabiendo dónde está cada cosa (memoria) ----------
+    BAG_OX, BAG_OY, BAG_S = 847, 289, 1.6   # bolso estacionado a la derecha: pantalla(1280) = origen + 1.6 * (x, y) del item
+
+    def _bag_pt(self, x, y):
+        sc = self.rect[2] / 1280.0
+        return (self.BAG_OX + self.BAG_S * x) * sc, (self.BAG_OY + self.BAG_S * y) * sc
+
+    def _inv_item(self, item_id=None, slot=None):
+        self._inv_cache = None
+        for i in self._inv_mem() or []:
+            if (slot is not None and i["slot"] == slot) or (slot is None and i["id"] == item_id):
+                return i
+        return None
+
+    def _windows(self, bag=True, char=False):
+        """Deja las ventanas en un estado conocido: cierra todo con Esc y abre lo pedido."""
+        sc = self.rect[2] / 1280.0
+        P = lambda x, y: self.abs_pt(x * sc, y * sc)
+        self._release()
+        for _ in range(3):
+            winapi.press("ESC")
+            time.sleep(0.25)
+        isopen = lambda: sum(len(v) for v in vision.find_bag_items(self.screen.grab(self.rect), self._bag_box())) > 0
+        if isopen() != bool(bag):
+            winapi.click(*P(875, 918))
+            time.sleep(1.0)
+        if char:
+            winapi.click(*P(816, 918))
+            time.sleep(1.0)
+        return isopen() == bool(bag)
+
+    def _free_spot(self, taken=()):
+        """Un lugar del bolso sin nada cerca (en coordenadas del bolso)."""
+        inv = self._inv_mem() or []
+        pts = [(i["x"], i["y"]) for i in inv] + list(taken)
+        best = None
+        for y in (118, 108, 128):
+            for x in range(8, 176, 14):
+                d = min((abs(x - px) + abs(y - py) for px, py in pts), default=99)
+                if best is None or d > best[0]:
+                    best = (d, (x, y))
+        return best[1] if best else (90, 118)
+
+    def _isolate(self, slot, tries=5):
+        """Lleva el item de ese casillero a un lugar libre del bolso. Como las cosas se tapan, puede que agarre
+        otra: lo sé porque en la memoria se mueve la que agarré. Insisto hasta mover la que quiero."""
+        for _ in range(tries):
+            it = self._inv_item(slot=slot)
+            if not it:
+                return None
+            before = {i["slot"]: (i["x"], i["y"]) for i in self._inv_mem() or []}
+            ex, ey = self._free_spot()
+            self._drag_bg(*self._bag_pt(it["x"], it["y"]), *self._bag_pt(ex, ey))
+            time.sleep(0.5)
+            self._inv_cache = None
+            moved = [i for i in self._inv_mem() or [] if before.get(i["slot"]) != (i["x"], i["y"])]
+            if any(i["slot"] == slot for i in moved):
+                return self._inv_item(slot=slot)
+            if not moved:
+                # no agarré nada: pruebo un poco corrido
+                self._drag_bg(*self._bag_pt(it["x"] + 6, it["y"] + 10), *self._bag_pt(ex, ey))
+                time.sleep(0.5)
+                self._inv_cache = None
+                if (self._inv_item(slot=slot) or {}).get("x") != it["x"]:
+                    return self._inv_item(slot=slot)
+        return None
+
+    def _equip_slot(self, slot):
+        """Se pone el item de ese casillero: lo aparta en el bolso y lo arrastra al muñeco de Character."""
+        sc = self.rect[2] / 1280.0
+        it = self._isolate(slot)
+        if not it:
+            return False
+        self._drag_bg(*self._bag_pt(it["x"], it["y"]), 155 * sc, 345 * sc)
+        time.sleep(0.8)
+        return True
 
     def _worn_out(self):
         """True si algo del bolso con durabilidad está por romperse (queda 12% o menos)."""
