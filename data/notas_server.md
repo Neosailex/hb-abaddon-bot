@@ -59,3 +59,4 @@ Pena de muerte: no figura.
 - Escalera de caza: training_path.json -> phases[].maps en orden de preferencia. Esos mapas no se frenan por margen/peligro; solo por muertes (2 seguidas = 1 hora por muerte, o hasta subir 3 niveles).
 - Mandados: estando lejos, vuelve a Aresden Farm solo si se quedó sin pociones/comida, el equipo está por romperse, puede comprar una mejora o tiene el bolso lleno.
 - Regla 90/10: el bot cuenta los segundos de mandados (tiendas, viaje al pueblo) de la última hora; vender/comprar mejoras/reparar por rutina solo si queda cupo (10% = 6 min por hora). Urgencias (sin pociones, equipo por romperse, bolso lleno) no miran el cupo.
+- Pociones: la tecla 1 se verifica por la cuenta de pociones en la memoria (antes se miraba si subía la vida y, en plena pelea, daba 'falló' y dejaba de tomar: causa probable de varias muertes). Con 2+ pociones pelea y toma hasta 18% de vida; sin pociones escapa a 35%.

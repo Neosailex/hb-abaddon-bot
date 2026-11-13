@@ -833,6 +833,9 @@ class Bot:
             self.stats["state"] = "muerto: reviviendo"
             return True
         cfg, b, now = self.cfg, self.bars, time.time()
+        # con pociones encima aguanto peleando y tomando; escapar a pie casi nunca salva. Sin pociones, me voy antes.
+        _sm = self._supplies_mem()
+        panic = cfg["panic_hp_pct"] if not _sm or _sm["pot"] < 2 else min(cfg["panic_hp_pct"], int(cfg.get("panic_with_pots_pct", 18)))
         hp = b.get("hp")
         hm = self._hp_mem()
         if hm is not None and hm > 0:
@@ -846,7 +849,7 @@ class Bot:
                 self._last_eat = now
                 if self._consume("meat"):
                     self.log("Comí (tenía hambre).")
-            if hp <= cfg.get("hp_pot_pct", 55) and now - getattr(self, "_last_pot_t", 0) > cfg.get("pot_cooldown", 1.5):
+            if hp <= max(60, cfg.get("hp_pot_pct", 55)) and now - getattr(self, "_last_pot_t", 0) > min(0.8, cfg.get("pot_cooldown", 1.5)):
                 self._last_pot_t = now
                 if self._consume("pot"):
                     hm2 = self._hp_mem() or hm
@@ -855,7 +858,7 @@ class Bot:
         if hp == 0 and not b.get("mp") and not b.get("sp"):
             hp = None  # todo en 0: la imagen todavía no cargó, no es que me morí
         # vida baja tiene que durar un ratito (al entrar/salir de edificios la pantalla parpadea)
-        if hp is not None and hp <= cfg["panic_hp_pct"]:
+        if hp is not None and hp <= panic:
             if not getattr(self, "_low_since", 0):
                 self._low_since = now
             if now - self._low_since < 0.6:
@@ -867,7 +870,7 @@ class Bot:
                 self._flee_until = 0
                 self.log(f"Vida {hp:.0f}%: vuelvo a cazar.")
             return False
-        if hp is not None and hp <= cfg["panic_hp_pct"] and cfg.get("panic_action") == "flee":
+        if hp is not None and hp <= panic and cfg.get("panic_action") == "flee":
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()
@@ -885,7 +888,7 @@ class Bot:
             self.state, self.target = "seek", None
             self.log(f"¡Vida {hp:.0f}%! Me alejo a descansar.")
             return False
-        if hp is not None and hp <= cfg["panic_hp_pct"]:
+        if hp is not None and hp <= panic:
             self.panic_count += 1
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self.stats["hp_pots"] += 1
@@ -1849,36 +1852,35 @@ class Bot:
         time.sleep(0.5)
 
     def _pot_key(self):
-        """Poción de vida con la tecla del juego (1), sin abrir el bolso. Si la vida no sube, no era esa tecla
-        en este server (o no hay pociones): dejo de probar un rato y vuelvo al método del bolso."""
+        """Poción de vida con la tecla del juego (1), sin abrir el bolso. Verifico en la memoria que haya una
+        poción menos (mirar si sube la vida no sirve: en plena pelea la vida baja igual y parecía que fallaba)."""
         key = self.cfg.get("potion_key", "1")
         if not key or time.time() < getattr(self, "_potkey_off", 0):
             return False
-        hp0 = self._hp_mem()
-        if hp0 is None:
+        self._inv_cache = None
+        sm0 = self._supplies_mem()
+        if not sm0 or sm0["pot"] <= 0:
             return False
         winapi.press(str(key))
         t0 = time.time()
-        while time.time() - t0 < 1.6:
-            time.sleep(0.2)
-            hp = self._hp_mem()
-            if hp is not None and hp >= hp0 + 8:
+        while time.time() - t0 < 0.7:
+            time.sleep(0.12)
+            self._inv_cache = None
+            sm = self._supplies_mem()
+            if sm and sm["pot"] < sm0["pot"]:
                 if not getattr(self, "_potkey_ok", False):
                     self._potkey_ok = True
                     self.log(f"🧪 Las pociones andan con la tecla {key}: ya no abro el bolso para tomarlas.")
                 self._potkey_fail = 0
                 self.stats["hp_pots"] = self.stats.get("hp_pots", 0) + 1
-                lf = dict(getattr(self, "_left", {}))
-                if "pot" in lf:
-                    lf["pot"] = max(0, lf["pot"] - 1)
-                    self._left = lf
+                self._left = dict(getattr(self, "_left", {}), pot=sm["pot"])
                 self._last_move = time.time()
                 return True
         self._potkey_fail = getattr(self, "_potkey_fail", 0) + 1
-        if self._potkey_fail >= 2:
+        if self._potkey_fail >= 4:
             self._potkey_fail = 0
-            self._potkey_off = time.time() + (600 if getattr(self, "_potkey_ok", False) else 3600)
-        return False
+            self._potkey_off = time.time() + (15 if getattr(self, "_potkey_ok", False) else 600)
+        return getattr(self, "_potkey_ok", False)  # si la tecla ya anduvo antes, no abro el bolso en plena pelea
 
     def _consume(self, kind):
         """Abre el bolso, usa una poción roja ('pot') o come carne ('meat') con doble click y lo cierra."""

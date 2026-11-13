@@ -1,1 +1,1 @@
-{"version": 75, "notes": "Regla 90% caza / 10% pueblo: vender, comprar mejoras y reparar por rutina solo si queda cupo; las urgencias van siempre."}
+{"version": 76, "notes": "Arreglo importante: en plena pelea dejaba de tomar pociones. Ahora toma desde 60% de vida y verifica por memoria."}
