@@ -634,6 +634,7 @@ class Bot:
     def _tick(self):
         self._town_account()
         self._zone_flush()
+        self._fight_sample()
         if getattr(self, "_busy_ui", False):
             # otro hilo está usando ventanas del juego (comprando): no tocar nada
             self.stats["state"] = "comprando"
@@ -2826,6 +2827,97 @@ class Bot:
             return True
         return False
 
+    def _hpmax_est(self):
+        """Vida máxima: la mayor vista o la fórmula (VIT x3 + nivel x2 + STR/2), lo que sea más alto."""
+        lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        hpmax = max(getattr(self, "_hp_max", 0) or 0, self._hp_mem() or 0)
+        st_ = self._stats_mem() or {}
+        if st_.get("VIT"):
+            hpmax = max(hpmax, st_["VIT"] * 3 + lvl * 2 + st_.get("STR", 0) // 2)
+        return hpmax
+
+    def _creatures_db(self):
+        crs = getattr(self, "_creatures", None)
+        if crs is None:
+            crs = self._creatures = {m["type"]: m for m in self._load_json("criaturas.json").get("creatures", [])}
+        return crs
+
+    def _mob_est(self, cr):
+        """Cuánto me pega este bicho por golpe: lo medido en pelea si ya lo enfrenté bastante; si no, el dato de la
+        base corregido por lo que vengo midiendo con otros bichos (mi armadura y el server cambian los números)."""
+        fight = self.world.learn.get("fight", {})
+        f = fight.get(cr["name"])
+        if f and f.get("n", 0) >= 15:
+            return f["avg"], True
+        ratios = sorted(fight[m["name"]]["avg"] / m["dmg_avg"] for m in self._creatures_db().values()
+                        if fight.get(m["name"], {}).get("n", 0) >= 15 and m["dmg_avg"] > 0)
+        factor = ratios[len(ratios) // 2] if ratios else 1.0
+        return cr["dmg_avg"] * max(0.5, factor), False
+
+    def _fight_sample(self):
+        """Mide en pelea cuánto me sacan por golpe (bajadas de vida) contra el bicho de la zona donde estoy."""
+        hm, now = self._hp_mem(), time.time()
+        last, self._fs_hp = getattr(self, "_fs_hp", None), hm
+        mob = getattr(self, "_zone_mob", None)
+        if hm is None or last is None or not mob or now - getattr(self, "_zone_mob_t", 0) > 5:
+            return
+        d = last - hm
+        if 1 <= d <= 0.6 * max(last, 1) and (self.state == "attack" or now - getattr(self, "_last_enemy", 0) < 3):
+            f = self.world.learn.setdefault("fight", {}).setdefault(mob, {"n": 0, "avg": 0.0, "max": 0, "kn": 0, "ttk": 0.0})
+            f["n"] = min(f["n"] + 1, 400)
+            f["avg"] += (d - f["avg"]) * (1.0 / f["n"] if f["n"] < 30 else 0.05)
+            f["max"] = max(f["max"], d)
+
+    def _fight_kill(self, secs):
+        mob = getattr(self, "_zone_mob", None)
+        if mob and time.time() - getattr(self, "_zone_mob_t", 0) < 5 and 0.5 < secs < 90:
+            f = self.world.learn.setdefault("fight", {}).setdefault(mob, {"n": 0, "avg": 0.0, "max": 0, "kn": 0, "ttk": 0.0})
+            f["kn"] = min(f.get("kn", 0) + 1, 400)
+            f["ttk"] = f.get("ttk", 0.0) + (secs - f.get("ttk", 0.0)) * (1.0 / f["kn"] if f["kn"] < 20 else 0.08)
+
+    def _fight_report(self):
+        """Cada 10 minutos: cuánto me pegan, cuánto tardo en matar, mi equipo, y qué me falta para el bicho que sigue."""
+        now = time.time()
+        if now - getattr(self, "_fr_t", 0) < 600:
+            return
+        mob = getattr(self, "_zone_mob", None)
+        crs = self._creatures_db()
+        cur = next((m for m in crs.values() if m["name"] == mob), None)
+        f = self.world.learn.get("fight", {}).get(mob or "", {})
+        if not cur or f.get("n", 0) < 15:
+            return
+        self._fr_t = now
+        lvl = self._level_mem() or 1
+        hpmax, share = self._hpmax_est(), float(self.cfg.get("mob_dmg_share", 0.04))
+        idb = self._items_db()
+        eq = [idb[i] for i in (self._equipped_ids() or []) if i in idb]
+        dfn = sum(int(i.get("def") or 0) for i in eq)
+        wp = next((i for i in eq if i.get("avg")), None)
+        line = (f"📊 {mob}: me saca ~{f['avg']:.0f} por golpe (máximo {f['max']}; la base decía ~{cur['dmg_avg']:.0f})"
+                + (f", lo mato en ~{f['ttk']:.0f} s" if f.get("kn", 0) >= 5 else "")
+                + f". Tengo vida {hpmax}, defensa de equipo {dfn}" + (f", arma {wp['name']} (~{wp['avg']:.0f} por golpe sin contar fuerza)" if wp else "") + ".")
+        nxt = None
+        for m in crs.values():
+            if not m["zones"] or m["exp_dice"] <= cur["exp_dice"]:
+                continue
+            est, _ = self._mob_est(m)
+            need_hp, need_lv = int(est / share) + 1, int(max(1, (m["defense"] - 30) / 1.5)) + 1
+            if need_hp <= hpmax and need_lv <= lvl:
+                continue
+            cost = max(0, need_hp - hpmax) / 11.0 + max(0, need_lv - lvl)
+            if nxt is None or cost < nxt[0]:
+                nxt = (cost, m, est, need_hp, need_lv)
+        if nxt:
+            _, m, est, need_hp, need_lv = nxt
+            parts = []
+            if need_hp > hpmax:
+                parts.append(f"{need_hp - hpmax} de vida (unos {int((need_hp - hpmax) / 11.0) + 1} niveles poniendo todo en VIT)")
+            if need_lv > lvl:
+                parts.append(f"{need_lv - lvl} niveles para acertarle (defensa {m['defense']})")
+            line += f" Lo que sigue: {m['name']} (vida ~{m['hp']}, pegaría ~{est:.0f}) en {m['zones'][0]['map']} {tuple(m['zones'][0]['center'])}: me faltan " + " y ".join(parts) + "."
+        self.stats["fight_line"] = line
+        self.log(line)
+
     def _spawn_step(self, mp, mk, z, x, y):
         """Con la tabla de zonas de bichos del mapa: elijo la zona que más rinde entre las de bichos que ya puedo
         enfrentar (las que todavía no medí valen como "prometedoras": voy y las pruebo). None = no hay tabla."""
@@ -2838,23 +2930,18 @@ class Bot:
         now = time.time()
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         empty = self.__dict__.setdefault("_zone_empty", {})
-        crs = getattr(self, "_creatures", None)
-        if crs is None:
-            crs = self._creatures = {m["type"]: m for m in self._load_json("criaturas.json").get("creatures", [])}
-        hpmax = max(getattr(self, "_hp_max", 0) or 0, self._hp_mem() or 0)
-        st_ = self._stats_mem() or {}
-        if st_.get("VIT"):
-            # vida máxima por fórmula (VIT x3 + nivel x2 + STR/2: da 256 con VIT 45, nivel 43, STR 71, igual que en el juego)
-            hpmax = max(hpmax, st_["VIT"] * 3 + lvl * 2 + st_.get("STR", 0) // 2)
+        crs = self._creatures_db()
+        hpmax = self._hpmax_est()
         cand, meas = [], []
         for zn in ent["zones"]:
             x1, y1, x2, y2 = zn["rect"]
             cr = crs.get(zn.get("type"))
             if cr:
                 # ¿lo puedo enfrentar? que no me saque más del 4% de la vida por golpe y que le pueda acertar
-                if cr["dmg_avg"] > float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl:
+                est_, _m = self._mob_est(cr)
+                if est_ > float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl:
                     continue
-                zn = dict(zn, min_level=cr["exp_dice"], hp=cr["hp"], dmg=cr["dmg_avg"])
+                zn = dict(zn, min_level=cr["exp_dice"], hp=cr["hp"], dmg=round(est_, 1))
             elif zn.get("min_level", 80) > lvl - int(self.cfg.get("mob_level_margin", 4)):
                 continue
             c = mp.nearest_walkable((x1 + x2) // 2, (y1 + y2) // 2, r=6)
@@ -2877,6 +2964,7 @@ class Bot:
         x1, y1, x2, y2 = zn["rect"]
         self.stats["hunt_zone"] = f"{zn['mob']} ({ctr[0]},{ctr[1]})"
         if x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4:
+            self._zone_mob, self._zone_mob_t = zn["mob"], now
             if self._mem_near():
                 self._zone_idle = now
             elif now - getattr(self, "_zone_idle", now) > 40:
@@ -3241,6 +3329,10 @@ class Bot:
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
                            self._gold_mem(), owned, reach, cur, list(idb.values()), gear.owned_bonus(inv, idb))
             self.plan = p
+            try:
+                self._fight_report()
+            except Exception:
+                pass
             key = "|".join(p["lines"][:-1])
             if key != getattr(self, "_brain_key", None):
                 self._brain_key = key
@@ -4092,6 +4184,7 @@ class Bot:
                 self._last_enemy = now
                 self._spot_kill(1)
                 self._zone_kill()
+                self._fight_kill(now - (self.target_since or now))
                 self.loot_pos, self.loot_at = (t["x"], t["y"]), now + self.cfg.get("loot_delay", 2.0)
                 self.state = "loot"
                 self.stats["state"], self.stats["target"] = "levantando", ""

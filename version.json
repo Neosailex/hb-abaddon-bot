@@ -1,1 +1,1 @@
-{"version": 86, "notes": "Más conservador al elegir bicho (4% de la vida por golpe) y calcula la vida máxima por fórmula."}
+{"version": 87, "notes": "Mide en pelea cuánto le pegan y cuánto tarda en matar, y calcula qué le falta para pasar al bicho siguiente."}
