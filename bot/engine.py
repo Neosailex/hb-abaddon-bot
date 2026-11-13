@@ -4225,6 +4225,7 @@ class Bot:
                     if self.stats["kills"] % 5 == 0:
                         self.world.save()
                 self._last_enemy = now
+                self._last_kill_t = now
                 self._spot_kill(1)
                 self._zone_kill()
                 self._fight_kill(now - (self.target_since or now))
@@ -4263,6 +4264,20 @@ class Bot:
                 self.target_since = max(self.target_since, now - 12)  # caminar no cuenta como "no muere"
                 return True
             self.nav["walking"] = False
+            # pegado al bicho y no muere ni él ni nadie hace rato: seguro quedé en "modo paz" (pasa al volver a
+            # entrar al juego). TAB cambia a modo ataque. Si me equivoco, se vuelve a corregir solo al rato.
+            if max(abs(e[0]), abs(e[1])) <= 1:
+                if now - t.setdefault("adj0", now) > 8 and now - getattr(self, "_tab_t", 0) > 45 \
+                        and now - getattr(self, "_last_kill_t", 0) > 20:
+                    self._tab_t = now
+                    t["adj0"] = now
+                    self._release()
+                    winapi.press("TAB")
+                    self.log("⚔ Estoy pegado al bicho y no le pego: cambio a modo ataque (TAB).")
+                    self.target_since = now
+                    return True
+            else:
+                t.pop("adj0", None)
             self._hold_on(t["x"], t["y"])
             self.last_attack_click = now
             return True
