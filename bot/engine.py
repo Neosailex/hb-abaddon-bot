@@ -1787,10 +1787,44 @@ class Bot:
             time.sleep(0.14)
         time.sleep(0.5)
 
+    def _pot_key(self):
+        """Poción de vida con la tecla del juego (1), sin abrir el bolso. Si la vida no sube, no era esa tecla
+        en este server (o no hay pociones): dejo de probar un rato y vuelvo al método del bolso."""
+        key = self.cfg.get("potion_key", "1")
+        if not key or time.time() < getattr(self, "_potkey_off", 0):
+            return False
+        hp0 = self._hp_mem()
+        if hp0 is None:
+            return False
+        winapi.press(str(key))
+        t0 = time.time()
+        while time.time() - t0 < 1.6:
+            time.sleep(0.2)
+            hp = self._hp_mem()
+            if hp is not None and hp >= hp0 + 8:
+                if not getattr(self, "_potkey_ok", False):
+                    self._potkey_ok = True
+                    self.log(f"🧪 Las pociones andan con la tecla {key}: ya no abro el bolso para tomarlas.")
+                self._potkey_fail = 0
+                self.stats["hp_pots"] = self.stats.get("hp_pots", 0) + 1
+                lf = dict(getattr(self, "_left", {}))
+                if "pot" in lf:
+                    lf["pot"] = max(0, lf["pot"] - 1)
+                    self._left = lf
+                self._last_move = time.time()
+                return True
+        self._potkey_fail = getattr(self, "_potkey_fail", 0) + 1
+        if self._potkey_fail >= 2:
+            self._potkey_fail = 0
+            self._potkey_off = time.time() + (600 if getattr(self, "_potkey_ok", False) else 3600)
+        return False
+
     def _consume(self, kind):
         """Abre el bolso, usa una poción roja ('pot') o come carne ('meat') con doble click y lo cierra."""
         if not self.rect:
             return False
+        if kind == "pot" and self._pot_key():
+            return True
         no = getattr(self, "_no_item", {})
         if time.time() - no.get(kind, 0) < 300:
             return False
