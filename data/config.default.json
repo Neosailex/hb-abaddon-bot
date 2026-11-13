@@ -1,0 +1,124 @@
+{
+ "window_title": "Helbreath",
+ "mode": "auto",
+ "focus_game": true,
+ "calib": {
+  "hp_bar": null,
+  "mp_bar": null,
+  "sp_bar": null,
+  "char_center": null,
+  "game_area": null,
+  "tile": {
+   "w": 72,
+   "h": 72
+  },
+  "hp_pot_slot": null,
+  "mp_pot_slot": null,
+  "sp_pot_slot": null,
+  "food_slot": null,
+  "recall_slot": null,
+  "exclude": [],
+  "pos_box": null
+ },
+ "bar_tolerance": 45,
+ "hp_pot_pct": 55,
+ "mp_pot_pct": 25,
+ "sp_pot_pct": 20,
+ "hp_pot_action": {
+  "type": "slot",
+  "key": "F1"
+ },
+ "mp_pot_action": {
+  "type": "off",
+  "key": "F2"
+ },
+ "sp_pot_action": {
+  "type": "off",
+  "key": "F3"
+ },
+ "pot_cooldown": 1.2,
+ "panic_hp_pct": 20,
+ "panic_action": "recall_and_stop",
+ "recall_action": {
+  "type": "off",
+  "key": "F5"
+ },
+ "timers": [
+  {
+   "name": "Comer",
+   "every_min": 20,
+   "action": {
+    "type": "slot",
+    "slot": "food_slot",
+    "key": "F4"
+   },
+   "enabled": false
+  }
+ ],
+ "match_threshold": 0.72,
+ "match_scale": 0.5,
+ "attack_modifier": "",
+ "attack_hold": true,
+ "attack_check_every": 0.6,
+ "max_target_dist_tiles": 9,
+ "target_timeout": 25,
+ "pit_cycle_delay": 0.35,
+ "pit_directions": [
+  "N",
+  "NE",
+  "E",
+  "SE",
+  "S",
+  "SW",
+  "W",
+  "NW"
+ ],
+ "ignore_templates": [],
+ "hover_confirm": true,
+ "hover_min_pixels": 40,
+ "motion_thresh": 22,
+ "settle_time": 0.9,
+ "self_radius_tiles": 0.8,
+ "blob_min_tiles": 0.12,
+ "blob_max_tiles": 4.0,
+ "track_threshold": 0.5,
+ "loot_enabled": true,
+ "loot_delay": 2.5,
+ "loot_radius_tiles": 3,
+ "loot_max_clicks": 4,
+ "roam_enabled": true,
+ "roam_after": 6,
+ "roam_radius_tiles": 5,
+ "leash_tiles": 14,
+ "travel": {
+  "enabled": false,
+  "dest": "auto",
+  "my_level": 1,
+  "explore": true,
+  "avoid": [
+   "middleland",
+   "promiseland",
+   "icebound",
+   "elvine",
+   "elvine farm",
+   "eldiniel garden",
+   "rocky highland",
+   "death valley",
+   "elvine dungeon"
+  ]
+ },
+ "hunt_radius_tiles": 25,
+ "view_tiles": [
+  7,
+  5
+ ],
+ "game_dir": "",
+ "pause_on_raid": false,
+ "hotkeys": {
+  "toggle": "F12",
+  "panic_stop": "F11",
+  "calib_point": "F9",
+  "capture_template": "F10"
+ },
+ "template_size": 80
+}

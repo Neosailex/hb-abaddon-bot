@@ -1,0 +1,694 @@
+{
+ "note": "Listas vistas en el juego (2026-11-13). scroll = muescas de rueda hacia arriba desde el fondo de la lista; row = fila (y = 191 + 29*row, x = 272) con PRICE en (435,159).",
+ "shops": {
+  "Blacksmith": {
+   "door": {
+    "map": "Aresden Farm",
+    "tile": [
+     75,
+     86
+    ]
+   },
+   "stand": [
+    47,
+    35
+   ],
+   "keeper": [
+    745,
+    345
+   ],
+   "trade": [
+    625,
+    364
+   ],
+   "repair_all": [
+    845,
+    312
+   ],
+   "sell": [
+    735,
+    364
+   ]
+  },
+  "Shop": {
+   "door": {
+    "map": "Aresden Farm",
+    "tile": [
+     63,
+     70
+    ]
+   },
+   "sells_unseen": [
+    "capas (dato del dueño)"
+   ]
+  }
+ },
+ "items": [
+  {
+   "name": "Long Sword +1",
+   "price": 650,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 0,
+   "slot": "arma",
+   "str": 14,
+   "level": 25,
+   "confirmed": false
+  },
+  {
+   "name": "Sabre",
+   "price": 150,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 1
+  },
+  {
+   "name": "Sabre +1",
+   "price": 600,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 2
+  },
+  {
+   "name": "Scimitar",
+   "price": 200,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 3
+  },
+  {
+   "name": "Scimitar +1",
+   "price": 800,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 4
+  },
+  {
+   "name": "Falchion",
+   "price": 250,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 5
+  },
+  {
+   "name": "Falchion +1",
+   "price": 1000,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 6,
+   "slot": "arma",
+   "str": 25,
+   "level": 30,
+   "confirmed": false
+  },
+  {
+   "name": "Esterk",
+   "price": 400,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 7
+  },
+  {
+   "name": "Esterk +1",
+   "price": 800,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 8
+  },
+  {
+   "name": "Rapier",
+   "price": 300,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 9
+  },
+  {
+   "name": "Rapier +1",
+   "price": 1300,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 10
+  },
+  {
+   "name": "Broad Sword",
+   "price": 250,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 11
+  },
+  {
+   "name": "Broad Sword +1",
+   "price": 1100,
+   "shop": "Blacksmith",
+   "scroll": 40,
+   "row": 12
+  },
+  {
+   "name": "Flameberge +1",
+   "price": 3300,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 0,
+   "slot": "arma",
+   "str": 65,
+   "level": 60,
+   "hands": 2,
+   "confirmed": false
+  },
+  {
+   "name": "Light Axe",
+   "price": 100,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 1
+  },
+  {
+   "name": "Light Axe +1",
+   "price": 350,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 2
+  },
+  {
+   "name": "Tomahoc",
+   "price": 180,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 3
+  },
+  {
+   "name": "Tomahoc +1",
+   "price": 700,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 4
+  },
+  {
+   "name": "Double Axe",
+   "price": 560,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 5
+  },
+  {
+   "name": "Double Axe +1",
+   "price": 1200,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 6
+  },
+  {
+   "name": "War Axe",
+   "price": 700,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 7
+  },
+  {
+   "name": "War Axe +1",
+   "price": 2000,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 8
+  },
+  {
+   "name": "Short Bow",
+   "price": 100,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 9
+  },
+  {
+   "name": "Long Bow",
+   "price": 200,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 10
+  },
+  {
+   "name": "Arrow",
+   "price": 1,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 11
+  },
+  {
+   "name": "Wood Shield",
+   "price": 100,
+   "shop": "Blacksmith",
+   "scroll": 30,
+   "row": 12,
+   "str": 8,
+   "def": 8,
+   "slot": "escudo",
+   "confirmed": true
+  },
+  {
+   "name": "Bleeding Island Ticket",
+   "price": 100,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 0
+  },
+  {
+   "name": "Pick Axe",
+   "price": 500,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 1
+  },
+  {
+   "name": "Hoe",
+   "price": 300,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 2
+  },
+  {
+   "name": "Magic Wand (MS20)",
+   "price": 5000,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 3
+  },
+  {
+   "name": "Magic Wand (MS10)",
+   "price": 2500,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 4
+  },
+  {
+   "name": "Magic Wand (MS0)",
+   "price": 1000,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 5
+  },
+  {
+   "name": "Wizard Magic Staff (MS20)",
+   "price": 6000,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 6
+  },
+  {
+   "name": "Wizard Magic Staff (MS10)",
+   "price": 5500,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 7
+  },
+  {
+   "name": "Hauberk (M)",
+   "price": 400,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 8,
+   "str": 12,
+   "def": 8,
+   "slot": "brazos",
+   "confirmed": true
+  },
+  {
+   "name": "Chain Mail (M)",
+   "price": 1200,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 9,
+   "slot": "pecho",
+   "str": 40,
+   "confirmed": false
+  },
+  {
+   "name": "Scale Mail (M)",
+   "price": 900,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 10,
+   "str": 20,
+   "def": 20,
+   "slot": "pecho",
+   "confirmed": true
+  },
+  {
+   "name": "Plate Mail (M)",
+   "price": 4500,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 11,
+   "slot": "pecho",
+   "str": 100,
+   "confirmed": false
+  },
+  {
+   "name": "Chain Hose (M)",
+   "price": 400,
+   "shop": "Blacksmith",
+   "scroll": 20,
+   "row": 12,
+   "str": 10,
+   "def": 6,
+   "slot": "piernas",
+   "confirmed": true
+  },
+  {
+   "name": "Plate Leggings (W)",
+   "price": 1000,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 0
+  },
+  {
+   "name": "Battle Axe",
+   "price": 3500,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 1
+  },
+  {
+   "name": "Battle Axe +1",
+   "price": 6000,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 2
+  },
+  {
+   "name": "Helm (M)",
+   "price": 800,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 3,
+   "str": 52,
+   "def": 5,
+   "slot": "cabeza",
+   "confirmed": true
+  },
+  {
+   "name": "Full-Helm (M)",
+   "price": 1500,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 4,
+   "slot": "cabeza",
+   "str": 70,
+   "confirmed": false
+  },
+  {
+   "name": "Helm (W)",
+   "price": 800,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 5
+  },
+  {
+   "name": "Full-Helm (W)",
+   "price": 1500,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 6
+  },
+  {
+   "name": "Giant Sword",
+   "price": 8000,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 7,
+   "slot": "arma",
+   "str": 156,
+   "level": 100,
+   "hands": 2,
+   "confirmed": false
+  },
+  {
+   "name": "Composite Bow",
+   "price": 3000,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 8
+  },
+  {
+   "name": "Knight Rapier",
+   "price": 3200,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 9
+  },
+  {
+   "name": "Knight Great Sword",
+   "price": 3500,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 10
+  },
+  {
+   "name": "Knight Flameberge",
+   "price": 3700,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 11
+  },
+  {
+   "name": "Knight War Axe",
+   "price": 3000,
+   "shop": "Blacksmith",
+   "scroll": 10,
+   "row": 12
+  },
+  {
+   "name": "Wizard Hauberk (W)",
+   "price": 2400,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 0
+  },
+  {
+   "name": "Knight Hauberk (M)",
+   "price": 2400,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 1,
+   "slot": "brazos",
+   "str": 60,
+   "confirmed": false
+  },
+  {
+   "name": "Knight Hauberk (W)",
+   "price": 2400,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 2
+  },
+  {
+   "name": "Horned Helm (M)",
+   "price": 4000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 3,
+   "slot": "cabeza",
+   "str": 90,
+   "confirmed": false
+  },
+  {
+   "name": "Wings Helm (M)",
+   "price": 5000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 4,
+   "slot": "cabeza",
+   "str": 90,
+   "confirmed": false
+  },
+  {
+   "name": "Horned Helm (W)",
+   "price": 4000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 5
+  },
+  {
+   "name": "Wings Helm (W)",
+   "price": 5000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 6
+  },
+  {
+   "name": "Hammer",
+   "price": 6000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 7
+  },
+  {
+   "name": "Battle Hammer",
+   "price": 9000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 8
+  },
+  {
+   "name": "Barbarian Hammer",
+   "price": 15000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 9
+  },
+  {
+   "name": "Black Shadow Sword",
+   "price": 10000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 10
+  },
+  {
+   "name": "Fire-Bow",
+   "price": 6000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 11
+  },
+  {
+   "name": "Direction-Bow",
+   "price": 7000,
+   "shop": "Blacksmith",
+   "scroll": 0,
+   "row": 12
+  },
+  {
+   "name": "Dagger",
+   "price": 25,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Short Sword",
+   "price": 50,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Short Sword +1",
+   "price": 200,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Main Gauche",
+   "price": 50,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Main Gauche +1",
+   "price": 200,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Gradius",
+   "price": 90,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Gradius +1",
+   "price": 350,
+   "shop": "Blacksmith",
+   "slot": "arma",
+   "level": 20,
+   "confirmed": true
+  },
+  {
+   "name": "Long Sword",
+   "price": 180,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Bastard Sword",
+   "price": 300,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Bastard Sword +1",
+   "price": 1200,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Claymore",
+   "price": 400,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Hand Attack Manual",
+   "price": 100,
+   "shop": "Blacksmith"
+  },
+  {
+   "name": "Health Potion",
+   "price": 10,
+   "shop": "Shop",
+   "pos": [
+    272,
+    191
+   ]
+  },
+  {
+   "name": "Meat",
+   "price": 10,
+   "shop": "Shop",
+   "pos": [
+    272,
+    421
+   ]
+  }
+ ],
+ "ladder": {
+  "arma": [
+   "Gradius +1",
+   "Long Sword +1",
+   "Falchion +1"
+  ],
+  "pecho": [
+   "Scale Mail (M)",
+   "Chain Mail (M)",
+   "Plate Mail (M)"
+  ],
+  "cabeza": [
+   "Helm (M)",
+   "Full-Helm (M)",
+   "Horned Helm (M)",
+   "Wings Helm (M)"
+  ],
+  "brazos": [
+   "Hauberk (M)",
+   "Knight Hauberk (M)"
+  ],
+  "piernas": [
+   "Chain Hose (M)"
+  ],
+  "escudo": [
+   "Wood Shield"
+  ]
+ },
+ "slot_priority": [
+  "arma",
+  "pecho",
+  "escudo",
+  "brazos",
+  "piernas",
+  "cabeza"
+ ],
+ "provisions": [
+  {
+   "upto": 29,
+   "pots": 20,
+   "meat": 10
+  },
+  {
+   "upto": 59,
+   "pots": 30,
+   "meat": 10
+  },
+  {
+   "upto": 999,
+   "pots": 40,
+   "meat": 10
+  }
+ ],
+ "reserve_gold": 400
+}

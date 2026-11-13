@@ -1,0 +1,732 @@
+{
+ "source": "Carpeta CACHE del cliente de Abaddon (tablas que manda el servidor), leído 2026-11-13",
+ "maps": {
+  "default": "Beginner Zone",
+  "inferniab": "Infernia B",
+  "inferniaa": "Infernia A",
+  "maze": "Maze",
+  "druncncity": "Druncnian City",
+  "procella": "Procella",
+  "abaddon": "Abaddon",
+  "aresden": "Aresden City",
+  "arefarm": "Aresden Farm",
+  "aresdend1": "Aresden Dungeon",
+  "arebrk11": "Aresden Barrack 1",
+  "arebrk12": "Aresden Barrack 1",
+  "arebrk21": "Aresden Barrack 2",
+  "arebrk22": "Aresden Barrack 2",
+  "wrhus_1": "Aresden Warehouse",
+  "cityhall_1": "Aresden Cityhall",
+  "arewrhus": "Aresden Warehouse",
+  "resurr1": "Revival Zone",
+  "gshop_1": "Aresden Shop",
+  "arejail": "Aresden Jail",
+  "cath_1": "Aresien Church",
+  "wzdtwr_1": "Magic Tower",
+  "gshop_1f": "Aresden Shop",
+  "wrhus_1f": "Aresden Warehouse",
+  "bsmith_1f": "Aresden Blacksmith",
+  "bsmith_1": "Aresden Blacksmith",
+  "gldhall_1": "Aresden Guildhall",
+  "cmdhall_1": "Command Hall",
+  "dglv2": "Dungeon L2",
+  "dglv3": "Dungeon L3",
+  "dglv4": "Dungeon L4",
+  "elvine": "Elvine City",
+  "elvfarm": "Elvine Farm",
+  "elvbrk11": "Elvine Barrack 1",
+  "elvbrk12": "Elvine Barrack 1",
+  "elvbrk21": "Elvine Barrack 2",
+  "elvbrk22": "Elvine Barrack 2",
+  "elvined1": "Elvine Dungeon",
+  "elvjail": "Elvine Jail",
+  "elvwrhus": "Elvine Warehouse",
+  "gldhall_2": "Elvine Guildhall",
+  "gshop_2": "Elvine Shop",
+  "gshop_2f": "Elvine Shop",
+  "resurr2": "Revival Zone",
+  "wrhus_2": "Elvine Warehouse",
+  "wrhus_2f": "Elvine Warehouse",
+  "wzdtwr_2": "Magic Tower",
+  "bsmith_2": "Elvine Blacksmith",
+  "bsmith_2f": "Elvine Blacksmith",
+  "cath_2": "Eldiniel Church",
+  "cityhall_2": "Elvine Cityhall",
+  "cmdhall_2": "Command Hall",
+  "btfield": "Battle Field",
+  "godh": "God's Heldenian",
+  "hrampart": "Heldenian Rampart",
+  "areuni": "Aresien Garden",
+  "elvuni": "Eldiniel Garden",
+  "huntzone1": "Rocky Highland",
+  "huntzone2": "Eternal Field",
+  "huntzone3": "Death Valley",
+  "huntzone4": "Silent Wood",
+  "middleland": "Middleland",
+  "2ndmiddle": "Promiseland",
+  "middled1n": "Middleland Dungeon",
+  "middled1x": "Middleland Mine",
+  "bisle": "Bleeding Island",
+  "fightzone1": "Arena 1",
+  "fightzone2": "Arena 2",
+  "fightzone3": "Arena 3",
+  "fightzone4": "Arena 4",
+  "fightzone5": "Arena 5",
+  "fightzone6": "Arena 6",
+  "fightzone7": "Arena 7",
+  "fightzone8": "Arena 8",
+  "fightzone9": "Arena 9",
+  "toh1": "Tower of Hell 1",
+  "toh2": "Tower of Hell 2",
+  "toh3": "Tower of Hell 3",
+  "icebound": "Ice Map",
+  "toh4": "Tower of Hell 4"
+ },
+ "npcs": [
+  {
+   "id": 0,
+   "name": "Slime",
+   "look": 10
+  },
+  {
+   "id": 1,
+   "name": "Rabbit",
+   "look": 55
+  },
+  {
+   "id": 2,
+   "name": "Cat",
+   "look": 56
+  },
+  {
+   "id": 3,
+   "name": "Giant Ant",
+   "look": 16
+  },
+  {
+   "id": 4,
+   "name": "Snake",
+   "look": 22
+  },
+  {
+   "id": 5,
+   "name": "Orc",
+   "look": 14
+  },
+  {
+   "id": 6,
+   "name": "Dummy",
+   "look": 34
+  },
+  {
+   "id": 7,
+   "name": "Attack Dummy",
+   "look": 34
+  },
+  {
+   "id": 8,
+   "name": "Zombie",
+   "look": 18
+  },
+  {
+   "id": 9,
+   "name": "Giant Scorpion",
+   "look": 17
+  },
+  {
+   "id": 10,
+   "name": "Skeleton",
+   "look": 11
+  },
+  {
+   "id": 11,
+   "name": "Orc Mage",
+   "look": 14
+  },
+  {
+   "id": 12,
+   "name": "Clay Golem",
+   "look": 23
+  },
+  {
+   "id": 13,
+   "name": "Stone Golem",
+   "look": 12
+  },
+  {
+   "id": 14,
+   "name": "Helhound",
+   "look": 27
+  },
+  {
+   "id": 15,
+   "name": "Frog",
+   "look": 57
+  },
+  {
+   "id": 16,
+   "name": "Rudolph",
+   "look": 61
+  },
+  {
+   "id": 17,
+   "name": "Troll",
+   "look": 28
+  },
+  {
+   "id": 18,
+   "name": "Cyclops",
+   "look": 13
+  },
+  {
+   "id": 19,
+   "name": "Ice Golem",
+   "look": 65
+  },
+  {
+   "id": 20,
+   "name": "Beholder",
+   "look": 53
+  },
+  {
+   "id": 21,
+   "name": "Plant",
+   "look": 60
+  },
+  {
+   "id": 22,
+   "name": "Ogre",
+   "look": 29
+  },
+  {
+   "id": 23,
+   "name": "Mountain Giant",
+   "look": 58
+  },
+  {
+   "id": 24,
+   "name": "Direboar",
+   "look": 62
+  },
+  {
+   "id": 25,
+   "name": "Tentocle",
+   "look": 80
+  },
+  {
+   "id": 26,
+   "name": "Giant Crayfish",
+   "look": 74
+  },
+  {
+   "id": 27,
+   "name": "Giant Tree",
+   "look": 76
+  },
+  {
+   "id": 28,
+   "name": "Liche",
+   "look": 30
+  },
+  {
+   "id": 29,
+   "name": "Stalker",
+   "look": 48
+  },
+  {
+   "id": 30,
+   "name": "Werewolf",
+   "look": 33
+  },
+  {
+   "id": 31,
+   "name": "Darkelf",
+   "look": 54
+  },
+  {
+   "id": 32,
+   "name": "Frost",
+   "look": 63
+  },
+  {
+   "id": 33,
+   "name": "Claw Turtle",
+   "look": 72
+  },
+  {
+   "id": 34,
+   "name": "Dragon",
+   "look": 70
+  },
+  {
+   "id": 35,
+   "name": "Ettin",
+   "look": 59
+  },
+  {
+   "id": 36,
+   "name": "Demon",
+   "look": 31
+  },
+  {
+   "id": 37,
+   "name": "Unicorn",
+   "look": 32
+  },
+  {
+   "id": 38,
+   "name": "Gargoyle",
+   "look": 52
+  },
+  {
+   "id": 39,
+   "name": "Centaur",
+   "look": 71
+  },
+  {
+   "id": 40,
+   "name": "Giant Lizard",
+   "look": 75
+  },
+  {
+   "id": 41,
+   "name": "Master Mage Orc",
+   "look": 77
+  },
+  {
+   "id": 42,
+   "name": "Minotaur",
+   "look": 78
+  },
+  {
+   "id": 43,
+   "name": "Nizie",
+   "look": 79
+  },
+  {
+   "id": 44,
+   "name": "Helclaw",
+   "look": 49
+  },
+  {
+   "id": 45,
+   "name": "Tiger Worm",
+   "look": 50
+  },
+  {
+   "id": 46,
+   "name": "Wyvern",
+   "look": 66
+  },
+  {
+   "id": 47,
+   "name": "Fire Wyvern",
+   "look": 73
+  },
+  {
+   "id": 48,
+   "name": "Abaddon",
+   "look": 81
+  },
+  {
+   "id": 49,
+   "name": "Crop",
+   "look": 64
+  },
+  {
+   "id": 50,
+   "name": "Energy Sphere",
+   "look": 35
+  },
+  {
+   "id": 51,
+   "name": "Gate",
+   "look": 91
+  },
+  {
+   "id": 52,
+   "name": "Gate",
+   "look": 91
+  },
+  {
+   "id": 53,
+   "name": "Mcgaffin",
+   "look": 67
+  },
+  {
+   "id": 54,
+   "name": "Perry",
+   "look": 68
+  },
+  {
+   "id": 55,
+   "name": "Devlin",
+   "look": 69
+  },
+  {
+   "id": 56,
+   "name": "Shop Keeper",
+   "look": 15
+  },
+  {
+   "id": 57,
+   "name": "Sorcerer",
+   "look": 19
+  },
+  {
+   "id": 58,
+   "name": "Warehouse Keeper",
+   "look": 20
+  },
+  {
+   "id": 59,
+   "name": "Guard",
+   "look": 21
+  },
+  {
+   "id": 60,
+   "name": "Guard",
+   "look": 21
+  },
+  {
+   "id": 61,
+   "name": "Guard",
+   "look": 21
+  },
+  {
+   "id": 62,
+   "name": "BlackSmith Keeper",
+   "look": 24
+  },
+  {
+   "id": 63,
+   "name": "Cityhall Officer",
+   "look": 25
+  },
+  {
+   "id": 64,
+   "name": "Guildhall Officer",
+   "look": 26
+  },
+  {
+   "id": 65,
+   "name": "Gail",
+   "look": 90
+  },
+  {
+   "id": 66,
+   "name": "Arrow Guard Tower",
+   "look": 36
+  },
+  {
+   "id": 67,
+   "name": "Arrow Guard Tower",
+   "look": 36
+  },
+  {
+   "id": 68,
+   "name": "Cannon Guard Tower",
+   "look": 37
+  },
+  {
+   "id": 69,
+   "name": "Cannon Guard Tower",
+   "look": 37
+  },
+  {
+   "id": 70,
+   "name": "Mana Collector",
+   "look": 38
+  },
+  {
+   "id": 71,
+   "name": "Mana Collector",
+   "look": 38
+  },
+  {
+   "id": 72,
+   "name": "Detector",
+   "look": 39
+  },
+  {
+   "id": 73,
+   "name": "Detector",
+   "look": 39
+  },
+  {
+   "id": 74,
+   "name": "Energy Shield Genera",
+   "look": 40
+  },
+  {
+   "id": 75,
+   "name": "Energy Shield Genera",
+   "look": 40
+  },
+  {
+   "id": 76,
+   "name": "Grand Magic Generato",
+   "look": 41
+  },
+  {
+   "id": 77,
+   "name": "Grand Magic Generato",
+   "look": 41
+  },
+  {
+   "id": 78,
+   "name": "Mana Stone",
+   "look": 42
+  },
+  {
+   "id": 79,
+   "name": "Light War Beetle",
+   "look": 43
+  },
+  {
+   "id": 80,
+   "name": "Light War Beetle",
+   "look": 43
+  },
+  {
+   "id": 81,
+   "name": "God's Hand Knight",
+   "look": 44
+  },
+  {
+   "id": 82,
+   "name": "God's Hand Knight",
+   "look": 45
+  },
+  {
+   "id": 83,
+   "name": "Temple Knight",
+   "look": 46
+  },
+  {
+   "id": 84,
+   "name": "Battle Golem",
+   "look": 47
+  },
+  {
+   "id": 85,
+   "name": "Catapult",
+   "look": 1
+  },
+  {
+   "id": 86,
+   "name": "Catapult",
+   "look": 1
+  },
+  {
+   "id": 87,
+   "name": "Catapult",
+   "look": 2
+  },
+  {
+   "id": 88,
+   "name": "Catapult",
+   "look": 2
+  },
+  {
+   "id": 89,
+   "name": "Catapult",
+   "look": 3
+  },
+  {
+   "id": 90,
+   "name": "Catapult",
+   "look": 3
+  },
+  {
+   "id": 91,
+   "name": "Catapult",
+   "look": 4
+  },
+  {
+   "id": 92,
+   "name": "Catapult",
+   "look": 4
+  },
+  {
+   "id": 93,
+   "name": "Catapult",
+   "look": 5
+  },
+  {
+   "id": 94,
+   "name": "Catapult",
+   "look": 5
+  },
+  {
+   "id": 95,
+   "name": "Catapult",
+   "look": 6
+  },
+  {
+   "id": 96,
+   "name": "Catapult",
+   "look": 6
+  },
+  {
+   "id": 97,
+   "name": "Catapult",
+   "look": 51
+  },
+  {
+   "id": 98,
+   "name": "Catapult",
+   "look": 51
+  },
+  {
+   "id": 99,
+   "name": "Sorceress",
+   "look": 82
+  },
+  {
+   "id": 100,
+   "name": "Sorceress",
+   "look": 82
+  },
+  {
+   "id": 101,
+   "name": "Ancient Temple Knigh",
+   "look": 83
+  },
+  {
+   "id": 102,
+   "name": "Ancient Temple Knigh",
+   "look": 83
+  },
+  {
+   "id": 103,
+   "name": "Elf Master",
+   "look": 84
+  },
+  {
+   "id": 104,
+   "name": "Elf Master",
+   "look": 84
+  },
+  {
+   "id": 105,
+   "name": "Dark Shadow Knight",
+   "look": 85
+  },
+  {
+   "id": 106,
+   "name": "Dark Shadow Knight",
+   "look": 85
+  },
+  {
+   "id": 107,
+   "name": "Heavy Battle Tank",
+   "look": 86
+  },
+  {
+   "id": 108,
+   "name": "Heavy Battle Tank",
+   "look": 86
+  },
+  {
+   "id": 109,
+   "name": "Crossbow Turret",
+   "look": 87
+  },
+  {
+   "id": 110,
+   "name": "Crossbow Turret",
+   "look": 87
+  },
+  {
+   "id": 111,
+   "name": "Barbarian",
+   "look": 88
+  },
+  {
+   "id": 112,
+   "name": "Barbarian",
+   "look": 88
+  },
+  {
+   "id": 113,
+   "name": "Ancient Giant Cannon",
+   "look": 89
+  },
+  {
+   "id": 114,
+   "name": "Ancient Giant Cannon",
+   "look": 89
+  },
+  {
+   "id": 115,
+   "name": "Nightmare Hellhound",
+   "look": 27
+  },
+  {
+   "id": 116,
+   "name": "Nightmare Cyclops",
+   "look": 13
+  },
+  {
+   "id": 117,
+   "name": "Nightmare Ogre",
+   "look": 29
+  },
+  {
+   "id": 118,
+   "name": "Nightmare Stalker",
+   "look": 48
+  },
+  {
+   "id": 119,
+   "name": "Nightmare Werewolf",
+   "look": 33
+  },
+  {
+   "id": 120,
+   "name": "Nightmare Dark Elf",
+   "look": 54
+  },
+  {
+   "id": 121,
+   "name": "Nightmare Minotaur",
+   "look": 78
+  },
+  {
+   "id": 122,
+   "name": "Nightmare Battle Gol",
+   "look": 47
+  },
+  {
+   "id": 123,
+   "name": "Nightmare War Beetle",
+   "look": 43
+  },
+  {
+   "id": 124,
+   "name": "Nightmare Butcher",
+   "look": 78
+  }
+ ],
+ "skills": [
+  "Mining",
+  "Fishing",
+  "Farming",
+  "Magic-Resistance",
+  "Magic",
+  "Hand-Attack",
+  "Archery",
+  "Short-Sword",
+  "Long-Sword",
+  "Fencing",
+  "Axe-Attack",
+  "Shield",
+  "Alchemy",
+  "Manufacturing",
+  "Hammer",
+  "Pretend-Corpse",
+  "Staff-Attack",
+  "Poison-Resistance"
+ ]
+}

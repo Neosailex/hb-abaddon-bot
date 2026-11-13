@@ -1,0 +1,1634 @@
+{
+ "server": {
+  "name": "Helbreath Abaddon",
+  "web": "https://helbreathabaddon.com",
+  "exp_rate": "5x",
+  "drop_rate": "3x",
+  "gold_chance": "45% por kill",
+  "level_cap": 180,
+  "stat_cap": 200,
+  "stats_per_level": 3,
+  "after_180": "La barra de exp sigue llenando: cada barra = 1 punto majestic.",
+  "bank_slots": 200,
+  "location": "EE.UU. Este",
+  "server_time": "Arizona (UTC-7, sin horario de verano)",
+  "drop_rules": [
+   "Cada kill tira 30% de común y 15% de raro.",
+   "Super raro = menos de 0,1% por kill.",
+   "La reputación positiva sube comunes y raros hasta +25% con 500 de rep (el oro no).",
+   "Sin contador de lástima: cada kill es independiente.",
+   "Los raros se anuncian a todo el server."
+  ],
+  "commands": {
+   "/who": "Cuántos jugadores hay online",
+   "/showdmg": "Muestra el daño de cada golpe (otra vez para apagar)",
+   "/checknpc": "Monstruos que quedan en el mapa / distancia al próximo portal en el Apocalipsis",
+   "/checkrep": "Tu reputación",
+   "/rep+ Nombre": "Rep positiva (nivel 40+, cada 20 min)",
+   "/rep- Nombre": "Rep negativa (mismas reglas)",
+   "/to Nombre": "Susurrar (solo /to para cortar)",
+   "/to Claude respuesta": "Responder minijuego del chat",
+   "/block Nombre": "Ocultar mensajes de alguien",
+   "/unblock Nombre": "Deshacer block"
+  }
+ },
+ "changes": [
+  "Los raros aparecen cuando se desvanece el cuerpo del monstruo: esperá un par de segundos antes de lootear.",
+  "El oro no pesa nada y un mismo kill puede tirar oro y un ítem.",
+  "La plate mail necesita 100 de STR. Barbarian Hammer y The Devastator: 150 para sostenerlos y 195 para velocidad completa.",
+  "Correr cuesta 1 SP cada 3 pasos.",
+  "Quests del City Hall: elegís la quest, paga todo al entregarla y duplica la exp de quests desde nivel 100.",
+  "Desloguear tarda 5 segundos.",
+  "Los shops muestran la fuerza que pide cada pieza.",
+  "Earth Shock Wave pega más fuerte (manual: Abaddon, Ettins, Clay Golems). Los demonios resisten menos la magia."
+ ],
+ "dark_master": {
+  "info": "Al llegar a 180, el City Hall entrega una pieza de cada tipo. 30.000 de durabilidad, nivel 180, ligada al PJ (no se comercia ni tira). Si no la querés, cualquier tienda la compra por 0 y el City Hall te da otra.",
+  "warrior_pieces": [
+   "Dark Knight Flameberge",
+   "Full-Helm",
+   "Plate Mail",
+   "Hauberk",
+   "Leggings"
+  ],
+  "weapon_forms": {
+   "+0": "Flameberge",
+   "+4": "Giant Sword",
+   "+10": "Templar",
+   "+15": "Brilla"
+  },
+  "upgrade_cost_majestic": {
+   "+1": 4,
+   "+2": 4,
+   "+3": 8,
+   "+4": 8,
+   "+5": 12,
+   "+6": 12,
+   "+7": 16,
+   "+8": 16,
+   "+9": 20,
+   "+10": 20,
+   "+11": 24,
+   "+12": 24,
+   "+13": 28,
+   "+14": 28,
+   "+15": 32
+  },
+  "total_0_to_15": 256,
+  "upgrades_never_fail": true
+ },
+ "angels": {
+  "info": "El City Hall te da un ángel por 5 puntos majestic. Ángel +N suma +N al stat, por encima del tope de 200. El primer upgrade lo vincula al PJ.",
+  "types": [
+   "STR",
+   "DEX",
+   "INT",
+   "MAG"
+  ],
+  "upgrade_cost_majestic": {
+   "+1": 2,
+   "+2": 2,
+   "+3": 4,
+   "+4": 4,
+   "+5": 6,
+   "+6": 6,
+   "+7": 8,
+   "+8": 8,
+   "+9": 10,
+   "+10": 10,
+   "+11": 12,
+   "+12": 12,
+   "+13": 14,
+   "+14": 14,
+   "+15": 16,
+   "+16": 16,
+   "+17": 18,
+   "+18": 18,
+   "+19": 20,
+   "+20": 20
+  },
+  "total_0_to_20": 220,
+  "warrior_pick": "STR (más daño) — después DEX si querés pegar más seguido"
+ },
+ "events": [
+  {
+   "name": "Happy Hour (exp x2, 1 hora)",
+   "kind": "daily",
+   "tz": "America/Phoenix",
+   "times": [
+    "10:00",
+    "14:00",
+    "18:00"
+   ],
+   "duration_min": 60,
+   "note": "Según el parche v1.44 (hora del server, Arizona). La página de eventos dice otros horarios: el cartel del juego avisa cuándo empieza."
+  },
+  {
+   "name": "Raid a los pueblos (capital enemiga abierta 10 min)",
+   "kind": "daily",
+   "tz": "America/Los_Angeles",
+   "times": [
+    "18:00",
+    "21:00"
+   ],
+   "duration_min": 10,
+   "danger": true
+  },
+  {
+   "name": "Raid a los pueblos (capital enemiga abierta 10 min)",
+   "kind": "daily",
+   "tz": "Europe/Paris",
+   "times": [
+    "19:30",
+    "22:30"
+   ],
+   "duration_min": 10,
+   "danger": true
+  },
+  {
+   "name": "Minijuego en el chat (5.000 oro o 10 contribution)",
+   "kind": "every_2h",
+   "note": "Cada 2 horas; 3 minutos para responder con /to Claude respuesta; 3 premios por cuenta por día."
+  },
+  {
+   "name": "Apocalipsis (portal en Icebound, 6 horas)",
+   "kind": "biweekly_saturday",
+   "tz": "America/Phoenix",
+   "times": [
+    "18:00"
+   ],
+   "duration_min": 360,
+   "steps": [
+    "Icebound: aparece el portal",
+    "Infernia: limpiala para abrir el próximo",
+    "Procella: más difícil",
+    "Guarida de Abaddon: limpiala y sale Abaddon (75.001–90.000 HP)",
+    "Caída: 3 pilas de 91.709–137.578 de oro, 6 comunes y 2 raros"
+   ],
+   "abaddon_drops": [
+    "Excalibur",
+    "Ring of the Abaddon",
+    "Necklace of Stone Golem",
+    "Earth Shock Wave Manual",
+    "Necklace of Xelima",
+    "Blood Sword",
+    "Blood Axe",
+    "Blood Rapier",
+    "Xelima's Blade",
+    "Xelima's Axe",
+    "Xelima's Rapier",
+    "Necklace of Fire Protection",
+    "Necklace of Efreet",
+    "Magic Wand (M.Shield)",
+    "Mass Fire Strike Manual",
+    "Bloody Shock Wave Manual"
+   ]
+  },
+  {
+   "name": "Navidad",
+   "kind": "december",
+   "note": "Todo diciembre: Rudolph en Icebound, Eternal Field y Rocky Highland."
+  }
+ ],
+ "monsters": [
+  {
+   "name": "Slime",
+   "hp": "4–10",
+   "gold": "11–32",
+   "maps": [
+    "Beginner Zone",
+    "Aresden City",
+    "Aresden Farm",
+    "Middleland Dungeon"
+   ],
+   "notes": "Raro: Slime Jelly 0,6%",
+   "danger": 1
+  },
+  {
+   "name": "Rabbit",
+   "hp": "8–20",
+   "gold": "12–33",
+   "maps": [
+    "Aresden City"
+   ],
+   "notes": "",
+   "danger": 1
+  },
+  {
+   "name": "Cat",
+   "hp": "8–20",
+   "gold": "12–33",
+   "maps": [
+    "Aresden City"
+   ],
+   "notes": "Solo comunes",
+   "danger": 1
+  },
+  {
+   "name": "Giant Ant",
+   "hp": "6–15",
+   "gold": "13–34",
+   "maps": [
+    "Aresden City",
+    "Aresden Farm",
+    "Eternal Field",
+    "Aresden Dungeon",
+    "Middleland Mine"
+   ],
+   "notes": "Raros: Ant Leg 1/31, Ant Antenna 1/36 (crafting)",
+   "danger": 1
+  },
+  {
+   "name": "Orc",
+   "hp": "8–20",
+   "gold": "16–39",
+   "maps": [
+    "Aresden City",
+    "Aresien Garden",
+    "Middleland",
+    "Middleland Mine",
+    "Dungeon L2",
+    "Promiseland"
+   ],
+   "notes": "Anillos super raros 0,005%",
+   "danger": 1
+  },
+  {
+   "name": "Snake",
+   "hp": "8–20",
+   "gold": "13–35",
+   "maps": [
+    "Aresden City",
+    "Aresden Farm",
+    "Aresien Garden",
+    "Eternal Field",
+    "Aresden Dungeon"
+   ],
+   "notes": "Envenena: entrena Poison Resistance. Sword of Medusa 0,005%",
+   "danger": 1
+  },
+  {
+   "name": "Giant Scorpion",
+   "hp": "31–36",
+   "gold": "24–51",
+   "maps": [
+    "Aresden City",
+    "Aresden Farm",
+    "Eternal Field",
+    "Middleland",
+    "Promiseland"
+   ],
+   "notes": "Envenena. 4 raros de crafting",
+   "danger": 1
+  },
+  {
+   "name": "Skeleton",
+   "hp": "41–48",
+   "gold": "25–53",
+   "maps": [
+    "Eternal Field",
+    "Silent Wood",
+    "Middleland",
+    "Promiseland",
+    "Dungeon L2",
+    "Dungeon L3",
+    "Dungeon L4"
+   ],
+   "notes": "Anillos super raros",
+   "danger": 1
+  },
+  {
+   "name": "Zombie",
+   "hp": "51–60",
+   "gold": "23–50",
+   "maps": [
+    "Eternal Field",
+    "Middleland",
+    "Promiseland",
+    "Middleland Dungeon",
+    "Dungeon L2",
+    "Dungeon L3",
+    "Tower of Hell 1"
+   ],
+   "notes": "Envenena. Sword of Medusa 0,004%",
+   "danger": 1
+  },
+  {
+   "name": "Orc Mage",
+   "hp": "61–72",
+   "gold": "22–48",
+   "maps": [
+    "Aresien Garden",
+    "Silent Wood"
+   ],
+   "notes": "Tira magia: entrena Magic Resistance",
+   "danger": 2
+  },
+  {
+   "name": "Stone Golem",
+   "hp": "126–150",
+   "gold": "47–86",
+   "maps": [
+    "Aresden Farm",
+    "Eternal Field",
+    "Silent Wood",
+    "Aresden Dungeon",
+    "Middleland",
+    "Dungeon L2",
+    "Dungeon L3",
+    "Dungeon L4"
+   ],
+   "notes": "Necklace of Stone Golem 0,01%; Merien's Shield/Plate 0,005%",
+   "danger": 2
+  },
+  {
+   "name": "Clay Golem",
+   "hp": "151–180",
+   "gold": "54–96",
+   "maps": [
+    "Eternal Field",
+    "Silent Wood",
+    "Aresden Dungeon",
+    "Middleland",
+    "Middleland Dungeon",
+    "Dungeon L2"
+   ],
+   "notes": "Lump of Clay 1/17",
+   "danger": 2
+  },
+  {
+   "name": "Giant Frog",
+   "hp": "176–210",
+   "gold": "65–113",
+   "maps": [
+    "Aresden Dungeon",
+    "Middleland",
+    "Middleland Dungeon"
+   ],
+   "notes": "6 anillos super raros",
+   "danger": 2
+  },
+  {
+   "name": "Hellhound",
+   "hp": "176–210",
+   "gold": "62–108",
+   "maps": [
+    "Aresden Dungeon",
+    "Middleland",
+    "Promiseland",
+    "Dungeon L3",
+    "Dungeon L4",
+    "Tower of Hell 1"
+   ],
+   "notes": "6 raros 1/57–1/94",
+   "danger": 2
+  },
+  {
+   "name": "Rudolph",
+   "hp": "201–240",
+   "gold": "57–100",
+   "maps": [
+    "Icebound",
+    "Eternal Field"
+   ],
+   "notes": "Solo diciembre",
+   "danger": 2
+  },
+  {
+   "name": "Troll",
+   "hp": "276–330",
+   "gold": "43–80",
+   "maps": [
+    "Aresien Garden",
+    "Silent Wood",
+    "Middleland",
+    "Promiseland"
+   ],
+   "notes": "Pega fuerte para su nivel: 1 vs 1 recién ~60",
+   "danger": 3
+  },
+  {
+   "name": "Cyclops",
+   "hp": "301–360",
+   "gold": "86–144",
+   "maps": [
+    "Silent Wood",
+    "Aresden Dungeon",
+    "Middleland",
+    "Promiseland",
+    "Dungeon L2",
+    "Dungeon L3",
+    "Dungeon L4",
+    "Tower of Hell 1"
+   ],
+   "notes": "Raros de crafting 1/51–1/102",
+   "danger": 3
+  },
+  {
+   "name": "Ice Golem",
+   "hp": "301–360",
+   "gold": "79–133",
+   "maps": [
+    "Icebound"
+   ],
+   "notes": "Ice Storm Manual 1/4.040",
+   "danger": 3
+  },
+  {
+   "name": "Giant Crayfish",
+   "hp": "351–420",
+   "gold": "111–182",
+   "maps": [],
+   "notes": "Solo comunes",
+   "danger": 3
+  },
+  {
+   "name": "Tentocle",
+   "hp": "401–480",
+   "gold": "71–121",
+   "maps": [
+    "Silent Wood"
+   ],
+   "notes": "",
+   "danger": 3
+  },
+  {
+   "name": "Giant Plant",
+   "hp": "501–600",
+   "gold": "98–162",
+   "maps": [
+    "Aresien Garden",
+    "Middleland"
+   ],
+   "notes": "Solo comunes",
+   "danger": 3
+  },
+  {
+   "name": "Beholder",
+   "hp": "501–600",
+   "gold": "104–171",
+   "maps": [
+    "Tower of Hell 1",
+    "Tower of Hell 2",
+    "Tower of Hell 3"
+   ],
+   "notes": "Tira magia",
+   "danger": 4
+  },
+  {
+   "name": "Mountain Giant",
+   "hp": "501–600",
+   "gold": "208–328",
+   "maps": [
+    "Silent Wood"
+   ],
+   "notes": "Merien's Shield/Plate 1/4.000",
+   "danger": 3
+  },
+  {
+   "name": "Cannibal Plant",
+   "hp": "526–630",
+   "gold": "80–135",
+   "maps": [
+    "Aresien Garden",
+    "Eternal Field"
+   ],
+   "notes": "6 anillos super raros",
+   "danger": 3
+  },
+  {
+   "name": "Ogre",
+   "hp": "576–690",
+   "gold": "87–146",
+   "maps": [
+    "Silent Wood",
+    "Middleland",
+    "Dungeon L3",
+    "Dungeon L4",
+    "Tower of Hell 1"
+   ],
+   "notes": "Ring of Ogre Power 0,02%",
+   "danger": 3
+  },
+  {
+   "name": "Claw Turtle",
+   "hp": "601–720",
+   "gold": "575–878",
+   "maps": [],
+   "notes": "Mucho oro, solo comunes",
+   "danger": 3
+  },
+  {
+   "name": "Dire Boar",
+   "hp": "651–780",
+   "gold": "78–132",
+   "maps": [
+    "Icebound"
+   ],
+   "notes": "Solo comunes",
+   "danger": 3
+  },
+  {
+   "name": "Frost",
+   "hp": "651–780",
+   "gold": "63–110",
+   "maps": [
+    "Icebound"
+   ],
+   "notes": "Storm Bringer 1/20.000",
+   "danger": 3
+  },
+  {
+   "name": "Liche",
+   "hp": "651–780",
+   "gold": "102–168",
+   "maps": [
+    "Dungeon L3",
+    "Dungeon L4",
+    "Tower of Hell 2",
+    "Tower of Hell 3"
+   ],
+   "notes": "Tira magia fuerte",
+   "danger": 4
+  },
+  {
+   "name": "Stalker",
+   "hp": "651–780",
+   "gold": "266–414",
+   "maps": [
+    "Dungeon L3",
+    "Tower of Hell 3"
+   ],
+   "notes": "Flameberge +3 (LLF) 0,06%",
+   "danger": 4
+  },
+  {
+   "name": "Dark Elf",
+   "hp": "701–840",
+   "gold": "56–100",
+   "maps": [
+    "Tower of Hell 1",
+    "Tower of Hell 2",
+    "Tower of Hell 3"
+   ],
+   "notes": "Arquero: pega de lejos. Dark Elf's Bow 1/1.732",
+   "danger": 4
+  },
+  {
+   "name": "Werewolf",
+   "hp": "701–840",
+   "gold": "182–289",
+   "maps": [
+    "Silent Wood"
+   ],
+   "notes": "Golden Axe (LLF) 0,02%",
+   "danger": 3
+  },
+  {
+   "name": "Ettin",
+   "hp": "901–1.080",
+   "gold": "385–593",
+   "maps": [
+    "Dungeon L4"
+   ],
+   "notes": "Giant Battle Hammer 1/10.000",
+   "danger": 4
+  },
+  {
+   "name": "Master Mage-Orc",
+   "hp": "1.251–1.500",
+   "gold": "619–943",
+   "maps": [],
+   "notes": "Cancellation Manual 1/4.000",
+   "danger": 4
+  },
+  {
+   "name": "Nizie",
+   "hp": "1.401–1.680",
+   "gold": "662–1.009",
+   "maps": [],
+   "notes": "Storm Bringer 0,005%",
+   "danger": 4
+  },
+  {
+   "name": "Demon",
+   "hp": "1.701–2.040",
+   "gold": "1.426–2.154",
+   "maps": [
+    "Middleland",
+    "Dungeon L4",
+    "Tower of Hell 2",
+    "Tower of Hell 3"
+   ],
+   "notes": "Mucho oro. No ir solo antes de ~100",
+   "danger": 5
+  },
+  {
+   "name": "Minotaurus",
+   "hp": "1.701–2.040",
+   "gold": "638–972",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "Solo comunes",
+   "danger": 5
+  },
+  {
+   "name": "Unicorn",
+   "hp": "1.701–2.040",
+   "gold": "266–414",
+   "maps": [
+    "Aresien Garden",
+    "Tower of Hell 3"
+   ],
+   "notes": "Raro de ver. Kloness y Merien",
+   "danger": 4
+  },
+  {
+   "name": "Centaurus",
+   "hp": "1.751–2.100",
+   "gold": "4.028–6.057",
+   "maps": [],
+   "notes": "Lighting Blade 1/2.500",
+   "danger": 5
+  },
+  {
+   "name": "Gargoyle",
+   "hp": "2.001–2.400",
+   "gold": "1.653–2.495",
+   "maps": [
+    "Middleland",
+    "Tower of Hell 2",
+    "Tower of Hell 3"
+   ],
+   "notes": "Ring of the Abaddon 1/15.001",
+   "danger": 5
+  },
+  {
+   "name": "Giant Lizard",
+   "hp": "2.251–2.700",
+   "gold": "621–947",
+   "maps": [],
+   "notes": "Berserk Magic Wand",
+   "danger": 5
+  },
+  {
+   "name": "Barlog",
+   "hp": "2.501–3.000",
+   "gold": "282–438",
+   "maps": [],
+   "notes": "Dark Executor 1/2.500",
+   "danger": 5
+  },
+  {
+   "name": "Hellclaw",
+   "hp": "5.001–6.000",
+   "gold": "1.950–2.941",
+   "maps": [
+    "Middleland",
+    "Tower of Hell 3"
+   ],
+   "notes": "Jefe. Muchos super raros",
+   "danger": 5
+  },
+  {
+   "name": "Tigerworm",
+   "hp": "10.001–12.000",
+   "gold": "1.731–2.611",
+   "maps": [],
+   "notes": "Jefe. Excalibur, Xelima, Blood",
+   "danger": 5
+  },
+  {
+   "name": "Wyvern",
+   "hp": "12.501–15.000",
+   "gold": "2.004–3.022",
+   "maps": [
+    "Icebound"
+   ],
+   "notes": "Jefe de Icebound",
+   "danger": 5
+  },
+  {
+   "name": "Fire Wyvern",
+   "hp": "15.001–18.000",
+   "gold": "2.582–3.888",
+   "maps": [],
+   "notes": "Jefe",
+   "danger": 5
+  },
+  {
+   "name": "Abaddon",
+   "hp": "75.001–90.000",
+   "gold": "3 pilas de 91.709–137.578",
+   "maps": [
+    "Guarida de Abaddon (Apocalipsis)"
+   ],
+   "notes": "Jefe final, en grupo",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Hellhound",
+   "hp": "228–273",
+   "gold": "62–108",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Cyclops",
+   "hp": "391–468",
+   "gold": "86–144",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Ogre",
+   "hp": "921–1.104",
+   "gold": "87–146",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Stalker",
+   "hp": "1.041–1.248",
+   "gold": "266–414",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+. Flameberge +3 (LLF) 0,1%",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Dark Elf",
+   "hp": "1.121–1.344",
+   "gold": "56–100",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Werewolf",
+   "hp": "1.121–1.344",
+   "gold": "182–289",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare War Beetle",
+   "hp": "1.501–1.800",
+   "gold": "638–972",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+ patrulla",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Minotaur",
+   "hp": "1.701–2.040",
+   "gold": "638–972",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+",
+   "danger": 5
+  },
+  {
+   "name": "Nightmare Battle Golem",
+   "hp": "2.601–3.120",
+   "gold": "1.276–1.944",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "notes": "180+ patrulla",
+   "danger": 5
+  }
+ ],
+ "maps": [
+  {
+   "name": "Beginner Zone",
+   "level": "hasta 20",
+   "nation": "Neutral",
+   "monsters": [
+    "Slime"
+   ]
+  },
+  {
+   "name": "Aresden City",
+   "level": "todos",
+   "nation": "Aresden",
+   "monsters": [
+    "Slime",
+    "Snake",
+    "Giant Scorpion",
+    "Rabbit",
+    "Giant Ant",
+    "Cat",
+    "Orc"
+   ]
+  },
+  {
+   "name": "Aresden Farm",
+   "level": "todos",
+   "nation": "Aresden",
+   "monsters": [
+    "Giant Ant",
+    "Giant Scorpion",
+    "Slime",
+    "Snake",
+    "Stone Golem"
+   ]
+  },
+  {
+   "name": "Aresien Garden",
+   "level": "todos",
+   "nation": "Aresden",
+   "monsters": [
+    "Orc Mage",
+    "Giant Plant",
+    "Orc",
+    "Troll",
+    "Snake",
+    "Cannibal Plant",
+    "Unicorn (raro)"
+   ]
+  },
+  {
+   "name": "Eternal Field",
+   "level": "20+",
+   "nation": "Aresden",
+   "monsters": [
+    "Giant Scorpion",
+    "Skeleton",
+    "Stone Golem",
+    "Cannibal Plant",
+    "Clay Golem",
+    "Giant Ant",
+    "Snake",
+    "Zombie"
+   ]
+  },
+  {
+   "name": "Silent Wood",
+   "level": "30+",
+   "nation": "Aresden",
+   "monsters": [
+    "Troll",
+    "Clay Golem",
+    "Cyclops",
+    "Mountain Giant",
+    "Ogre",
+    "Orc Mage",
+    "Skeleton",
+    "Stone Golem",
+    "Tentocle",
+    "Werewolf"
+   ]
+  },
+  {
+   "name": "Aresden Dungeon",
+   "level": "20+",
+   "nation": "Aresden",
+   "monsters": [
+    "Giant Ant",
+    "Snake",
+    "Clay Golem",
+    "Cyclops",
+    "Giant Frog",
+    "Hellhound",
+    "Stone Golem"
+   ]
+  },
+  {
+   "name": "Middleland",
+   "level": "20+",
+   "nation": "Compartido (PvP)",
+   "monsters": [
+    "Ogre",
+    "Cyclops",
+    "Orc",
+    "Troll",
+    "Hellhound",
+    "Skeleton",
+    "Snake",
+    "Zombie",
+    "Demon",
+    "Giant Frog",
+    "Giant Plant",
+    "Giant Scorpion",
+    "Stone Golem",
+    "Clay Golem",
+    "Gargoyle",
+    "Hellclaw"
+   ]
+  },
+  {
+   "name": "Promiseland",
+   "level": "hasta 120",
+   "nation": "Compartido",
+   "monsters": [
+    "Skeleton",
+    "Zombie",
+    "Clay Golem",
+    "Giant Scorpion",
+    "Orc",
+    "Stone Golem",
+    "Cyclops",
+    "Troll",
+    "Hellhound"
+   ]
+  },
+  {
+   "name": "Icebound",
+   "level": "20+",
+   "nation": "Neutral",
+   "monsters": [
+    "Frost",
+    "Ice Golem",
+    "Dire Boar",
+    "Wyvern",
+    "Rudolph (dic)"
+   ]
+  },
+  {
+   "name": "Middleland Mine",
+   "level": "todos",
+   "nation": "Neutral",
+   "monsters": [
+    "Giant Ant",
+    "Giant Scorpion",
+    "Orc",
+    "Skeleton",
+    "Stone Golem",
+    "Zombie",
+    "Clay Golem",
+    "Cyclops",
+    "Hellhound"
+   ]
+  },
+  {
+   "name": "Middleland Dungeon",
+   "level": "30–100",
+   "nation": "Neutral",
+   "monsters": [
+    "Giant Frog",
+    "Clay Golem",
+    "Giant Ant",
+    "Skeleton",
+    "Slime",
+    "Snake",
+    "Stone Golem",
+    "Zombie"
+   ]
+  },
+  {
+   "name": "Dungeon L2",
+   "level": "40+",
+   "nation": "Neutral",
+   "monsters": [
+    "Orc",
+    "Skeleton",
+    "Stone Golem",
+    "Cyclops",
+    "Clay Golem",
+    "Giant Ant",
+    "Zombie",
+    "Giant Scorpion",
+    "Hellhound"
+   ]
+  },
+  {
+   "name": "Dungeon L3",
+   "level": "50+",
+   "nation": "Neutral",
+   "monsters": [
+    "Ogre",
+    "Skeleton",
+    "Cyclops",
+    "Hellhound",
+    "Liche",
+    "Stalker",
+    "Stone Golem",
+    "Zombie"
+   ]
+  },
+  {
+   "name": "Dungeon L4",
+   "level": "60+",
+   "nation": "Neutral",
+   "monsters": [
+    "Skeleton",
+    "Cyclops",
+    "Demon",
+    "Ettin",
+    "Hellhound",
+    "Ogre",
+    "Stone Golem",
+    "Liche"
+   ]
+  },
+  {
+   "name": "Tower of Hell 1",
+   "level": "todos",
+   "nation": "Neutral",
+   "monsters": [
+    "Dark Elf",
+    "Hellhound",
+    "Beholder",
+    "Cyclops",
+    "Ogre",
+    "Zombie"
+   ]
+  },
+  {
+   "name": "Tower of Hell 2",
+   "level": "todos",
+   "nation": "Neutral",
+   "monsters": [
+    "Liche",
+    "Beholder",
+    "Gargoyle",
+    "Dark Elf",
+    "Demon"
+   ]
+  },
+  {
+   "name": "Tower of Hell 3",
+   "level": "todos",
+   "nation": "Neutral",
+   "monsters": [
+    "Dark Elf",
+    "Demon",
+    "Beholder",
+    "Gargoyle",
+    "Hellclaw",
+    "Liche",
+    "Stalker",
+    "Unicorn"
+   ],
+   "notes": "Escalera a Tower of Hell 4 en 69,266"
+  },
+  {
+   "name": "Tower of Hell 4",
+   "level": "180+",
+   "nation": "Neutral",
+   "monsters": [
+    "Nightmare: Cyclops, Ogre, Stalker, Werewolf, Dark Elf, Hellhound, Minotaur, War Beetle, Battle Golem"
+   ],
+   "notes": "Solo por la escalera de ToH3. Raros mejores."
+  }
+ ],
+ "weapons": [
+  {
+   "name": "Long Sword",
+   "level": 1,
+   "str_req": 14,
+   "str_full_swing": 78,
+   "speed": 6,
+   "damage": "1D9 / 1D10",
+   "hands": 1,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Scimitar",
+   "level": 1,
+   "str_req": 18,
+   "str_full_swing": 78,
+   "speed": 6,
+   "damage": "1D10 / 1D12",
+   "hands": 1,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Long Sword +1",
+   "level": 25,
+   "str_req": 14,
+   "str_full_swing": 78,
+   "speed": 6,
+   "damage": "1D9+1 / 1D10+1",
+   "hands": 1,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Broad Sword",
+   "level": 1,
+   "str_req": 30,
+   "str_full_swing": 78,
+   "speed": 6,
+   "damage": "2D7 / 2D8",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Bastard Sword",
+   "level": 1,
+   "str_req": 35,
+   "str_full_swing": 78,
+   "speed": 6,
+   "damage": "2D8 / 2D9",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Claymore",
+   "level": 1,
+   "str_req": 40,
+   "str_full_swing": 91,
+   "speed": 7,
+   "damage": "2D9 / 2D10",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Claymore +1",
+   "level": 40,
+   "str_req": 40,
+   "str_full_swing": 91,
+   "speed": 7,
+   "damage": "2D9+1 / 2D10+1",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Great Sword",
+   "level": 1,
+   "str_req": 52,
+   "str_full_swing": 104,
+   "speed": 8,
+   "damage": "2D10 / 2D11",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Great Sword +1",
+   "level": 50,
+   "str_req": 52,
+   "str_full_swing": 104,
+   "speed": 8,
+   "damage": "2D10+1 / 2D11+1",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Knight Great Sword",
+   "level": 85,
+   "str_req": 52,
+   "str_full_swing": 104,
+   "speed": 8,
+   "damage": "2D8+2 / 2D10+2",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Flameberge",
+   "level": 1,
+   "str_req": 60,
+   "str_full_swing": 130,
+   "speed": 10,
+   "damage": "2D11 / 2D12",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Flameberge +1",
+   "level": 60,
+   "str_req": 60,
+   "str_full_swing": 130,
+   "speed": 10,
+   "damage": "2D11+1 / 2D12+1",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Knight Flameberge",
+   "level": 95,
+   "str_req": 60,
+   "str_full_swing": 130,
+   "speed": 10,
+   "damage": "2D10+2 / 2D12+2",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Giant Sword",
+   "level": 100,
+   "str_req": 130,
+   "str_full_swing": 156,
+   "speed": 12,
+   "damage": "2D11+3 / 2D12+3",
+   "hands": 2,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Flameberge +3 (LLF)",
+   "level": 1,
+   "str_req": 60,
+   "str_full_swing": 130,
+   "speed": 10,
+   "damage": "2D11+3 / 2D12+3",
+   "hands": 2,
+   "source": "Raro: Stalker, Werewolf, Tigerworm, Nightmare Stalker"
+  },
+  {
+   "name": "Excalibur",
+   "level": 1,
+   "str_req": 0,
+   "str_full_swing": 0,
+   "speed": 0,
+   "damage": "2D10+4 / 2D12+4",
+   "hands": 1,
+   "source": "Raro: Abaddon, Tigerworm. Única espada larga de una mano"
+  },
+  {
+   "name": "Dark Executor",
+   "level": 1,
+   "str_req": 0,
+   "str_full_swing": 0,
+   "speed": 0,
+   "damage": "2D13+3 / 2D14+3",
+   "hands": 2,
+   "source": "Raro: Barlog 1/2.500. +4 de noche"
+  },
+  {
+   "name": "Blood Sword",
+   "level": 1,
+   "str_req": 0,
+   "str_full_swing": 0,
+   "speed": 0,
+   "damage": "4D7+1",
+   "hands": 2,
+   "source": "Raro: Abaddon, Tigerworm. -20% HP"
+  },
+  {
+   "name": "Dark Knight Flameberge (Dark Master)",
+   "level": 180,
+   "str_req": 130,
+   "str_full_swing": 130,
+   "speed": 10,
+   "damage": "sube con upgrades",
+   "hands": 2,
+   "source": "City Hall en nivel 180"
+  }
+ ],
+ "shields": [
+  {
+   "name": "Wood Shield",
+   "level": 0,
+   "defense": 8,
+   "absorption": 5,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Leather Shield",
+   "level": 10,
+   "defense": 10,
+   "absorption": 6,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Targe Shield",
+   "level": 20,
+   "defense": 13,
+   "absorption": 8,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Scutum Shield",
+   "level": 30,
+   "defense": 16,
+   "absorption": 10,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Bronze Shield",
+   "level": 40,
+   "defense": 18,
+   "absorption": 12,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Iron Shield",
+   "level": 50,
+   "defense": 22,
+   "absorption": 14,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Lagi Shield",
+   "level": 60,
+   "defense": 26,
+   "absorption": 17,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Kite Shield",
+   "level": 70,
+   "defense": 30,
+   "absorption": 20,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Tower Shield",
+   "level": 80,
+   "defense": 35,
+   "absorption": 23,
+   "source": "Blacksmith"
+  },
+  {
+   "name": "Merien's Shield",
+   "level": 100,
+   "defense": 50,
+   "absorption": 33,
+   "source": "Raro: Stone Golem, Mountain Giant, Unicorn"
+  }
+ ],
+ "armors": [
+  {
+   "slot": "Pecho",
+   "name": "Tunic",
+   "level": 0,
+   "defense": 6,
+   "absorption": 8,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Leather Armor",
+   "level": 50,
+   "defense": 11,
+   "absorption": 13,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Scale Mail",
+   "level": 60,
+   "defense": 16,
+   "absorption": 22,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Chain Mail",
+   "level": 70,
+   "defense": 31,
+   "absorption": 34,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Ring Mail",
+   "level": 75,
+   "defense": 34,
+   "absorption": 36,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Plate Mail",
+   "level": 80,
+   "defense": 37,
+   "absorption": 40,
+   "req": "STR 100",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Knight Plate Mail",
+   "level": 90,
+   "defense": 40,
+   "absorption": 42,
+   "req": "STR 100",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Merien's Plate Mail",
+   "level": 100,
+   "defense": 60,
+   "absorption": 48,
+   "req": "",
+   "source": "Raro: Stone Golem, Mountain Giant, Unicorn"
+  },
+  {
+   "slot": "Pecho",
+   "name": "Plate Mail (Dark Master)",
+   "level": 180,
+   "defense": 0,
+   "absorption": 0,
+   "req": "",
+   "source": "City Hall nivel 180"
+  },
+  {
+   "slot": "Brazos",
+   "name": "Shirt",
+   "level": 0,
+   "defense": 5,
+   "absorption": 5,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Brazos",
+   "name": "Hauberk",
+   "level": 50,
+   "defense": 9,
+   "absorption": 12,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Brazos",
+   "name": "Knight Hauberk",
+   "level": 70,
+   "defense": 12,
+   "absorption": 14,
+   "req": "DEX 100",
+   "source": "Shop"
+  },
+  {
+   "slot": "Cabeza",
+   "name": "Cap",
+   "level": 0,
+   "defense": 4,
+   "absorption": 7,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Cabeza",
+   "name": "Helm",
+   "level": 60,
+   "defense": 8,
+   "absorption": 11,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Cabeza",
+   "name": "Full-Helm",
+   "level": 80,
+   "defense": 10,
+   "absorption": 21,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Cabeza",
+   "name": "Knight Full Helm",
+   "level": 90,
+   "defense": 12,
+   "absorption": 22,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Cabeza",
+   "name": "Wings Helm",
+   "level": 100,
+   "defense": 15,
+   "absorption": 24,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Cabeza",
+   "name": "Horned Helm",
+   "level": 120,
+   "defense": 19,
+   "absorption": 28,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Cabeza",
+   "name": "Berserker's Helm (raro)",
+   "level": 30,
+   "defense": 2,
+   "absorption": 5,
+   "req": "",
+   "source": "Raro"
+  },
+  {
+   "slot": "Piernas",
+   "name": "Trousers",
+   "level": 0,
+   "defense": 5,
+   "absorption": 8,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Piernas",
+   "name": "Chain Hose",
+   "level": 50,
+   "defense": 8,
+   "absorption": 14,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Piernas",
+   "name": "Ring Hose",
+   "level": 60,
+   "defense": 10,
+   "absorption": 16,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Piernas",
+   "name": "Plate Leggings",
+   "level": 70,
+   "defense": 12,
+   "absorption": 20,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Piernas",
+   "name": "Knight Plate Leggings",
+   "level": 90,
+   "defense": 15,
+   "absorption": 22,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Pies",
+   "name": "Long Boots",
+   "level": 0,
+   "defense": 1,
+   "absorption": 0,
+   "req": "",
+   "source": "Shop"
+  },
+  {
+   "slot": "Capa",
+   "name": "Cape",
+   "level": 0,
+   "defense": 2,
+   "absorption": 0,
+   "req": "",
+   "source": "Shop"
+  }
+ ],
+ "skills": [
+  {
+   "name": "Long Sword",
+   "how": "Pegale a monstruos con cualquier espada larga. Arrancás con el manual del Blacksmith (20%).",
+   "req": "50 DEX para poder llevarlo a 100%",
+   "priority": 1
+  },
+  {
+   "name": "Shield",
+   "how": "Se sube recibiendo golpes con escudo puesto. Solo con arma de una mano (Long Sword/Excalibur).",
+   "req": "Escudo equipado",
+   "priority": 2
+  },
+  {
+   "name": "Magic Resistance",
+   "how": "Recibiendo magia: Orc Mage en Aresien Garden es el clásico.",
+   "req": "-",
+   "priority": 3
+  },
+  {
+   "name": "Poison Resistance",
+   "how": "Recibiendo veneno: Snake, Giant Scorpion, Zombie.",
+   "req": "-",
+   "priority": 3
+  },
+  {
+   "name": "Hand Attack",
+   "how": "Pegando sin arma. Opcional.",
+   "req": "-",
+   "priority": 5
+  },
+  {
+   "name": "Mining / Fishing",
+   "how": "Para hacer oro. Mining en Middleland Mine.",
+   "req": "Pico / caña",
+   "priority": 5
+  }
+ ],
+ "disclaimer": "HP, oro, mapas y drops salen de helbreathabaddon.com. Armas y armaduras son valores clásicos de Helbreath: pueden variar en Abaddon."
+}

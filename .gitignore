@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+data/config.json
+data/mundo.json
+data/pj.json
+data/progreso.json
+data/resume.json
+data/bot.log
+data/control.json
+data/control_done.json
+data/debug/
+data/investigacion/
+data/investigacion.zip
+data/plantillas/

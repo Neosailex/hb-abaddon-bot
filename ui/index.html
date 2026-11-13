@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>HB Abaddon Bot</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  --bg:#0d0b10; --bg2:#141118; --panel:#1a161f; --panel2:#211c27; --line:#2e2735; --line2:#3d3446;
+  --text:#ece4d6; --muted:#9a8f86; --dim:#6d645e;
+  --gold:#d9a441; --gold2:#f3cf7a; --blood:#b3261e; --blood2:#e0443a; --ok:#3fbf6b; --mana:#3b82f6; --stam:#d6b23a;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:14px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif;overflow:hidden}
+body{background:radial-gradient(1200px 600px at 80% -10%,#2a1414 0%,transparent 60%),radial-gradient(900px 500px at -10% 110%,#1d1530 0%,transparent 55%),var(--bg)}
+button,input,select{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:230px 1fr;height:100vh}
+/* sidebar */
+.side{background:linear-gradient(180deg,#151118,#100d13);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 14px}
+.brand{display:flex;gap:10px;align-items:center;padding:4px 6px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.sigil{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;background:conic-gradient(from 200deg,#5a1410,#b3261e,#d9a441,#5a1410);box-shadow:0 0 18px #b3261e55;font-weight:900;color:#1a0b0a;font-size:18px}
+.brand b{display:block;font-family:Georgia,"Times New Roman",serif;letter-spacing:.5px;font-size:16px;color:var(--gold2)}
+.brand small{color:var(--muted);font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav button{all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:var(--muted);transition:.15s}
+.nav button:hover{background:var(--panel);color:var(--text)}
+.nav button.on{background:linear-gradient(90deg,#2a1a17,#1c1720);color:var(--gold2);box-shadow:inset 3px 0 0 var(--gold)}
+.nav svg{width:18px;height:18px;flex:none}
+.side .foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line)}
+.mini{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--panel);cursor:pointer;user-select:none}
+.mini .dot{width:10px;height:10px;border-radius:50%;background:var(--blood);box-shadow:0 0 10px var(--blood)}
+.mini.on .dot{background:var(--ok);box-shadow:0 0 12px var(--ok)}
+.mini span{font-weight:600}.mini small{margin-left:auto;color:var(--dim);font-size:11px}
+/* main */
+.main{overflow:auto;padding:22px 26px 30px}
+.page{display:none;animation:fade .25s}.page.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:700;font-size:24px;margin:0 0 4px;color:var(--gold2)}
+.sub{color:var(--muted);margin:0 0 18px}
+h2{font-size:13px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:0 0 12px;font-weight:600}
+.card{background:linear-gradient(180deg,var(--panel),#17131b);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.grid{display:grid;gap:16px}
+.g-panel{grid-template-columns:330px 1fr}
+.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:1180px){.g-panel{grid-template-columns:1fr}.g3{grid-template-columns:1fr 1fr}}
+/* power */
+.power-wrap{display:flex;flex-direction:column;align-items:center;gap:12px;padding:10px 0 4px}
+.power{width:168px;height:168px;border-radius:50%;border:none;cursor:pointer;position:relative;
+  background:radial-gradient(circle at 50% 35%,#3a1312,#1b0b0b 70%);box-shadow:0 0 0 6px #241414,0 0 0 7px #4b1d1a,0 0 40px #b3261e44,inset 0 -10px 30px #0008;transition:.25s}
+.power:hover{transform:scale(1.02)}
+.power svg{width:70px;height:70px;stroke:var(--blood2);filter:drop-shadow(0 0 10px #e0443a99);transition:.25s}
+.power.on{background:radial-gradient(circle at 50% 35%,#13361f,#0a1a10 70%);box-shadow:0 0 0 6px #10241a,0 0 0 7px #1f5a35,0 0 60px #3fbf6b66,inset 0 -10px 30px #0008}
+.power.on svg{stroke:#6ff09a;filter:drop-shadow(0 0 14px #3fbf6bcc)}
+.power.on::after{content:"";position:absolute;inset:-12px;border-radius:50%;border:2px solid #3fbf6b55;animation:pulse 1.8s infinite}
+@keyframes pulse{0%{transform:scale(.95);opacity:1}100%{transform:scale(1.12);opacity:0}}
+.pstate{font-family:Georgia,serif;font-size:20px;letter-spacing:2px;text-transform:uppercase}
+.pstate.on{color:#6ff09a}.pstate.off{color:var(--blood2)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.chip{font-size:12px;padding:4px 9px;border-radius:999px;background:var(--panel2);border:1px solid var(--line2);color:var(--muted)}
+.chip.good{color:#8ef0b0;border-color:#2d6b45}.chip.bad{color:#ff8f86;border-color:#6b2d2d}.chip.gold{color:var(--gold2);border-color:#6b5320}
+/* bars */
+.bar{margin:10px 0}
+.bar .lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:5px}
+.bar .lbl b{color:var(--text)}
+.track{height:12px;border-radius:7px;background:#0c0a0e;border:1px solid var(--line);overflow:hidden}
+.fill{height:100%;width:0;border-radius:7px;transition:width .35s}
+.hp .fill{background:linear-gradient(90deg,#7a1712,#e0443a)}
+.mp .fill{background:linear-gradient(90deg,#1d3f8a,#3b82f6)}
+.sp .fill{background:linear-gradient(90deg,#7a6514,#d6b23a)}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat small{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:1px}
+.stat b{font-size:20px;font-family:Georgia,serif;color:var(--gold2)}
+/* preview + log */
+.preview{position:relative;border-radius:12px;overflow:hidden;background:#07060a;border:1px solid var(--line);aspect-ratio:4/3;width:min(100%,calc((100vh - 120px)*4/3));margin:0 auto;display:grid;place-items:center;cursor:zoom-in}
+.preview.full{position:fixed;inset:0;width:auto;margin:0;z-index:999;border-radius:0;aspect-ratio:auto;cursor:zoom-out;border:0}
+.preview .fs{position:absolute;top:10px;right:10px;background:#000a;color:#fff;border:1px solid #fff3;border-radius:8px;padding:4px 8px;font-size:12px;cursor:pointer}
+.preview img{width:100%;height:100%;object-fit:contain;display:block}
+.preview .empty{color:var(--dim);text-align:center;padding:20px}
+.preview .tag{position:absolute;top:10px;left:10px}
+.log{height:220px;overflow:auto;font:12px/1.55 Consolas,"Cascadia Mono",monospace;background:#0a080c;border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:#c8bfb3}
+.log div:nth-child(odd){color:#a99f94}
+/* forms */
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted);min-width:110px;flex:1}
+label.f[style*="max-width:90px"]{min-width:64px}
+input[type=text],input[type=number],select{background:#0f0c12;border:1px solid var(--line2);border-radius:9px;padding:8px 10px;outline:none;min-width:0}
+input:focus,select:focus{border-color:var(--gold)}
+input[type=range]{accent-color:var(--gold);width:100%}
+.check{display:flex;align-items:center;gap:8px;color:var(--text);font-size:13px;cursor:pointer}
+.check input{accent-color:var(--gold);width:16px;height:16px}
+.btn{cursor:pointer;border:1px solid var(--line2);background:var(--panel2);padding:8px 14px;border-radius:10px;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--gold);color:var(--gold2)}
+.btn.prim{background:linear-gradient(180deg,#d9a441,#a8771f);color:#1b1206;border:none;font-weight:700}
+.btn.prim:hover{filter:brightness(1.08);color:#1b1206}
+.btn.danger{border-color:#6b2d2d;color:#ff8f86}
+.btn.sm{padding:5px 10px;font-size:12px}
+.hint{color:var(--muted);font-size:12.5px}
+.kbd{font:12px Consolas,monospace;background:#0f0c12;border:1px solid var(--line2);border-bottom-width:2px;border-radius:6px;padding:1px 6px;color:var(--gold2)}
+/* calib */
+.steps{display:flex;flex-direction:column;gap:8px}
+.step{display:grid;grid-template-columns:28px 1fr auto auto;gap:12px;align-items:center;padding:10px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:12px}
+.step .ck{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:#0f0c12;border:1px solid var(--line2);color:var(--dim);font-size:13px}
+.step.done .ck{background:#183b25;border-color:#2d6b45;color:#8ef0b0}
+.step.active{border-color:var(--gold);box-shadow:0 0 0 1px #d9a44155,0 0 18px #d9a44122}
+.step b{display:block}.step small{color:var(--muted)}
+.banner{padding:12px 14px;border-radius:12px;background:linear-gradient(90deg,#2b2111,#1d1720);border:1px solid #6b5320;color:var(--gold2);margin-bottom:14px;display:none}
+.banner.show{display:block}
+.thumbs{display:flex;flex-wrap:wrap;gap:10px}
+.thumb{width:96px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:6px;text-align:center;font-size:11px;position:relative}
+.thumb img{width:84px;height:84px;object-fit:contain;image-rendering:pixelated;background:#07060a;border-radius:6px}
+.thumb .x{position:absolute;top:2px;right:4px;cursor:pointer;color:#ff8f86;font-weight:700}
+/* tables */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:8px;border-bottom:1px solid var(--line2);position:sticky;top:0;background:var(--panel);cursor:pointer}
+.tbl td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tr:hover td{background:#1f1a25}
+.danger-dots{letter-spacing:2px;color:var(--blood2)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tabs button{cursor:pointer;border:1px solid var(--line2);background:transparent;padding:6px 12px;border-radius:999px;color:var(--muted)}
+.tabs button.on{background:#2a1f12;border-color:var(--gold);color:var(--gold2)}
+.scroll{max-height:calc(100vh - 230px);overflow:auto;border-radius:12px}
+/* guide */
+.lvl{display:flex;align-items:center;gap:16px}
+.lvl .num{font-family:Georgia,serif;font-size:44px;color:var(--gold2);min-width:90px;text-align:center;line-height:1}
+.statbox{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px}
+.statbox div{background:var(--panel2);border:1px solid var(--line);border-radius:10px;text-align:center;padding:8px 4px}
+.statbox small{display:block;color:var(--muted);font-size:11px}
+.statbox b{font-size:18px;font-family:Georgia,serif}
+.statbox .up{color:#8ef0b0;font-size:12px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;font-size:13px}
+.kv span:nth-child(odd){color:var(--muted)}
+.tl{display:flex;flex-direction:column;gap:8px}
+.tl .ph{display:grid;grid-template-columns:90px 1fr;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);cursor:pointer}
+.tl .ph.cur{border-color:var(--gold);box-shadow:0 0 18px #d9a44122}
+.tl .ph b{font-family:Georgia,serif;color:var(--gold2)}
+.costs{display:flex;flex-wrap:wrap;gap:6px}
+.costs div{background:#0f0c12;border:1px solid var(--line2);border-radius:8px;padding:4px 8px;font-size:12px;text-align:center;min-width:44px}
+.costs b{display:block;color:var(--gold2);font-family:Georgia,serif;font-size:15px}
+.ev{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2);margin-bottom:8px}
+.ev.act{border-color:#2d6b45;background:linear-gradient(90deg,#132a1c,var(--panel2))}
+.ev.dng{box-shadow:inset 3px 0 0 var(--blood2)}
+.ev .when{font-family:Georgia,serif;color:var(--gold2);font-size:16px;text-align:right}
+.toast{position:fixed;right:22px;bottom:22px;background:#1f2a1f;border:1px solid #2d6b45;color:#c9f5d6;padding:10px 16px;border-radius:12px;opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#2e2735;border-radius:10px}::-webkit-scrollbar-track{background:transparent}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><div class="sigil">H</div><div><b>Abaddon Bot</b><small>Guerrero · Aresden</small></div></div>
+    <nav class="nav" id="nav">
+      <button data-p="panel" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10"/><path d="M5.6 6.6a8 8 0 1 0 12.8 0"/></svg>Panel</button>
+      <button data-p="calib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Calibración</button>
+      <button data-p="config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Configuración</button>
+      <button data-p="world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>Mapa</button>
+      <button data-p="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l5-14 3 8 3-5 5 11"/></svg>Guía de nivel</button>
+      <button data-p="db"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Base de datos</button>
+      <button data-p="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Eventos</button>
+    </nav>
+    <div class="foot">
+      <div class="mini" id="mini" title="Prender / apagar (Insert)"><div class="dot"></div><span id="miniTxt">Apagado</span><small>Insert</small></div>
+      <div class="row" style="margin-top:10px"><button class="btn sm" id="openGame" style="flex:1">🎮 Abrir juego</button><button class="btn sm" id="miniBtn" style="flex:1" title="Ventanita siempre arriba que no le saca el foco al juego">🪟 Mini</button></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- PANEL -->
+    <section class="page on" id="p-panel">
+      <h1>Panel</h1><p class="sub">Prendé y apagá el bot, mirá lo que ve y cómo viene la sesión.</p>
+      <div class="grid g-panel">
+        <div class="grid" style="align-content:start">
+          <div class="card">
+            <div class="power-wrap">
+              <button class="power" id="power" title="Prender / apagar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.2 7.2a8 8 0 1 0 11.6 0"/></svg></button>
+              <div class="pstate off" id="pstate">Apagado</div>
+              <div class="chips"><span class="chip" id="cWin">Sin juego</span><span class="chip" id="cState">—</span><span class="chip" id="cAdmin"></span></div>
+              <div class="chips"><span class="chip gold" id="cPos">📍 sin leer</span><span class="chip" id="cMem">🧠 —</span></div>
+              <div class="hint" id="cNav" style="text-align:center"></div>
+            </div>
+          </div>
+          <div class="card">
+            <h2>Progreso</h2>
+            <div class="lvl" style="gap:14px"><div class="num" id="pLvl" style="font-size:40px;min-width:70px">—</div>
+              <div style="flex:1"><div class="bar"><div class="lbl"><span>Experiencia</span><b id="tExp">—</b></div>
+              <div class="track" style="height:14px"><div class="fill" id="bExp" style="background:linear-gradient(90deg,#1f6b35,#5fe08a)"></div></div></div>
+              <div class="hint" id="pEta">Midiendo el ritmo…</div></div></div>
+          </div>
+          <div class="card">
+            <h2>Personaje</h2>
+            <div class="bar hp"><div class="lbl"><span>Vida</span><b id="tHp">—</b></div><div class="track"><div class="fill" id="bHp"></div></div></div>
+            <div class="bar mp"><div class="lbl"><span>Maná</span><b id="tMp">—</b></div><div class="track"><div class="fill" id="bMp"></div></div></div>
+            <div class="bar sp"><div class="lbl"><span>Stamina</span><b id="tSp">—</b></div><div class="track"><div class="fill" id="bSp"></div></div></div>
+          </div>
+          <div class="card">
+            <h2>Sesión</h2>
+            <div class="stats">
+              <div class="stat"><small>Kills</small><b id="sK">0</b></div>
+              <div class="stat"><small>Kills/h</small><b id="sKh">0</b></div>
+              <div class="stat"><small>Tiempo</small><b id="sT">0:00</b></div>
+              <div class="stat"><small>Pots HP</small><b id="sHp">0</b></div>
+              <div class="stat"><small>Pots MP</small><b id="sMp">0</b></div>
+              <div class="stat"><small>Loot</small><b id="sL">0</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="grid" style="align-content:start">
+          <div class="card">
+            <div class="row" style="margin-top:0;justify-content:space-between"><h2 style="margin:0">Lo que ve el bot</h2>
+              <label class="check"><input type="checkbox" id="prevOn" checked> Vista en vivo</label></div>
+            <div class="preview"><img id="prev" alt="" style="display:none"><div class="empty" id="prevEmpty">Abrí Helbreath y poné bien el título de la ventana en Configuración.</div><span class="chip gold tag" id="cTarget" style="display:none"></span><button class="fs" id="prevFs" title="Pantalla completa (Esc para salir)">⛶ Pantalla completa</button></div>
+          </div>
+          <div class="card"><h2>Registro</h2><div class="log" id="log"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CALIBRACIÓN -->
+    <section class="page" id="p-calib">
+      <h1>Calibración</h1><p class="sub">Le enseñás al bot dónde está cada cosa en tu pantalla. Se hace una vez (repetila si cambiás el tamaño de la ventana).</p>
+      <div class="banner" id="calibBanner"></div>
+      <div class="grid g2">
+        <div class="card">
+          <h2>Puntos de pantalla</h2>
+          <div class="row" style="margin-top:0"><button class="btn prim" id="autoCal">⚡ Autocalibrar</button><span class="hint" id="autoCalRes">Con el juego abierto y el PJ en pantalla.</span></div>
+          <p class="hint">O a mano: tocá <b>Marcar</b>, andá al juego, poné el mouse donde te dice y apretá <span class="kbd">Re Pág</span>.</p>
+          <div class="steps" id="steps"></div>
+          <div class="row" style="margin-top:14px">
+            <label class="f">Ancho de un tile (px)<input type="number" id="tileW" min="8" max="128"></label>
+            <label class="f">Alto de un tile (px)<input type="number" id="tileH" min="8" max="128"></label>
+            <button class="btn" id="tileSave" style="align-self:flex-end">Guardar tile</button>
+          </div>
+          <p class="hint">El tile clásico de Helbreath es 32×32. Si agrandaste la ventana puede ser más grande: medí la distancia entre dos baldosas.</p>
+        </div>
+        <div class="card">
+          <h2>Plantillas: monstruos e ítems</h2>
+          <p class="hint">El bot reconoce lo que le muestres. Elegí qué vas a capturar, tocá <b>Preparar</b>, poné el mouse sobre el monstruo (o el ítem tirado) en el juego y apretá <span class="kbd">Av Pág</span>. Capturá 2 o 3 poses de cada monstruo.</p>
+          <div class="row">
+            <label class="f" style="max-width:150px">Tipo<select id="capKind"><option value="monsters">Monstruo</option><option value="items">Ítem / oro</option></select></label>
+            <label class="f">Nombre<input type="text" id="capName" list="monList" placeholder="Ej: Clay Golem"></label>
+            <button class="btn prim" id="capGo" style="align-self:flex-end">Preparar captura</button>
+          </div>
+          <datalist id="monList"></datalist>
+          <h2 style="margin-top:16px">Monstruos</h2><div class="thumbs" id="thM"></div>
+          <h2 style="margin-top:16px">Ítems</h2><div class="thumbs" id="thI"></div>
+          <div class="row"><button class="btn sm" id="openTpl">Abrir carpeta</button><button class="btn sm" id="reloadTpl">Recargar</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONFIG -->
+    <section class="page" id="p-config">
+      <h1>Configuración</h1><p class="sub">Cómo pelea, cuándo toma pociones y qué hace si se complica.</p>
+      <div class="grid g3" id="cfgForm">
+        <div class="card">
+          <h2>Juego</h2>
+          <label class="f">Título de la ventana (una parte alcanza)<input type="text" data-k="window_title" list="winList"></label>
+          <datalist id="winList"></datalist>
+          <div class="row"><button class="btn sm" id="detectWin">Ver ventanas abiertas</button></div>
+          <label class="check"><input type="checkbox" data-k="focus_game"> Traer el juego al frente al prender</label>
+          <label class="check"><input type="checkbox" data-k="background_mode"> Segundo plano (podés usar la PC)</label>
+          <div class="row"><button class="btn sm" id="bgTest">Probar segundo plano</button></div>
+          <div class="row"><button class="btn sm" id="memDiag">🧠 Diagnóstico de memoria</button></div>
+          <div class="row"><button class="btn sm prim" id="invBtn">🔎 Investigar (fotos para Claude)</button><button class="btn sm" id="invOpen">Abrir carpeta de datos</button></div>
+          <p class="hint">Con el bot prendido y el pj en Aresden Farm. Tarda unos 6 minutos: lee el bolso, va al herrero y a la Shop, y deja <b>investigacion.zip</b> en la carpeta de datos.</p>
+          <p class="hint" id="bgRes">Con el juego abierto (y tapado por otra ventana si querés): prueba si deja verlo y mandarle clicks sin tu mouse.</p>
+          <h2 style="margin-top:16px">Modo de caza</h2>
+          <label class="f"><select data-k="mode"><option value="auto">Automático (detecta monstruos solo)</option><option value="templates">Con fotos (plantillas)</option><option value="pit">Pit (pega alrededor, para pits con respawn)</option></select></label>
+          <label class="f">Tecla de ataque forzado<select data-k="attack_modifier"><option value="">Ninguna</option><option value="CTRL">Ctrl</option><option value="SHIFT">Shift</option></select></label>
+          <label class="check"><input type="checkbox" data-k="attack_hold"> Mantener click sobre el monstruo</label>
+          <label class="check"><input type="checkbox" data-k="hover_confirm"> Confirmar con el mouse (que aparezca el nombre)</label>
+        </div>
+        <div class="card">
+          <h2>Pociones</h2>
+          <div class="row"><label class="f">HP menor a %<input type="number" data-k="hp_pot_pct" min="5" max="95"></label>
+            <label class="f">Cómo<select data-k="hp_pot_action.type"><option value="slot">Doble click en el slot</option><option value="key">Tecla</option><option value="off">No</option></select></label>
+            <label class="f" style="max-width:90px">Tecla<input type="text" data-k="hp_pot_action.key"></label></div>
+          <div class="row"><label class="f">MP menor a %<input type="number" data-k="mp_pot_pct" min="5" max="95"></label>
+            <label class="f">Cómo<select data-k="mp_pot_action.type"><option value="slot">Doble click en el slot</option><option value="key">Tecla</option><option value="off">No</option></select></label>
+            <label class="f" style="max-width:90px">Tecla<input type="text" data-k="mp_pot_action.key"></label></div>
+          <div class="row"><label class="f">SP menor a %<input type="number" data-k="sp_pot_pct" min="5" max="95"></label>
+            <label class="f">Cómo<select data-k="sp_pot_action.type"><option value="slot">Doble click en el slot</option><option value="key">Tecla</option><option value="off">No</option></select></label>
+            <label class="f" style="max-width:90px">Tecla<input type="text" data-k="sp_pot_action.key"></label></div>
+          <label class="f">Espera entre pociones (seg)<input type="number" step="0.1" data-k="pot_cooldown"></label>
+          <h2 style="margin-top:16px">Pánico</h2>
+          <div class="row"><label class="f">HP menor a %<input type="number" data-k="panic_hp_pct" min="5" max="60"></label>
+            <label class="f">Qué hacer<select data-k="panic_action"><option value="flee">Escapar a la ciudad y descansar</option><option value="recall_and_stop">Recall y apagar</option><option value="stop">Apagar</option><option value="pots_only">Solo pociones</option></select></label></div>
+          <div class="row"><label class="f">Recall<select data-k="recall_action.type"><option value="off">No</option><option value="slot">Doble click en el slot</option><option value="key">Tecla</option></select></label>
+            <label class="f" style="max-width:90px">Tecla<input type="text" data-k="recall_action.key"></label></div>
+        </div>
+        <div class="card">
+          <h2>Combate</h2>
+          <label class="f">Parecido mínimo (0,5 = flojo, 0,9 = exacto): <b id="thrV"></b><input type="range" min="0.5" max="0.95" step="0.01" data-k="match_threshold" id="thr"></label>
+          <div class="row"><label class="f">Distancia máx. (tiles)<input type="number" data-k="max_target_dist_tiles"></label>
+            <label class="f">Rendirse a los (seg)<input type="number" data-k="target_timeout"></label></div>
+          <label class="f">Revisar objetivo cada (seg)<input type="number" step="0.1" data-k="attack_check_every"></label>
+          <h2 style="margin-top:16px">Loot</h2>
+          <label class="check"><input type="checkbox" data-k="loot_enabled"> Levantar ítems y oro</label>
+          <div class="row"><label class="f">Esperar (seg)<input type="number" step="0.1" data-k="loot_delay"></label>
+            <label class="f">Radio (tiles)<input type="number" data-k="loot_radius_tiles"></label></div>
+          <p class="hint">En Abaddon el raro aparece cuando se desvanece el cuerpo: dejá ~2,5 seg.</p>
+        </div>
+        <div class="card">
+          <h2>Movimiento</h2>
+          <label class="check"><input type="checkbox" data-k="roam_enabled"> Caminar si no hay monstruos</label>
+          <div class="row"><label class="f">Después de (seg)<input type="number" data-k="roam_after"></label>
+            <label class="f">Paso (tiles)<input type="number" data-k="roam_radius_tiles"></label>
+            <label class="f">Correa (tiles)<input type="number" data-k="leash_tiles"></label></div>
+          <p class="hint">La correa evita que se vaya lejos del lugar donde lo prendiste.</p>
+        </div>
+        <div class="card">
+          <h2>Comida y timers</h2>
+          <label class="check"><input type="checkbox" data-k="timers.0.enabled"> Comer cada</label>
+          <div class="row"><label class="f">Minutos<input type="number" data-k="timers.0.every_min"></label>
+            <label class="f">Cómo<select data-k="timers.0.action.type"><option value="slot">Doble click en el slot</option><option value="key">Tecla</option></select></label>
+            <label class="f" style="max-width:90px">Tecla<input type="text" data-k="timers.0.action.key"></label></div>
+          <h2 style="margin-top:16px">Eventos</h2>
+          <label class="check"><input type="checkbox" data-k="pause_on_raid"> Pausar durante los raids a los pueblos</label>
+        </div>
+        <div class="card">
+          <h2>Viaje automático</h2>
+          <label class="check"><input type="checkbox" data-k="travel.enabled"> Ir solo al lugar de caza</label>
+          <div class="row"><label class="f">Destino<select data-k="travel.dest" id="destSel"><option value="auto">Según mi nivel (guía)</option></select></label>
+            <label class="f" style="max-width:110px">Mi nivel<input type="number" min="1" max="180" data-k="travel.my_level"></label></div>
+          <label class="check"><input type="checkbox" data-k="travel.explore"> Probar portales que no conoce</label>
+          <p class="hint">Aprende solo adónde lleva cada portal la primera vez que lo usa. No entra a mapas de Elvine ni a Middleland, Promiseland o Icebound.</p>
+          <div class="row"><button class="btn sm" id="posTest">Probar lectura de posición</button></div>
+          <p class="hint" id="posRes"></p>
+        </div>
+        <div class="card">
+          <h2>Auto-login</h2>
+          <label class="check"><input type="checkbox" id="alOn"> Volver a entrar solo si se desconecta</label>
+          <label class="check"><input type="checkbox" id="alRe"> Abrir el juego si se cierra</label>
+          <label class="f">Cuenta<input type="text" id="alAcc" autocomplete="off"></label>
+          <label class="f">Contraseña<input type="password" id="alPwd" autocomplete="new-password" placeholder="(sin cambios)"></label>
+          <label class="f">Nombre del personaje<input type="text" id="alChar" placeholder="Sailex"></label>
+          <div class="row"><button class="btn prim" id="alSave">Guardar auto-login</button></div>
+          <p class="hint" id="alRes">La contraseña se guarda cifrada con tu usuario de Windows: no se puede leer desde otra PC ni otro usuario.</p>
+        </div>
+        <div class="card">
+          <h2>Teclas rápidas</h2>
+          <div class="kv"><span>Prender/apagar</span><span><input type="text" data-k="hotkeys.toggle" style="width:70px"></span>
+            <span>Freno total</span><span><input type="text" data-k="hotkeys.panic_stop" style="width:70px"></span>
+            <span>Marcar punto</span><span><input type="text" data-k="hotkeys.calib_point" style="width:70px"></span>
+            <span>Capturar</span><span><input type="text" data-k="hotkeys.capture_template" style="width:70px"></span></div>
+          <p class="hint">Usá INSERT, DELETE, HOME, END, PAGEUP, PAGEDOWN o PAUSE: las F abren menús del juego.</p>
+          <div class="row" style="margin-top:16px"><button class="btn prim" id="cfgSave">Guardar</button><button class="btn danger" id="cfgReset">Volver a valores de fábrica</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GUÍA -->
+    <section class="page" id="p-guide">
+      <h1>Guía de nivel</h1><p class="sub" id="guideSub">Guerrero de Aresden: stats, skills, dónde cazar y qué equipo usar en cada nivel.</p>
+      <div class="grid g2">
+        <div class="card">
+          <div class="lvl"><div class="num" id="gLvl">1</div><div style="flex:1"><h2 style="margin:0 0 6px">Tu nivel</h2><input type="range" min="1" max="180" value="1" id="gRange"></div></div>
+          <div class="statbox" id="gStats"></div>
+          <p class="hint" id="gAdd" style="margin-top:10px"></p>
+          <div class="kv" style="margin-top:12px" id="gPhase"></div>
+        </div>
+        <div class="card">
+          <h2>Plan de stats</h2><div id="gPlan" class="tl"></div>
+          <p class="hint" id="gNote" style="margin-top:12px"></p>
+        </div>
+        <div class="card" style="grid-column:1/-1"><h2>Etapas</h2><div class="tl" id="gPhases"></div></div>
+        <div class="card"><h2>Después del 180: set Dark Master</h2><p class="hint" id="dmInfo"></p><div class="kv" id="dmForms" style="margin:10px 0"></div><h2>Costo por upgrade (puntos majestic)</h2><div class="costs" id="dmCosts"></div></div>
+        <div class="card"><h2>Ángeles tutelares</h2><p class="hint" id="anInfo"></p><h2>Costo por upgrade (puntos majestic)</h2><div class="costs" id="anCosts"></div></div>
+      </div>
+    </section>
+
+    <!-- DB -->
+    <section class="page" id="p-db">
+      <h1>Base de datos</h1><p class="sub" id="dbSub"></p>
+      <div class="row" style="margin-top:0"><div class="tabs" id="dbTabs"></div><input type="text" id="dbQ" placeholder="Buscar..." style="margin-left:auto;width:240px"></div>
+      <div class="card scroll"><div id="dbBody"></div></div>
+    </section>
+
+    <!-- EVENTOS -->
+    <section class="page" id="p-world">
+      <h1>Mapa del mundo</h1><p class="sub">Rueda o + / − para acercar, arrastrá para mover. Líneas doradas: portales que el pj ya cruzó. Grises: del mapa base, a confirmar.</p>
+      <div class="card" style="padding:8px;position:relative">
+        <canvas id="wCanvas" style="width:100%;height:calc(100vh - 190px);min-height:380px;display:block;border-radius:10px;background:#0d0b0a;cursor:grab"></canvas>
+        <div style="position:absolute;right:18px;top:18px;display:flex;flex-direction:column;gap:6px">
+          <button class="btn sm" id="wIn" title="Acercar">+</button><button class="btn sm" id="wOut" title="Alejar">−</button>
+          <button class="btn sm" id="wMe" title="Centrar en el pj">📍</button><button class="btn sm" id="wAll" title="Ver todo">⤢</button></div>
+        <div class="hint" id="wInfo" style="position:absolute;left:18px;bottom:14px"></div>
+      </div>
+    </section>
+    <section class="page" id="p-events">
+      <h1>Eventos</h1><p class="sub">Horarios en la hora de tu PC. Los raids marcados en rojo abren las capitales: cuidado si dejás el bot en la ciudad.</p>
+      <div class="grid g2"><div id="evList"></div><div class="card" id="evInfo"></div></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+let API = null, CFG = null, DB = null, PATH = null, curPage = 'panel';
+
+/* ---------- API (pywebview o modo demo en navegador) ---------- */
+function demoApi(){
+  const st = {running:false,stats:{kills:0,hp_pots:0,mp_pots:0,sp_pots:0,loot_clicks:0,runtime:0,state:'apagado',target:'',kph:0},
+    bars:{hp:null,mp:null,sp:null},window:null,rect:null,calib_msg:'',calib_slot:null,log:['(modo demo: abrí la app con iniciar.bat)'],preview:'',admin:false};
+  const j = p => fetch(p).then(r=>r.json());
+  return {
+    state:async()=>st, toggle:async()=>{st.running=!st.running;st.log.push(st.running?'▶ Bot prendido.':'■ Bot apagado.');return st.running},
+    set_preview:async()=>{}, get_config:async()=>j('../data/config.default.json').catch(()=>({calib:{tile:{w:32,h:32}},timers:[{action:{}}],hotkeys:{},hp_pot_action:{},mp_pot_action:{},sp_pot_action:{},recall_action:{}})),
+    save_config:async c=>c, reset_config:async()=>CFG, windows:async()=>['Helbreath Abaddon'], calib:async s=>'Poné el mouse sobre el punto y apretá Re Pág.',
+    clear_calib:async()=>{}, set_tile:async()=>{}, test_background:async()=>({msg:'(demo)'}), set_login:async()=>({has_password:true}), auto_calibrate:async()=>({msg:'(demo)'}), set_capture:async()=>{}, templates:async()=>({monsters:[],items:[]}),
+    delete_template:async()=>({monsters:[],items:[]}), reload_templates:async()=>({monsters:[],items:[]}),
+    db:async()=>j('../data/hb_db.json'), test_pos:async()=>({ok:false,text:'(demo)'}), learned:async()=>({links:{}}), path:async()=>j('../data/training_path.json'), events:async()=>[], open_folder:async()=>{}, open_game:async()=>true, toggle_mini:async()=>true, open_url:async u=>window.open(u)
+  };
+}
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
+const esc = s => String(s ?? '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- navegación ---------- */
+$('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;go(b.dataset.p)});
+function go(p){curPage=p;$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));$$('.page').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));
+  if(p==='calib')loadThumbs(); if(p==='events')loadEvents(); if(p==='world')loadWorld();}
+
+
+/* ---------- mapa del mundo ---------- */
+let WORLD=null, WPOS=null, WV={x:0,y:0,z:0.5}, WIMG={};
+const CELL=340, BOX=300;
+function wMap(k){return WORLD&&WORLD.maps.find(m=>m.key===k)}
+function wPt(m,x,y){const s=BOX/Math.max(m.w,m.h);return [m.gx*CELL+(BOX-m.w*s)/2+x*s, m.gy*CELL+(BOX-m.h*s)/2+y*s]}
+function wCur(){if(!WORLD||!WPOS||!WPOS.map)return null;const n=WPOS.map.toLowerCase();return WORLD.maps.find(m=>m.name.toLowerCase()===n)||null}
+async function loadWorld(){
+  if(!WORLD){$('#wInfo').textContent='Armando el mapa…';WORLD=await API.world_map();
+    WORLD.maps.forEach(m=>{if(m.img){const i=new Image();i.onload=drawWorld;i.src=m.img;WIMG[m.key]=i}});
+    $('#wInfo').textContent=WORLD.error?('No pude armar el mapa: '+WORLD.error):'';wFit()}
+  drawWorld()}
+function wSize(){const c=$('#wCanvas');const r=c.getBoundingClientRect();const d=window.devicePixelRatio||1;
+  if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d)}return [r.width,r.height,d]}
+function wFit(){if(!WORLD||!WORLD.maps.length)return;const [W,H]=wSize();const xs=WORLD.maps.map(m=>m.gx),ys=WORLD.maps.map(m=>m.gy);
+  const x0=Math.min(...xs)*CELL-20,x1=(Math.max(...xs)+1)*CELL,y0=Math.min(...ys)*CELL-20,y1=(Math.max(...ys)+1)*CELL;
+  WV.z=Math.min(W/(x1-x0),H/(y1-y0));WV.x=x0-(W/WV.z-(x1-x0))/2;WV.y=y0-(H/WV.z-(y1-y0))/2;drawWorld()}
+function wCenterMe(){const m=wCur();if(!m)return;const [W,H]=wSize();const [px,py]=wPt(m,WPOS.x,WPOS.y);WV.z=Math.max(WV.z,1.6);WV.x=px-W/WV.z/2;WV.y=py-H/WV.z/2;drawWorld()}
+function wZoom(f,cx,cy){const [W,H]=wSize();if(cx==null){cx=W/2;cy=H/2}const wx=WV.x+cx/WV.z,wy=WV.y+cy/WV.z;
+  WV.z=Math.min(12,Math.max(0.08,WV.z*f));WV.x=wx-cx/WV.z;WV.y=wy-cy/WV.z;drawWorld()}
+function drawWorld(){
+  if(curPage!=='world'||!WORLD)return;const c=$('#wCanvas'),g=c.getContext('2d');const [W,H,d]=wSize();
+  g.setTransform(d,0,0,d,0,0);g.clearRect(0,0,W,H);g.save();g.scale(WV.z,WV.z);g.translate(-WV.x,-WV.y);
+  const cur=wCur();
+  for(const m of WORLD.maps){const s=BOX/Math.max(m.w,m.h),x=m.gx*CELL+(BOX-m.w*s)/2,y=m.gy*CELL+(BOX-m.h*s)/2;
+    g.imageSmoothingEnabled=WV.z<3;const im=WIMG[m.key];if(im&&im.complete)g.drawImage(im,x,y,m.w*s,m.h*s);else{g.fillStyle='#2a2320';g.fillRect(x,y,m.w*s,m.h*s)}
+    g.lineWidth=(m===cur?3:1)/WV.z;g.strokeStyle=m===cur?'#e9c46a':'#5b4d44';g.strokeRect(x,y,m.w*s,m.h*s);
+    g.fillStyle=m===cur?'#e9c46a':'#cdbfb3';g.font=`${Math.min(30,Math.max(11,13/WV.z))}px system-ui`;g.textAlign='center';g.fillText(m.name,m.gx*CELL+BOX/2,y-6/WV.z)}
+  for(const l of WORLD.links){const a=wMap(l.from),b=wMap(l.to);if(!a)continue;const [x1,y1]=wPt(a,l.x,l.y);
+    g.fillStyle=l.seen?'#e9c46a':'#8d8178';g.beginPath();g.arc(x1,y1,3/Math.max(WV.z,0.6),0,7);g.fill();
+    if(!b||b===a)continue;const [x2,y2]=l.tx!=null?wPt(b,l.tx,l.ty):wPt(b,b.w/2,b.h/2);
+    g.strokeStyle=l.seen?'rgba(233,196,106,.8)':'rgba(160,150,140,.35)';g.lineWidth=(l.seen?2:1)/WV.z;g.setLineDash(l.seen?[]:[6/WV.z,5/WV.z]);
+    g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.setLineDash([])}
+  if(cur){const [px,py]=wPt(cur,WPOS.x,WPOS.y);const r=(6+3*Math.sin(Date.now()/250))/WV.z;
+    g.fillStyle='rgba(239,71,111,.25)';g.beginPath();g.arc(px,py,r*2.2,0,7);g.fill();
+    g.fillStyle='#ef476f';g.strokeStyle='#fff';g.lineWidth=2/WV.z;g.beginPath();g.arc(px,py,r,0,7);g.fill();g.stroke()}
+  g.restore();
+  $('#wInfo').textContent=WPOS&&WPOS.map?(`📍 ${WPOS.map} (${WPOS.x},${WPOS.y})`+(cur?'':' — este mapa no está dibujado')):'📍 sin leer la posición'}
+(()=>{const c=$('#wCanvas');let drag=null;
+  c.addEventListener('wheel',e=>{e.preventDefault();const r=c.getBoundingClientRect();wZoom(e.deltaY<0?1.2:1/1.2,e.clientX-r.left,e.clientY-r.top)},{passive:false});
+  c.addEventListener('mousedown',e=>{drag=[e.clientX,e.clientY,WV.x,WV.y];c.style.cursor='grabbing'});
+  window.addEventListener('mousemove',e=>{if(!drag)return;WV.x=drag[2]-(e.clientX-drag[0])/WV.z;WV.y=drag[3]-(e.clientY-drag[1])/WV.z;drawWorld()});
+  window.addEventListener('mouseup',()=>{drag=null;c.style.cursor='grab'});
+  $('#wIn').onclick=()=>wZoom(1.4);$('#wOut').onclick=()=>wZoom(1/1.4);$('#wMe').onclick=wCenterMe;$('#wAll').onclick=wFit;
+  window.addEventListener('resize',drawWorld);setInterval(()=>{if(curPage==='world')drawWorld()},120)})();
+
+/* ---------- panel ---------- */
+const fmtT = s => {s=s|0;const h=s/3600|0,m=(s%3600)/60|0,x=s%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`:`${m}:${String(x).padStart(2,'0')}`};
+function setBar(id,tid,v){$(id).style.width=(v==null?0:Math.max(0,Math.min(100,v)))+'%';$(tid).textContent=v==null?'sin calibrar':Math.round(v)+'%'}
+let lastLogLen = -1;
+async function poll(){
+  try{
+    const s = await API.state();
+    const on = s.running;
+    $('#power').classList.toggle('on',on); $('#pstate').textContent=on?'Cazando':'Apagado'; $('#pstate').className='pstate '+(on?'on':'off');
+    $('#mini').classList.toggle('on',on); $('#miniTxt').textContent=on?'Prendido':'Apagado';
+    const w=$('#cWin'); w.textContent=s.window?('🎮 '+s.window):'Sin juego'; w.className='chip '+(s.window?'good':'bad');
+    $('#cState').textContent=s.stats.state||'—';
+    WPOS=s.pos; if(curPage==='world')drawWorld();
+    $('#cPos').textContent=s.pos&&s.pos.map?`📍 ${s.pos.map} (${s.pos.x},${s.pos.y})`:'📍 sin leer';
+    {const m=$('#cMem');m.textContent='🧠 '+(s.mem||'—');m.className='chip '+(s.mem&&s.mem.startsWith('posición exacta')?'good':'');}
+    $('#cNav').textContent=s.nav&&s.nav.status?s.nav.status:'';
+    const a=$('#cAdmin'); a.textContent=s.admin?'Admin':'Sin admin'; a.className='chip '+(s.admin?'good':'');
+    const pr=s.progress||{};$('#pLvl').textContent=pr.level||'—';
+    $('#bExp').style.width=(pr.exp||0)+'%';$('#tExp').textContent=pr.exp==null?'sin calibrar (Home)':pr.exp.toFixed(1)+'%';
+    $('#pEta').textContent=pr.rate?`+${pr.rate}%/h · próximo nivel en ${pr.eta_min!=null?(pr.eta_min>=60?Math.floor(pr.eta_min/60)+' h '+(pr.eta_min%60)+' min':pr.eta_min+' min'):'—'}${pr.levelups?` · ${pr.levelups} niveles hoy`:''}`:'Midiendo el ritmo…';
+    setBar('#bHp','#tHp',s.bars.hp); setBar('#bMp','#tMp',s.bars.mp); setBar('#bSp','#tSp',s.bars.sp);
+    $('#sK').textContent=s.stats.kills; $('#sKh').textContent=s.stats.kph; $('#sT').textContent=fmtT(s.stats.runtime);
+    $('#sHp').textContent=s.stats.hp_pots; $('#sMp').textContent=s.stats.mp_pots; $('#sL').textContent=s.stats.loot_clicks;
+    if(!s.preview){$('#prev').style.display='none';$('#prevEmpty').style.display='block'}
+    const t=$('#cTarget'); if(s.stats.target){t.style.display='';t.textContent='🎯 '+s.stats.target}else t.style.display='none';
+    const logKey = s.log.length+'|'+(s.log[s.log.length-1]||'');
+    if(logKey!==lastLogLen){lastLogLen=logKey;const L=$('#log');const atBottom=L.scrollTop+L.clientHeight>=L.scrollHeight-20;L.innerHTML=s.log.map(l=>`<div>${esc(l)}</div>`).join('');if(atBottom)L.scrollTop=L.scrollHeight}
+    const b=$('#calibBanner'); if(s.calib_msg){b.textContent=s.calib_msg;b.classList.add('show')}else b.classList.remove('show');
+    if(curPage==='calib' && s.calib_slot!==lastSlot){lastSlot=s.calib_slot;CFG=await API.get_config();renderSteps()}
+  }catch(e){console.error(e)}
+  setTimeout(poll,450);
+}
+let lastSlot=null;
+{const pv=document.querySelector('.preview');
+ const tog=()=>{pv.classList.toggle('full');$('#prevFs').textContent=pv.classList.contains('full')?'✕ Salir':'⛶ Pantalla completa'};
+ $('#prevFs').onclick=e=>{e.stopPropagation();tog()}; pv.ondblclick=tog;
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pv.classList.contains('full'))tog()});}
+$('#invBtn').onclick=async()=>{const r=await API.investigate();toast(r.msg)};$('#invOpen').onclick=()=>API.open_data();
+$('#memDiag').onclick=async()=>{toast('Revisando la memoria del juego…');const r=await API.mem_diag();toast(r.msg+(r.status?' · '+r.status:''))};
+/* vista en vivo: canal aparte, pide el cuadro siguiente apenas termina de dibujar el anterior */
+let frameId=0;
+async function frameLoop(){
+  const t0=performance.now();
+  try{
+    if(curPage==='panel' && $('#prevOn').checked && !document.hidden && API.frame){
+      const f=await API.frame(frameId);
+      if(f && f.img){frameId=f.id;const im=$('#prev');im.src=f.img;
+        if(im.style.display!=='block'){im.style.display='block';$('#prevEmpty').style.display='none'}
+        try{await im.decode()}catch(e){}}
+    }else{await new Promise(r=>setTimeout(r,300))}
+  }catch(e){await new Promise(r=>setTimeout(r,500))}
+  setTimeout(frameLoop,Math.max(0,40-(performance.now()-t0)));
+}
+$('#power').onclick=async()=>{await API.toggle()};
+$('#mini').onclick=async()=>{await API.toggle()};
+$('#openGame').onclick=async()=>{const ok=await API.open_game();toast(ok?'Abriendo Helbreath...':'No encontré el juego')};
+$('#miniBtn').onclick=async()=>{const on=await API.toggle_mini();toast(on?'Ventanita arriba del juego':'Ventanita cerrada')};
+$('#prevOn').onchange=e=>API.set_preview(e.target.checked);
+
+/* ---------- calibración ---------- */
+const STEPS=[
+  ['char_center','Centro del personaje','Los pies de tu PJ (el bot mide distancias desde acá)'],
+  ['hp_bar','Barra de vida','Inicio y final de la barra roja, con la vida llena'],
+  ['mp_bar','Barra de maná','Inicio y final (opcional para guerrero)'],
+  ['sp_bar','Barra de stamina','Inicio y final (opcional)'],
+  ['game_area','Área de juego','Rectángulo sin la barra de abajo ni ventanas abiertas'],
+  ['pos_box','Texto del mapa','El cuadrito "Beginner Zone (74,115)" de la barra de abajo: esquina arriba-izq y abajo-der'],
+  ['hp_pot_slot','Poción de vida','El slot del inventario con las pociones rojas'],
+  ['mp_pot_slot','Poción de maná','Opcional'],
+  ['food_slot','Comida','Opcional, para el timer de comer'],
+  ['recall_slot','Scroll de Recall','Opcional, para el pánico'],
+];
+function renderSteps(){
+  const c=(CFG&&CFG.calib)||{};
+  $('#steps').innerHTML=STEPS.map(([k,t,d])=>`<div class="step ${c[k]?'done':''} ${lastSlot===k?'active':''}"><div class="ck">${c[k]?'✓':''}</div><div><b>${t}</b><small>${d}</small></div>
+    <button class="btn sm prim" data-cal="${k}">Marcar</button><button class="btn sm" data-clr="${k}" ${c[k]?'':'disabled'}>Borrar</button></div>`).join('');
+  $('#tileW').value=(c.tile||{}).w||32; $('#tileH').value=(c.tile||{}).h||32;
+}
+$('#steps').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.cal){lastSlot=b.dataset.cal;await API.calib(b.dataset.cal);renderSteps();toast('Andá al juego y usá Re Pág')}
+  if(b.dataset.clr){await API.clear_calib(b.dataset.clr);CFG=await API.get_config();renderSteps()}});
+$('#autoCal').onclick=async()=>{$('#autoCalRes').textContent='Calibrando...';const r=await API.auto_calibrate();$('#autoCalRes').textContent=r.msg;CFG=await API.get_config();renderSteps()};
+$('#tileSave').onclick=async()=>{await API.set_tile(+$('#tileW').value,+$('#tileH').value);CFG=await API.get_config();toast('Tile guardado')};
+$('#capGo').onclick=async()=>{const n=$('#capName').value.trim()||($('#capKind').value==='items'?'oro':'monstruo');await API.set_capture($('#capKind').value,n);toast('Listo: mouse encima y Av Pág')};
+async function loadThumbs(){renderThumbs(await API.templates())}
+function renderThumbs(t){
+  const f=(arr,kind)=>arr.length?arr.map(x=>`<div class="thumb"><span class="x" data-del="${kind}|${esc(x.name)}" title="Borrar">×</span><img src="${x.img}"><div>${esc(x.name)}</div></div>`).join(''):'<p class="hint">Todavía nada.</p>';
+  $('#thM').innerHTML=f(t.monsters,'monsters'); $('#thI').innerHTML=f(t.items,'items');
+}
+$('#p-calib').addEventListener('click',async e=>{const d=e.target.closest('[data-del]');if(!d)return;const [k,n]=d.dataset.del.split('|');renderThumbs(await API.delete_template(k,n))});
+$('#openTpl').onclick=()=>API.open_folder('templates');
+$('#reloadTpl').onclick=async()=>renderThumbs(await API.reload_templates());
+setInterval(()=>{if(curPage==='calib')loadThumbs()},3000);
+
+/* ---------- config ---------- */
+const getP=(o,p)=>p.split('.').reduce((a,k)=>a==null?a:a[k],o);
+function setP(o,p,v){const ks=p.split('.');let a=o;ks.slice(0,-1).forEach((k,i)=>{if(a[k]==null)a[k]=/^\d+$/.test(ks[i+1])?[]:{};a=a[k]});a[ks.at(-1)]=v}
+function fillCfg(){$$('[data-k]').forEach(el=>{const v=getP(CFG,el.dataset.k);if(el.type==='checkbox')el.checked=!!v;else el.value=v??''});$('#thrV').textContent=(+$('#thr').value).toFixed(2)}
+$('#thr').oninput=e=>$('#thrV').textContent=(+e.target.value).toFixed(2);
+$('#cfgSave').onclick=async()=>{const c=structuredClone(CFG);$$('[data-k]').forEach(el=>{let v=el.type==='checkbox'?el.checked:el.value;
+  if(el.type==='number'||el.type==='range')v=v===''?0:+v; if(/key$|hotkeys\./.test(el.dataset.k))v=String(v).toUpperCase().trim(); setP(c,el.dataset.k,v)});
+  CFG=await API.save_config(c);fillCfg();toast('Guardado')};
+$('#cfgReset').onclick=async()=>{if(!confirm('¿Volver a los valores de fábrica? Se borra la calibración.'))return;CFG=await API.reset_config();fillCfg();renderSteps();toast('Listo')};
+$('#posTest').onclick=async()=>{$('#posRes').textContent='Leyendo...';const r=await API.test_pos();
+  $('#posRes').innerHTML=r.ok?`✔ Leí <b>${esc(r.map)} (${r.x},${r.y})</b> → mapa ${esc(r.file||'desconocido (lo aprende caminando)')}`:`✘ No pude leer. Texto: "${esc(r.text||'')}" ${r.error?'· '+esc(r.error):''}${r.game_dir?'':' · No encontré la carpeta del juego'}`};
+function fillLogin(){const a=CFG.autologin||{};$('#alOn').checked=!!a.enabled;$('#alRe').checked=a.relaunch!==false;$('#alAcc').value=a.account||'';$('#alChar').value=a.char_name||'';
+  if(a.has_password)$('#alPwd').placeholder='•••••• (guardada)'}
+$('#alSave').onclick=async()=>{const r=await API.set_login($('#alAcc').value,$('#alPwd').value,$('#alChar').value,$('#alOn').checked,$('#alRe').checked);
+  $('#alPwd').value='';CFG=await API.get_config();fillLogin();$('#alRes').textContent=r.has_password?'✔ Guardado (contraseña cifrada).':'Guardado, pero falta la contraseña.'};
+$('#bgTest').onclick=async()=>{$('#bgRes').textContent='Probando (10 seg)...';const r=await API.test_background();$('#bgRes').textContent=r.msg;CFG=await API.get_config();fillCfg()};
+$('#detectWin').onclick=async()=>{const w=await API.windows();$('#winList').innerHTML=w.map(t=>`<option value="${esc(t)}">`).join('');toast(w.length+' ventanas: elegilas en el campo')};
+
+/* ---------- guía ---------- */
+function renderGuide(lvl){
+  if(!PATH)return; lvl=+lvl; $('#gLvl').textContent=lvl;
+  const row = lvl<=1 ? {stats:PATH.start_stats,add:{}} : PATH.per_level.find(r=>r.level===lvl);
+  $('#gStats').innerHTML=['STR','DEX','VIT','INT','MAG','CHR'].map(k=>`<div><small>${k}</small><b>${row.stats[k]}</b>${row.add[k]?`<div class="up">+${row.add[k]}</div>`:''}</div>`).join('');
+  const adds=Object.entries(row.add).map(([k,v])=>`+${v} ${k}`).join(', ');
+  const next=PATH.milestones.find(m=>m.level>lvl);
+  $('#gAdd').innerHTML=(lvl>1?`Al subir a ${lvl}: <b>${adds||'—'}</b>. `:'Stats al crear el personaje. ')+(next?`Próximo objetivo: <b>nivel ${next.level}</b> — ${esc(next.text)}.`:'');
+  const ph=PATH.phases.find(p=>lvl>=p.from&&lvl<=p.to)||PATH.phases.at(-1);
+  $('#gPhase').innerHTML=`<span>Dónde</span><span><b>${ph.maps.join(' · ')}</b></span><span>Qué matar</span><span>${ph.monsters.join(', ')}</span>
+    <span>Arma</span><span>${esc(ph.gear.arma)}</span><span>Escudo</span><span>${esc(ph.gear.escudo)}</span><span>Armadura</span><span>${esc(ph.gear.armadura)}</span>
+    <span>Skills</span><span>${ph.skills.join(', ')}</span><span>Tip</span><span>${esc(ph.tip)}</span>`;
+  $$('#gPhases .ph').forEach(e=>e.classList.toggle('cur',+e.dataset.f<=lvl&&lvl<=+e.dataset.t));
+}
+function initGuide(){
+  $('#gNote').textContent=PATH.note;
+  $('#gPlan').innerHTML=PATH.stat_plan.map(s=>{const m=PATH.milestones.find(x=>x.text.startsWith(`${s.stat} llega a ${s.target}`));return `<div class="ph" style="cursor:default"><b>${s.stat} ${s.target}</b><span>${esc(s.why)}${m?` <span class="chip gold">nivel ${m.level}</span>`:''}</span></div>`}).join('');
+  $('#gPhases').innerHTML=PATH.phases.map(p=>`<div class="ph" data-f="${p.from}" data-t="${p.to}"><b>${p.from===p.to?p.from:p.from+'–'+p.to}</b><span><b style="font-family:inherit;color:var(--text)">${p.maps.join(' · ')}</b><br><span class="hint">${p.monsters.join(', ')} · ${esc(p.gear.arma)}</span></span></div>`).join('');
+  $('#gPhases').onclick=e=>{const p=e.target.closest('.ph');if(!p)return;$('#gRange').value=p.dataset.f;renderGuide(p.dataset.f)};
+  $('#gRange').oninput=e=>renderGuide(e.target.value);
+  const dm=DB.dark_master, an=DB.angels;
+  $('#dmInfo').textContent=dm.info; $('#dmForms').innerHTML=`<span>Piezas</span><span>${dm.warrior_pieces.join(', ')}</span>`+Object.entries(dm.weapon_forms).map(([k,v])=>`<span>${k}</span><span>${v}</span>`).join('');
+  $('#dmCosts').innerHTML=Object.entries(dm.upgrade_cost_majestic).map(([k,v])=>`<div>${k}<b>${v}</b></div>`).join('')+`<div>Total<b>${dm.total_0_to_15}</b></div>`;
+  $('#anInfo').textContent=an.info+' Para guerrero: '+an.warrior_pick+'.';
+  $('#anCosts').innerHTML=Object.entries(an.upgrade_cost_majestic).map(([k,v])=>`<div>${k}<b>${v}</b></div>`).join('')+`<div>Total<b>${an.total_0_to_20}</b></div>`;
+  renderGuide(1);
+}
+
+/* ---------- base de datos ---------- */
+const DBT={
+  monsters:['Monstruos',['name','hp','gold','danger','maps','notes'],['Nombre','HP','Oro','Peligro','Mapas','Drops / notas']],
+  maps:['Mapas',['name','level','nation','monsters','notes'],['Mapa','Nivel','Nación','Monstruos','Notas']],
+  weapons:['Armas',['name','level','str_req','str_full_swing','hands','damage','source'],['Arma','Nivel','STR mín.','STR full swing','Manos','Daño','Dónde']],
+  armors:['Armaduras',['slot','name','level','defense','absorption','req','source'],['Parte','Nombre','Nivel','Def','Absorción %','Req.','Dónde']],
+  shields:['Escudos',['name','level','defense','absorption','source'],['Escudo','Nivel','Def','Absorción %','Dónde']],
+  skills:['Skills',['name','how','req'],['Skill','Cómo subirla','Requisito']],
+  changes:['Cambios del server',null],commands:['Comandos',null],
+};
+let dbTab='monsters', sortK=null, sortD=1;
+function cell(k,v){if(k==='danger')return `<span class="danger-dots">${'●'.repeat(v)}${'○'.repeat(5-v)}</span>`;if(Array.isArray(v))return esc(v.join(', '));if(k==='hands')return v===1?'1':'2';return esc(v)}
+const num=v=>{const m=String(v).replace(/\./g,'').match(/\d+/);return m?+m[0]:NaN};
+function renderDb(){
+  $('#dbTabs').innerHTML=Object.entries(DBT).map(([k,[t]])=>`<button class="${k===dbTab?'on':''}" data-t="${k}">${t}</button>`).join('');
+  const q=$('#dbQ').value.toLowerCase().trim(), [,keys,heads]=DBT[dbTab];
+  if(dbTab==='changes'){$('#dbBody').innerHTML='<ul>'+DB.changes.filter(c=>c.toLowerCase().includes(q)).map(c=>`<li style="margin:8px 0">${esc(c)}</li>`).join('')+'</ul><h2>Reglas de drops</h2><ul>'+DB.server.drop_rules.map(c=>`<li>${esc(c)}</li>`).join('')+'</ul>';return}
+  if(dbTab==='commands'){$('#dbBody').innerHTML='<table class="tbl">'+Object.entries(DB.server.commands).filter(([k,v])=>(k+v).toLowerCase().includes(q)).map(([k,v])=>`<tr><td><span class="kbd">${esc(k)}</span></td><td>${esc(v)}</td></tr>`).join('')+'</table>';return}
+  let rows=DB[dbTab].filter(r=>JSON.stringify(r).toLowerCase().includes(q));
+  if(sortK)rows=[...rows].sort((a,b)=>{const x=a[sortK],y=b[sortK];const nx=num(x),ny=num(y);return (isNaN(nx)||isNaN(ny)?String(x).localeCompare(String(y)):nx-ny)*sortD});
+  $('#dbBody').innerHTML=`<table class="tbl"><thead><tr>${heads.map((h,i)=>`<th data-s="${keys[i]}">${h}${sortK===keys[i]?(sortD>0?' ▲':' ▼'):''}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${keys.map(k=>`<td>${cell(k,r[k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+$('#dbTabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;dbTab=b.dataset.t;sortK=null;renderDb()};
+$('#dbBody').onclick=e=>{const th=e.target.closest('th');if(!th)return;if(sortK===th.dataset.s)sortD*=-1;else{sortK=th.dataset.s;sortD=1}renderDb()};
+$('#dbQ').oninput=renderDb;
+
+/* ---------- eventos ---------- */
+async function loadEvents(){
+  const ev=await API.events();
+  $('#evList').innerHTML=ev.length?ev.map(e=>{const when=e.active?'¡AHORA!':(e.in_min<60?`en ${e.in_min} min`:`en ${Math.floor(e.in_min/60)} h ${e.in_min%60} min`);
+    return `<div class="ev ${e.active?'act':''} ${e.danger?'dng':''}"><div><b>${esc(e.name)}</b><div class="hint">${esc(e.start)} → ${esc(e.end)}${e.note?' · '+esc(e.note):''}</div></div><div class="when">${when}</div></div>`}).join(''):'<div class="card hint">Sin eventos próximos (o falta el paquete tzdata).</div>';
+  const ap=DB.events.find(e=>e.kind==='biweekly_saturday'), mg=DB.events.find(e=>e.kind==='every_2h');
+  $('#evInfo').innerHTML=`<h2>El Apocalipsis</h2><ol>${ap.steps.map(s=>`<li style="margin:6px 0">${esc(s)}</li>`).join('')}</ol>
+    <h2 style="margin-top:14px">Qué puede tirar Abaddon</h2><p class="hint">${ap.abaddon_drops.join(' · ')}</p>
+    <h2 style="margin-top:14px">Minijuegos</h2><p class="hint">${esc(mg.note)}</p>`;
+}
+setInterval(()=>{if(curPage==='events')loadEvents()},30000);
+
+/* ---------- arranque ---------- */
+let booted=false;
+async function boot(){
+  if(booted)return; booted=true;
+  API = window.pywebview ? window.pywebview.api : demoApi();
+  [CFG,DB,PATH]=await Promise.all([API.get_config(),API.db(),API.path()]);
+  fillCfg(); fillLogin(); renderSteps(); initGuide(); renderDb();
+  $('#dbSub').textContent=DB.disclaimer;
+  $('#destSel').innerHTML='<option value="auto">Según mi nivel (guía)</option>'+DB.maps.filter(m=>!/Elvine|Eldiniel|Rocky|Death Valley/.test(m.name+m.nation)).map(m=>`<option>${esc(m.name)}</option>`).join('');
+  fillCfg();
+  $('#monList').innerHTML=DB.monsters.map(m=>`<option value="${esc(m.name)}">`).join('')+'<option value="Oro"><option value="Poción">';
+  poll(); frameLoop();
+}
+if(window.pywebview) boot(); else window.addEventListener('pywebviewready',boot);
+setTimeout(()=>{if(!API)boot()},1200);
+</script>
+</body>
+</html>

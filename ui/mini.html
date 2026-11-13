@@ -1,0 +1,26 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><style>
+html,body{margin:0;background:#0d0b10;color:#ece4d6;font:12px "Segoe UI",sans-serif;overflow:hidden;height:100%}
+.top{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#1a161f;border-bottom:1px solid #2e2735;cursor:move}
+.dot{width:10px;height:10px;border-radius:50%;background:#e0443a;box-shadow:0 0 8px #e0443a}.on .dot{background:#3fbf6b;box-shadow:0 0 8px #3fbf6b}
+b{color:#f3cf7a}.x{margin-left:auto;cursor:pointer;color:#9a8f86;padding:0 4px}
+.bars{display:flex;gap:6px;padding:6px 10px}.bar{flex:1;height:6px;background:#000;border-radius:4px;overflow:hidden}.bar i{display:block;height:100%}
+.hp i{background:#e0443a}.mp i{background:#3b82f6}.sp i{background:#d6b23a}
+.info{padding:0 10px 4px;color:#9a8f86}
+.log{height:150px;overflow:auto;padding:4px 10px;font:11px Consolas,monospace;color:#c8bfb3}
+</style></head><body>
+<div class="top pywebview-drag-region" id="top"><div class="dot"></div><b id="st">Apagado</b><span id="k"></span><span class="x" id="x">✕</span></div>
+<div class="bars"><div class="bar hp"><i id="hp"></i></div><div class="bar mp"><i id="mp"></i></div><div class="bar sp"><i id="sp"></i></div></div>
+<div class="info" id="info"></div>
+<div class="log" id="log"></div>
+<script>
+const $=s=>document.querySelector(s);
+async function poll(){try{const s=await pywebview.api.state();
+ $('#top').className='top pywebview-drag-region'+(s.running?' on':'');$('#st').textContent=s.running?s.stats.state:'Apagado';
+ const pr=s.progress||{};$('#k').textContent=` · Nv ${pr.level||'?'} ${pr.exp!=null?pr.exp.toFixed(1)+'%':''} · ${s.stats.kills} kills`;
+ ['hp','mp','sp'].forEach(k=>$('#'+k).style.width=(s.bars[k]||0)+'%');
+ $('#info').textContent=(s.pos&&s.pos.map?`📍 ${s.pos.map} (${s.pos.x},${s.pos.y})  `:'')+(s.nav&&s.nav.status?s.nav.status:'');
+ const L=$('#log');L.innerHTML=s.log.slice(-25).map(l=>`<div>${l.replace(/</g,'&lt;')}</div>`).join('');L.scrollTop=L.scrollHeight;
+}catch(e){} setTimeout(poll,700)}
+$('#x').onclick=()=>pywebview.api.toggle_mini();
+window.addEventListener('pywebviewready',poll); if(window.pywebview)poll();
+</script></body></html>

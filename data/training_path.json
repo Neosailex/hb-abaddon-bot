@@ -1,0 +1,2878 @@
+{
+ "class": "Guerrero (STR)",
+ "nation": "Aresden",
+ "start_stats": {
+  "STR": 14,
+  "DEX": 14,
+  "VIT": 12,
+  "INT": 10,
+  "MAG": 10,
+  "CHR": 10
+ },
+ "note": "Al crear el PJ: STR 14, DEX 14, VIT 12, INT 10, MAG 10, CHR 10 (suma 70). Las armas de 2 manos no usan escudo: el Shield se sube antes, con Long Sword.",
+ "stat_plan": [
+  {
+   "stat": "DEX",
+   "target": 50,
+   "why": "50 DEX = Long Sword puede llegar a 100%"
+  },
+  {
+   "stat": "STR",
+   "target": 104,
+   "why": "Full swing de Great Sword"
+  },
+  {
+   "stat": "STR",
+   "target": 130,
+   "why": "Full swing de Flameberge / Dark Knight Flameberge"
+  },
+  {
+   "stat": "VIT",
+   "target": 100,
+   "why": "Más vida y regeneración: menos pociones"
+  },
+  {
+   "stat": "STR",
+   "target": 156,
+   "why": "Giant Sword (nivel 100)"
+  },
+  {
+   "stat": "DEX",
+   "target": 150,
+   "why": "Pegás más seguido y esquivás más"
+  },
+  {
+   "stat": "VIT",
+   "target": 150,
+   "why": "Aguante para Tower of Hell"
+  },
+  {
+   "stat": "STR",
+   "target": 200,
+   "why": "Tope de STR: más daño"
+  },
+  {
+   "stat": "DEX",
+   "target": 200,
+   "why": "Tope de DEX"
+  },
+  {
+   "stat": "VIT",
+   "target": 200,
+   "why": "Lo que sobre a VIT"
+  }
+ ],
+ "per_level": [
+  {
+   "level": 2,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 17,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 3,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 20,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 4,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 23,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 5,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 26,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 6,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 29,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 7,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 32,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 8,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 35,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 9,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 38,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 10,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 41,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 11,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 44,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 12,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 47,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 13,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 14,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 14,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 17,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 15,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 20,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 16,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 23,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 17,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 26,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 18,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 29,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 19,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 32,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 20,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 35,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 21,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 38,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 22,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 41,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 23,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 44,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 24,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 47,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 25,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 50,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 26,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 53,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 27,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 56,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 28,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 59,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 29,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 62,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 30,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 65,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 31,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 68,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 32,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 71,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 33,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 74,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 34,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 77,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 35,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 80,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 36,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 83,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 37,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 86,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 38,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 89,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 39,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 92,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 40,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 95,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 41,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 98,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 42,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 101,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 43,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 104,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 44,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 107,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 45,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 110,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 46,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 113,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 47,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 116,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 48,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 119,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 49,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 122,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 50,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 125,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 51,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 128,
+    "DEX": 50,
+    "VIT": 12,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 52,
+   "add": {
+    "STR": 2,
+    "VIT": 1
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 13,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 53,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 16,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 54,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 19,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 55,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 22,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 56,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 25,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 57,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 28,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 58,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 31,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 59,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 34,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 60,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 37,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 61,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 40,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 62,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 43,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 63,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 46,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 64,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 49,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 65,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 52,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 66,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 55,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 67,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 58,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 68,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 61,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 69,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 64,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 70,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 67,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 71,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 70,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 72,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 73,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 73,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 76,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 74,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 79,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 75,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 82,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 76,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 85,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 77,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 88,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 78,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 91,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 79,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 94,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 80,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 97,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 81,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 130,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 82,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 133,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 83,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 136,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 84,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 139,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 85,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 142,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 86,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 145,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 87,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 148,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 88,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 151,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 89,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 154,
+    "DEX": 50,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 90,
+   "add": {
+    "STR": 2,
+    "DEX": 1
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 51,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 91,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 54,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 92,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 57,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 93,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 60,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 94,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 63,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 95,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 66,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 96,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 69,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 97,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 72,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 98,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 75,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 99,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 78,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 100,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 81,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 101,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 84,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 102,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 87,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 103,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 90,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 104,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 93,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 105,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 96,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 106,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 99,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 107,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 102,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 108,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 105,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 109,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 108,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 110,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 111,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 111,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 114,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 112,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 117,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 113,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 120,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 114,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 123,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 115,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 126,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 116,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 129,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 117,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 132,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 118,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 135,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 119,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 138,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 120,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 141,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 121,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 144,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 122,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 147,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 123,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 100,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 124,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 103,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 125,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 106,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 126,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 109,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 127,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 112,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 128,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 115,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 129,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 118,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 130,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 121,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 131,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 124,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 132,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 127,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 133,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 130,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 134,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 133,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 135,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 136,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 136,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 139,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 137,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 142,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 138,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 145,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 139,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 156,
+    "DEX": 150,
+    "VIT": 148,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 140,
+   "add": {
+    "VIT": 2,
+    "STR": 1
+   },
+   "stats": {
+    "STR": 157,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 141,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 160,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 142,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 163,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 143,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 166,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 144,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 169,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 145,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 172,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 146,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 175,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 147,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 178,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 148,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 181,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 149,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 184,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 150,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 187,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 151,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 190,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 152,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 193,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 153,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 196,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 154,
+   "add": {
+    "STR": 3
+   },
+   "stats": {
+    "STR": 199,
+    "DEX": 150,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 155,
+   "add": {
+    "STR": 1,
+    "DEX": 2
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 152,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 156,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 155,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 157,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 158,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 158,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 161,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 159,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 164,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 160,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 167,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 161,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 170,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 162,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 173,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 163,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 176,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 164,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 179,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 165,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 182,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 166,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 185,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 167,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 188,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 168,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 191,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 169,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 194,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 170,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 197,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 171,
+   "add": {
+    "DEX": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 150,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 172,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 153,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 173,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 156,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 174,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 159,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 175,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 162,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 176,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 165,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 177,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 168,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 178,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 171,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 179,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 174,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  },
+  {
+   "level": 180,
+   "add": {
+    "VIT": 3
+   },
+   "stats": {
+    "STR": 200,
+    "DEX": 200,
+    "VIT": 177,
+    "INT": 10,
+    "MAG": 10,
+    "CHR": 10
+   }
+  }
+ ],
+ "milestones": [
+  {
+   "level": 13,
+   "text": "DEX llega a 50: 50 DEX = Long Sword puede llegar a 100%"
+  },
+  {
+   "level": 43,
+   "text": "STR llega a 104: Full swing de Great Sword"
+  },
+  {
+   "level": 52,
+   "text": "STR llega a 130: Full swing de Flameberge / Dark Knight Flameberge"
+  },
+  {
+   "level": 81,
+   "text": "VIT llega a 100: Más vida y regeneración: menos pociones"
+  },
+  {
+   "level": 90,
+   "text": "STR llega a 156: Giant Sword (nivel 100)"
+  },
+  {
+   "level": 123,
+   "text": "DEX llega a 150: Pegás más seguido y esquivás más"
+  },
+  {
+   "level": 140,
+   "text": "VIT llega a 150: Aguante para Tower of Hell"
+  },
+  {
+   "level": 155,
+   "text": "STR llega a 200: Tope de STR: más daño"
+  },
+  {
+   "level": 171,
+   "text": "DEX llega a 200: Tope de DEX"
+  }
+ ],
+ "phases": [
+  {
+   "from": 1,
+   "to": 9,
+   "maps": [
+    "Beginner Zone"
+   ],
+   "monsters": [
+    "Slime"
+   ],
+   "tip": "Elegí Aresden. A 5x exp sale rápido. Agarrá quests del City Hall siempre: pagan exp, oro y contribution.",
+   "gear": {
+    "arma": "Long Sword + manual de Long Sword (Blacksmith)",
+    "escudo": "Wood Shield",
+    "armadura": "Tunic, Shirt, Trousers, Long Boots"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 10,
+   "to": 19,
+   "maps": [
+    "Aresden Farm",
+    "Aresden City (afueras)"
+   ],
+   "monsters": [
+    "Giant Ant",
+    "Snake",
+    "Giant Scorpion",
+    "Stone Golem (pits de la Farm)"
+   ],
+   "tip": "Snakes y escorpiones te envenenan: sube Poison Resistance solo.",
+   "gear": {
+    "arma": "Long Sword",
+    "escudo": "Leather Shield",
+    "armadura": "Igual"
+   },
+   "skills": [
+    "Long Sword",
+    "Shield",
+    "Poison Resistance"
+   ]
+  },
+  {
+   "from": 20,
+   "to": 29,
+   "maps": [
+    "Eternal Field",
+    "Aresien Garden",
+    "Aresden Dungeon (entrada)"
+   ],
+   "monsters": [
+    "Skeleton",
+    "Zombie",
+    "Stone Golem",
+    "Clay Golem",
+    "Orc Mage"
+   ],
+   "tip": "Orc Mages de Aresien Garden para subir Magic Resistance.",
+   "gear": {
+    "arma": "Long Sword (o Claymore cuando tengas 40 STR, sin escudo)",
+    "escudo": "Targe Shield",
+    "armadura": "Igual"
+   },
+   "skills": [
+    "Long Sword",
+    "Shield",
+    "Magic Resistance"
+   ]
+  },
+  {
+   "from": 30,
+   "to": 39,
+   "maps": [
+    "Middleland Dungeon",
+    "Silent Wood",
+    "Middleland Mine"
+   ],
+   "monsters": [
+    "Clay Golem",
+    "Giant Frog",
+    "Skeleton",
+    "Zombie",
+    "Stone Golem"
+   ],
+   "tip": "Middleland Dungeon (30–100) es tranquilo y sin PvP pesado.",
+   "gear": {
+    "arma": "Claymore",
+    "escudo": "-",
+    "armadura": "Igual"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 40,
+   "to": 49,
+   "maps": [
+    "Dungeon L2",
+    "Aresden Dungeon"
+   ],
+   "monsters": [
+    "Cyclops",
+    "Clay Golem",
+    "Stone Golem",
+    "Hellhound"
+   ],
+   "tip": "Cyclops tiran materiales de crafting.",
+   "gear": {
+    "arma": "Great Sword (52 STR)",
+    "escudo": "-",
+    "armadura": "Igual"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 50,
+   "to": 59,
+   "maps": [
+    "Dungeon L3",
+    "Promiseland",
+    "Aresden Dungeon"
+   ],
+   "monsters": [
+    "Hellhound",
+    "Cyclops",
+    "Skeleton",
+    "Zombie",
+    "Ogre (con cuidado)"
+   ],
+   "tip": "Ojo con las Liches en L3: tiran magia fuerte.",
+   "gear": {
+    "arma": "Great Sword +1",
+    "escudo": "-",
+    "armadura": "Leather Armor, Hauberk, Chain Hose"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 60,
+   "to": 79,
+   "maps": [
+    "Silent Wood",
+    "Dungeon L3",
+    "Icebound"
+   ],
+   "monsters": [
+    "Ogre",
+    "Troll",
+    "Werewolf",
+    "Mountain Giant",
+    "Frost",
+    "Ice Golem"
+   ],
+   "tip": "Mountain Giant y Stone Golem pueden tirar Merien's (super raro).",
+   "gear": {
+    "arma": "Flameberge (130 STR para full swing)",
+    "escudo": "-",
+    "armadura": "Scale Mail 60 → Chain Mail 70, Helm 60, Ring Hose 60 → Plate Leggings 70, Knight Hauberk 70 si tenés 100 DEX"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 80,
+   "to": 99,
+   "maps": [
+    "Dungeon L4",
+    "Icebound",
+    "Tower of Hell 1"
+   ],
+   "monsters": [
+    "Ettin",
+    "Ogre",
+    "Cyclops",
+    "Dark Elf",
+    "Beholder"
+   ],
+   "tip": "Demon en L4: no te le pares solo hasta ~100.",
+   "gear": {
+    "arma": "Flameberge → Knight Flameberge (95)",
+    "escudo": "-",
+    "armadura": "Plate Mail 80, Full-Helm 80, Knight Plate Mail 90, Knight Full Helm 90, Knight Plate Leggings 90"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 100,
+   "to": 139,
+   "maps": [
+    "Tower of Hell 1",
+    "Tower of Hell 2",
+    "Middleland (demons)"
+   ],
+   "monsters": [
+    "Demon",
+    "Liche",
+    "Beholder",
+    "Gargoyle (en grupo)"
+   ],
+   "tip": "Demons dan mucho oro (1.426–2.154).",
+   "gear": {
+    "arma": "Giant Sword (156 STR)",
+    "escudo": "-",
+    "armadura": "Wings Helm 100 → Horned Helm 120"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 140,
+   "to": 179,
+   "maps": [
+    "Tower of Hell 2",
+    "Tower of Hell 3"
+   ],
+   "monsters": [
+    "Gargoyle",
+    "Demon",
+    "Stalker",
+    "Hellclaw (en grupo)"
+   ],
+   "tip": "Stalkers pueden tirar Flameberge +3 (LLF).",
+   "gear": {
+    "arma": "Giant Sword / Flameberge +3 (LLF) si cae",
+    "escudo": "-",
+    "armadura": "Igual"
+   },
+   "skills": [
+    "Long Sword"
+   ]
+  },
+  {
+   "from": 180,
+   "to": 180,
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "monsters": [
+    "Nightmare (todos)"
+   ],
+   "tip": "Pedí el set Dark Master en el City Hall. La exp sigue y da puntos majestic: primero subí el arma (256 puntos a +15), después el ángel de STR (220 a +20).",
+   "gear": {
+    "arma": "Dark Knight Flameberge → +4 Giant Sword → +10 Templar → +15",
+    "escudo": "-",
+    "armadura": "Set Dark Master: Full-Helm, Plate Mail, Hauberk, Leggings"
+   },
+   "skills": [
+    "Long Sword 100%"
+   ]
+  }
+ ]
+}

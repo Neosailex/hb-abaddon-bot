@@ -1,0 +1,46 @@
+HB ABADDON BOT - Guerrero Aresden
+==================================
+
+INSTALAR (una sola vez)
+1. Doble click en instalar.bat. Si no tenés Python, lo instala solo; cuando termine, abrí instalar.bat de nuevo.
+2. Doble click en iniciar.bat para abrir el bot.
+   Si el juego no responde a los clicks del bot: cerralo y usá iniciar_admin.bat.
+   Si el bot no abre: diagnostico.bat muestra el error.
+
+PRIMERA VEZ: CALIBRAR (pestaña Calibración)
+Abrí Helbreath, entrá con el PJ y no cambies el tamaño de la ventana después de calibrar.
+1. Configuración > Título de la ventana: dejá "Helbreath" o elegí la ventana con "Ver ventanas abiertas". Guardar.
+2. Calibración > Marcar en cada punto, ir al juego, mouse encima y F9:
+   - Centro del personaje: los pies de tu PJ.
+   - Barra de vida: F9 al inicio (izquierda) y F9 al final (derecha), con la vida llena.
+   - Área de juego: esquina de arriba a la izquierda y de abajo a la derecha, sin la barra de abajo.
+   - Poción de vida: el slot del inventario con las rojas (dejá el inventario abierto) o configurá una tecla.
+   - Lo demás es opcional (maná, stamina, comida, recall).
+3. Tile: Helbreath clásico usa 32x32. Si agrandaste la ventana, medí la distancia entre dos baldosas.
+4. Plantillas: escribí el nombre (ej. "Clay Golem"), Preparar F10, mouse encima del monstruo en el juego y F10.
+   Sacá 2 o 3 fotos de cada monstruo que vas a cazar (de frente, de costado). Hacé lo mismo con el oro y los ítems tirados.
+   En el Panel, la vista en vivo marca en naranja lo que reconoce. Si no marca nada, bajá "Parecido mínimo" en Configuración.
+   Si marca cosas que no son, subilo.
+
+PRENDER / APAGAR
+- Botón grande del Panel o F12 (funciona desde el juego).
+- F11 = freno de emergencia.
+- Si la vida baja del % de pánico, toma pociones, usa recall (si lo configuraste) y se apaga.
+
+MODOS
+- Cazar: busca los monstruos que le enseñaste, va al más cercano y le pega hasta que desaparece. Después espera
+  2,5 seg (en Abaddon el raro aparece cuando se desvanece el cuerpo) y levanta lo que reconozca. Si no hay nada,
+  camina un poco sin alejarse más que la "correa".
+- Pit: se queda quieto y pega en las 8 casillas de alrededor. Ideal para pits con respawn.
+  Si tu PJ camina en vez de pegar, probá "Tecla de ataque forzado" = Ctrl o Shift.
+
+GUÍA, BASE DE DATOS Y EVENTOS
+- Guía de nivel: mové el nivel y te dice dónde cazar, qué matar, qué equipo usar y dónde poner los 3 puntos.
+- Base de datos: monstruos (HP, oro, drops, mapas), mapas, armas, armaduras, escudos, skills, cambios y comandos del server.
+  HP/oro/drops/mapas salen de helbreathabaddon.com. Armas y armaduras son valores clásicos: pueden variar en Abaddon.
+- Eventos: Happy Hour, raids a los pueblos y Apocalipsis en tu hora. Podés pausar el bot durante los raids.
+
+ARCHIVOS
+- data/config.json: tu configuración y calibración.
+- data/templates/: las fotos de monstruos e ítems.
+- data/bot.log: registro de todo lo que hizo.
