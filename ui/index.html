@@ -516,12 +516,17 @@ async function frameLoop(){
   try{
     if(curPage==='panel' && $('#prevOn').checked && !document.hidden && API.frame){
       const f=await API.frame(frameId);
-      if(f && f.img){frameId=f.id;const im=$('#prev');im.src=f.img;
+      if(f && f.img){frameId=f.id;const im=$('#prev');
+        /* cada cuadro como blob con URL propia que se libera al cambiar: con data:URL directo el navegador
+           guardaba todos los cuadros y a las horas se quedaba sin memoria ("Out of Memory") */
+        const bl=await (await fetch(f.img)).blob(); const u=URL.createObjectURL(bl); const old=im._u;
+        im.src=u; im._u=u;
         if(im.style.display!=='block'){im.style.display='block';$('#prevEmpty').style.display='none'}
-        try{await im.decode()}catch(e){}}
+        try{await im.decode()}catch(e){}
+        if(old)URL.revokeObjectURL(old)}
     }else{await new Promise(r=>setTimeout(r,300))}
   }catch(e){await new Promise(r=>setTimeout(r,500))}
-  setTimeout(frameLoop,Math.max(0,40-(performance.now()-t0)));
+  setTimeout(frameLoop,Math.max(0,100-(performance.now()-t0)));
 }
 $('#power').onclick=async()=>{await API.toggle()};
 $('#mini').onclick=async()=>{await API.toggle()};
@@ -663,6 +668,8 @@ async function boot(){
 }
 if(window.pywebview) boot(); else window.addEventListener('pywebviewready',boot);
 setTimeout(()=>{if(!API)boot()},1200);
+/* por las dudas: cada 3 horas recargo la ventana (libera memoria; el bot sigue andando igual) */
+setTimeout(()=>location.reload(),3*3600*1000);
 </script>
 </body>
 </html>

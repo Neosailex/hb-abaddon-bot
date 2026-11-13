@@ -631,8 +631,23 @@ class Bot:
         used = sum(v for x, v in (getattr(self, "_bud", None) or {}).items() if x >= k - 60)
         return 3600.0 * float(self.cfg.get("town_share", 0.10)) - used
 
+    def _tab_check(self):
+        """Si apreté TAB y en 75 s no maté nada, me equivoqué (estaba en modo ataque): lo vuelvo como estaba."""
+        p = getattr(self, "_tab_pending", 0)
+        if not p:
+            return
+        now = time.time()
+        if getattr(self, "_last_kill_t", 0) > p:
+            self._tab_pending = 0
+            self.log("⚔ Modo ataque confirmado: volví a matar.")
+        elif now - p > 75 and self.running and not getattr(self, "_busy_ui", False):
+            self._tab_pending = 0
+            winapi.press("TAB")
+            self.log("⚔ Con TAB no cambió nada: lo vuelvo a como estaba.")
+
     def _tick(self):
         self._town_account()
+        self._tab_check()
         self._zone_flush()
         self._fight_sample()
         if getattr(self, "_busy_ui", False):
@@ -4273,13 +4288,13 @@ class Bot:
             # pegado al bicho y no muere ni él ni nadie hace rato: seguro quedé en "modo paz" (pasa al volver a
             # entrar al juego). TAB cambia a modo ataque. Si me equivoco, se vuelve a corregir solo al rato.
             if max(abs(e[0]), abs(e[1])) <= 1:
-                if now - t.setdefault("adj0", now) > 8 and now - getattr(self, "_tab_t", 0) > 45 \
-                        and now - getattr(self, "_last_kill_t", 0) > 20:
-                    self._tab_t = now
+                if (now - t.setdefault("adj0", now) > 12 and now - getattr(self, "_tab_t", 0) > 600
+                        and now - getattr(self, "_last_kill_t", 0) > 60 and not getattr(self, "_tab_pending", 0)):
+                    self._tab_t = self._tab_pending = now
                     t["adj0"] = now
                     self._release()
                     winapi.press("TAB")
-                    self.log("⚔ Estoy pegado al bicho y no le pego: cambio a modo ataque (TAB).")
+                    self.log("⚔ Hace un minuto que no mato nada pegado a los bichos: pruebo cambiar a modo ataque (TAB).")
                     self.target_since = now
                     return True
             else:

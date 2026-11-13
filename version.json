@@ -1,1 +1,1 @@
-{"version": 93, "notes": "El cálculo de \"lo que sigue\" solo propone bichos de los mapas de la escalera (nada de mapas PvP)."}
+{"version": 94, "notes": "Arreglo: la ventana del bot se quedaba sin memoria a las horas (vista en vivo). Y el cambio a modo ataque es más prudente y se deshace solo si no sirve."}
