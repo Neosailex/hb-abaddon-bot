@@ -1,1 +1,1 @@
-{"version": 100, "notes": "Un mapa que quema pociones se descarta al minuto."}
+{"version": 101, "notes": "Vuelve a probar los mapas descartados cada unos 3 niveles (no en cada nivel)."}

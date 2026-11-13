@@ -637,7 +637,7 @@ class Bot:
         lvl = self._level_mem() or 1
         y = self.world.learn.setdefault("yield", {}).setdefault(mk, {"sec": 0.0, "exp": 0.0, "pots": 0.0, "lvl": lvl})
         if y.get("lvl") != lvl:
-            f = 0.6 ** max(1, abs(lvl - y.get("lvl", lvl)))
+            f = 0.8 ** max(1, abs(lvl - y.get("lvl", lvl)))
             for k in ("sec", "exp", "pots"):
                 y[k] = y.get(k, 0.0) * f
             y["lvl"] = lvl
