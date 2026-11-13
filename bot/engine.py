@@ -691,7 +691,9 @@ class Bot:
         if y["sec"] < 600 and ppm <= 1.5 * lim:
             return None  # todavía poco tiempo y nada alarmante: sigo midiendo
         if ppm > lim:
-            rate *= 0.4  # se me van las pociones: caro y peligroso (con 2 minutos ya alcanza para saberlo)
+            # se me van las pociones: con lo que puedo cargar no aguanto ni 5 minutos -> todavía no es para mí
+            carry = max(10, int(self.cfg.get("pots_target", 20)))
+            rate *= 0.1 if carry / ppm < 5 else 0.4
         return rate
 
     def _tab_check(self):
