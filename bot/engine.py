@@ -44,8 +44,16 @@ class Bot:
         self.calib = {"slot": None, "points": [], "msg": ""}
         self.progress = {"exp": None, "rate": None, "eta_min": None, "levelups": 0}
         self.capture = {"kind": "monsters", "name": "monstruo"}
-        gd = worldmod.find_game_dir(self.cfg.get("game_dir"))
-        self.world = worldmod.World(gd, os.path.join(cfgmod.DATA, "mundo.json"))
+        srv = (self.cfg.get("server") or {}).get("name") or "Abaddon"
+        self.pdir = cfgmod.profile_dir(self.cfg)
+        gd = worldmod.find_game_dir(self.cfg.get("game_dir"), srv)
+        if self.pdir != cfgmod.DATA and not os.path.exists(os.path.join(self.pdir, "mundo_base.json")):
+            try:  # el mundo base (portales clásicos) es igual en todos los Helbreath
+                import shutil
+                shutil.copy(os.path.join(cfgmod.DATA, "mundo_base.json"), self.pdir)
+            except Exception:
+                pass
+        self.world = worldmod.World(gd, os.path.join(self.pdir, "mundo.json"))
         self.pos = {"map": None, "x": None, "y": None, "t": 0, "text": ""}
         mp = (self.cfg.get("memory") or {}).get("pos")
         self.mem = memory.PosFinder(self.log, saved=mp)
@@ -124,6 +132,11 @@ class Bot:
     def start(self):
         with self.lock:
             if self.running:
+                return
+            sv = self.cfg.get("server") or {}
+            if not sv.get("bots_permitidos"):
+                self.log(f"⛔ No arranco: en Config → Servidor no está marcado que {sv.get('name') or 'este servidor'} permite bots. "
+                         "Marcalo solo si los admins lo confirmaron por escrito.")
                 return
             if not self._ensure_window():
                 self.log(f"No encuentro la ventana del juego ('{self.cfg['window_title']}'). Abrí Helbreath o corregí el título en Config.")
@@ -1413,10 +1426,24 @@ class Bot:
         return {"saved": True, "has_password": bool(al.get("password_enc"))}
 
     def _game_exe(self):
-        base = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Helbreath Abaddon")
-        for p in (os.path.join(base, "HelbreathAbaddon.exe"), os.path.join(base, "game", "Helbreath.exe")):
-            if os.path.exists(p):
-                return p
+        srv = (self.cfg.get("server") or {}).get("name") or "Abaddon"
+        if srv.lower() == "abaddon":
+            base = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Helbreath Abaddon")
+            for p in (os.path.join(base, "HelbreathAbaddon.exe"), os.path.join(base, "game", "Helbreath.exe")):
+                if os.path.exists(p):
+                    return p
+        gd = self.world.game_dir
+        if gd:
+            # el lanzador suele estar una carpeta arriba del juego; si no, el exe del juego
+            for d in (os.path.dirname(gd), gd):
+                try:
+                    exes = [f for f in os.listdir(d) if f.lower().endswith(".exe")
+                            and not any(k in f.lower() for k in ("unins", "setup", "update", "crash"))]
+                except OSError:
+                    continue
+                exes.sort(key=lambda f: (0 if srv.lower() in f.lower() else 1 if "helbreath" in f.lower() else 2))
+                if exes:
+                    return os.path.join(d, exes[0])
         return None
 
     def _screen_words(self):
@@ -1487,10 +1514,19 @@ class Bot:
             if now - getattr(self, "_al_srv_try", 0) < 15:
                 return True
             self._al_srv_try = now
-            # el primer renglón que dice SERVER es "ABADDON SERVER" (el segundo es Apocalypse)
+            # el renglón con el nombre del servidor configurado; si no lo leo, el primero que dice SERVER
+            sname = norm((self.cfg.get("server") or {}).get("name") or "abaddon")
+            own = [w for w in words if len(sname) >= 4 and (sname[:5] in norm(w[0]) or norm(w[0])[:5] in sname and len(norm(w[0])) >= 4)
+                   and w[2] > self.rect[3] * 0.25]
             sv = sorted([w for w in words if "server" in norm(w[0])], key=lambda w: w[2])
-            winapi.click(*(self.abs_pt(sv[0][1] - 60 * sc_, sv[0][2]) if sv else self.abs_pt(430 * sc_, 392 * sc_)))
-            self.log("Auto-login: elijo el servidor Abaddon.")
+            if own:
+                pt = self.abs_pt(own[0][1] + own[0][3] / 2 if len(own[0]) > 3 else own[0][1], own[0][2])
+            elif sv:
+                pt = self.abs_pt(sv[0][1] - 60 * sc_, sv[0][2])
+            else:
+                pt = self.abs_pt(430 * sc_, 392 * sc_)
+            winapi.click(*pt)
+            self.log(f"Auto-login: elijo el servidor {(self.cfg.get('server') or {}).get('name') or 'Abaddon'}.")
             return True
         on_list = any(k in ntxt for k in ("characterlist", "character", "createnew", "logout", "newpass", "passconfirm", "change", "testserver"))
         if on_list:
@@ -2374,7 +2410,7 @@ class Bot:
         self._progress(self._level_mem(), stats)
 
     def _progress(self, lvl, stats):
-        p = os.path.join(cfgmod.DATA, "progreso.json")
+        p = os.path.join(getattr(self, "pdir", cfgmod.DATA), "progreso.json")
         try:
             hist = json.load(open(p, encoding="utf-8"))
         except Exception:

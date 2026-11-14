@@ -93,6 +93,8 @@ DEFAULTS = {
     "explore_after_sec": 35,
     "view_tiles": [7, 5],
     "game_dir": "",
+    # servidor: cada uno guarda lo aprendido (mapas, rendimiento, progreso) en su propia carpeta
+    "server": {"name": "Abaddon", "bots_permitidos": False},
     # --- Auto-login ---
     "autologin": {"enabled": False, "account": "", "password_enc": "", "char_name": "", "relaunch": True},
     "login_field_offset": 140,
@@ -112,6 +114,19 @@ def _merge(base, over):
         else:
             out[k] = v
     return out
+
+
+def server_slug(cfg):
+    n = str(((cfg or {}).get("server") or {}).get("name") or "Abaddon").strip().lower()
+    return "".join(ch for ch in n if ch.isalnum()) or "abaddon"
+
+
+def profile_dir(cfg):
+    """Carpeta de datos del servidor. Abaddon usa data/ (como siempre); los demás, data/servers/<nombre>."""
+    slug = server_slug(cfg)
+    d = DATA if slug == "abaddon" else os.path.join(DATA, "servers", slug)
+    os.makedirs(d, exist_ok=True)
+    return d
 
 
 def load():

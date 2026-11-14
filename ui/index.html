@@ -331,6 +331,13 @@ input[type=range]{accent-color:var(--gold);width:100%}
           <p class="hint" id="posRes"></p>
         </div>
         <div class="card">
+          <h2>Servidor</h2>
+          <label class="f">Nombre del servidor<input type="text" data-k="server.name" placeholder="Abaddon"></label>
+          <label class="f">Carpeta del juego (opcional)<input type="text" data-k="game_dir" placeholder="la busca sola"></label>
+          <label class="check"><input type="checkbox" data-k="server.bots_permitidos"> Los admins confirmaron por escrito que se permiten bots</label>
+          <p class="hint">Cada servidor guarda aparte lo que aprende (mapas, zonas, rendimiento). Sin la confirmación marcada el bot no arranca. Al cambiar de servidor, guardá y reiniciá el bot.</p>
+        </div>
+        <div class="card">
           <h2>Auto-login</h2>
           <label class="check"><input type="checkbox" id="alOn"> Volver a entrar solo si se desconecta</label>
           <label class="check"><input type="checkbox" id="alRe"> Abrir el juego si se cierra</label>

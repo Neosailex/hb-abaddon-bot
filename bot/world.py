@@ -69,11 +69,36 @@ DEFAULT_GAME_DIRS = [
 ]
 
 
-def find_game_dir(cfg_dir=None):
-    for d in [cfg_dir] + DEFAULT_GAME_DIRS:
-        if d and os.path.isdir(os.path.join(d, "MAPDATA")):
-            return d
-    return None
+def _helbreath_dirs(server=None):
+    """Carpetas de juegos Helbreath instalados (cualquier servidor), con el del servidor elegido primero."""
+    roots = [os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs"), r"C:\Program Files", r"C:\Program Files (x86)",
+             r"C:\Games", "C:\\"]
+    out = []
+    for r in roots:
+        try:
+            names = os.listdir(r)
+        except OSError:
+            continue
+        for n in names:
+            if "helbreath" in n.lower() or (server and server.lower() in n.lower()):
+                for sub in ("", "game", "Game", "client"):
+                    d = os.path.join(r, n, sub)
+                    if os.path.isdir(os.path.join(d, "MAPDATA")):
+                        out.append(d)
+    if server:
+        out.sort(key=lambda d: 0 if server.lower() in d.lower() else 1)
+    return out
+
+
+def find_game_dir(cfg_dir=None, server=None):
+    if cfg_dir and os.path.isdir(os.path.join(cfg_dir, "MAPDATA")):
+        return cfg_dir
+    if not server or server.lower() == "abaddon":
+        for d in DEFAULT_GAME_DIRS:
+            if os.path.isdir(os.path.join(d, "MAPDATA")):
+                return d
+    found = _helbreath_dirs(server)
+    return found[0] if found else None
 
 
 class MapData:
