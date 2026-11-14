@@ -3951,15 +3951,21 @@ class Bot:
         P = lambda x, y: self.abs_pt(x * sc, y * sc)
         entries = entries[:12]
         self._cancel_drop()
-        if not entries or not self._bag_ready(True):
-            self.log("💰 No pude abrir el bolso para vender.")
+        if not entries:
             return 0
+        # primero hablo con el vendedor con el bolso CERRADO (el bolso tapa la zona donde lo busco), abro "Sell"
+        # y recién ahí abro el bolso
+        self._bag_ready(False)
         m = self._talk_keeper(kind)
         if not m:
             self.log("💰 No pude hablarle al vendedor para vender.")
             return 0
         winapi.click(*P(*m["sell"]))
         time.sleep(2.0)
+        if not self._bag_ready(True):
+            self.log("💰 No pude abrir el bolso para vender.")
+            winapi.press("ESC")
+            return 0
 
         def sell_btn():
             winapi.move(*P(640, 800))
