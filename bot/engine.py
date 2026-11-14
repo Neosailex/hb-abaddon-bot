@@ -3293,7 +3293,10 @@ class Bot:
         near_bad = lambda px, py, m=4: any(r[0] - m <= px <= r[2] + m and r[1] - m <= py <= r[3] + m for r in bad)
         for zn in ent["zones"]:
             x1, y1, x2, y2 = zn["rect"]
-            if any(not (x2 < r[0] - 7 or x1 > r[2] + 7 or y2 < r[1] - 7 or y1 > r[3] + 7) for r in bad):
+            cells = [v for v in z.values() if x1 - 3 <= v["x"] <= x2 + 3 and y1 - 3 <= v["y"] <= y2 + 3]
+            # si ya cacé ahí un buen rato sin problemas, alcanza con que no se pise de verdad con la peligrosa
+            mg = 1 if sum(v.get("sec", 0) for v in cells) >= 240 else 7
+            if any(not (x2 < r[0] - mg or x1 > r[2] + mg or y2 < r[1] - mg or y1 > r[3] + mg) for r in bad):
                 if zn["rect"] not in bad:
                     continue  # se superpone con una zona peligrosa
             cr = crs.get(zn.get("type"))
@@ -3308,7 +3311,6 @@ class Bot:
             c = mp.nearest_walkable((x1 + x2) // 2, (y1 + y2) // 2, r=6)
             if not c or not mp.ok(c[0], c[1]) or self._is_danger(c[0], c[1]):
                 continue
-            cells = [v for v in z.values() if x1 - 3 <= v["x"] <= x2 + 3 and y1 - 3 <= v["y"] <= y2 + 3]
             n = sum(v["n"] for v in cells)
             sec = sum(v.get("sec", 0) for v in cells)
             tot = sum(v.get("tot", 0) for v in cells)
