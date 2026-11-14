@@ -1010,7 +1010,7 @@ class Bot:
             return False
         H, W = img.shape[:2]
         try:
-            words = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": W, "y2": int(H * 0.88)}, scale=1.0)
+            words = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": W, "y2": int(H * 0.85)}, scale=1.0)
         except Exception:
             return False
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
@@ -2708,6 +2708,11 @@ class Bot:
         click((st[1] + ap[1]) / 2, st[2] - 60, "right")
         time.sleep(0.6)
         vals = stats_f5()
+        if vals.get("LEVEL"):
+            t = self.cfg.setdefault("travel", {})
+            if int(t.get("my_level", 0) or 0) != vals["LEVEL"]:
+                t["my_level"] = vals["LEVEL"]  # el nivel real, leído de la ventana de personaje
+                cfgmod.save(self.cfg)
         if any(vals.get(n) is None for n in ("STR", "VIT", "DEX")):
             self.log(f"Stats: no leo bien mis stats en la ventana de personaje ({vals}); no toco nada.")
             self._stats_fail = getattr(self, "_stats_fail", 0) + 1
@@ -2773,7 +2778,12 @@ class Bot:
 
     def _do_stats(self):
         if cfgmod.server_slug(self.cfg) != "abaddon":
-            return self._do_stats_ui()
+            try:
+                return self._do_stats_ui()
+            finally:
+                self._junk_t = 0  # revisar ya que no haya quedado ninguna ventana abierta
+                self.img = self.screen.grab(self.rect) if self.rect else self.img
+                self._close_junk_windows()
         """Abre 'Level up Setting' (cartel Level Up!), reparte los puntos según el plan y confirma con Ok."""
         if not self.rect:
             return
