@@ -1,1 +1,1 @@
-{"version": 143, "notes": "Olympia: encontré la lista de bichos en la memoria. El bot ve los slimes aunque no se distingan en pantalla y va derecho a ellos."}
+{"version": 144, "notes": "Olympia: cuenta los bichos pegados con la memoria (se retira si lo rodean) y prefiere slimes sueltos."}

@@ -1039,7 +1039,11 @@ class Bot:
         """Bichos a una baldosa del pj (lista de la memoria). 0 si no se sabe."""
         try:
             if not (self.ents.center and self._mem_struct()):
-                return 0
+                oly = self._oly_ents() if self.pos.get("x") is not None else []
+                if not oly:
+                    return 0
+                px, py = self.pos["x"], self.pos["y"]
+                return sum(1 for e in oly if max(abs(e[0] - px), abs(e[1] - py)) <= 1)
             c = getattr(self, "_adj_cache", None)
             if c and time.time() - c[0] < 0.5:
                 return c[1]
@@ -3141,7 +3145,9 @@ class Bot:
         if not ok:
             return False
         d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
-        e = min(ok, key=d)
+        # prefiero bichos sueltos: cada vecino a 2 baldosas del bicho cuenta como 3 baldosas más de distancia
+        crowd = lambda e: sum(1 for o in ents if o is not e and max(abs(o[0] - e[0]), abs(o[1] - e[1])) <= 2)
+        e = min(ok, key=lambda e: d(e) + 3 * crowd(e))
         vx, vy = self.cfg.get("view_tiles", [9, 6])
         if abs(e[0] - px) <= vx and abs(e[1] - py) <= vy:
             # mismo bicho muchas veces sin morir: lo salteo un rato (puede ser un dato viejo de la memoria)
