@@ -236,8 +236,8 @@ class Bot:
                     if self._ensure_window():
                         self.log("Arranco solo (modo consola).")
                         self.start()
-                        if self.running:
-                            want_start = False
+                        if self.running or not (self.cfg.get("server") or {}).get("bots_permitidos"):
+                            want_start = False  # sin permiso del servidor no insisto cada segundo
                 # 2) órdenes remotas
                 try:
                     with open(ctl_p, encoding="utf-8") as f:
@@ -2022,6 +2022,33 @@ class Bot:
             return " ".join(w.capitalize() for w in best[0].split())
         return name.strip()
 
+    def _loc_map_name(self, name):
+        """Clientes traducidos (Olympia en castellano: "Granja Aresden"): paso el nombre del mapa al inglés
+        con la tabla locale.csv del juego, para que valga todo lo que el bot sabe de cada mapa."""
+        tb = getattr(self, "_locmaps", None)
+        if tb is None:
+            tb = self._locmaps = {}
+            gd = self.world.game_dir
+            try:
+                import csv
+                with open(os.path.join(gd, "locale.csv"), encoding="utf-8-sig", newline="") as f:
+                    for row in csv.reader(f):
+                        if len(row) > 2 and row[0].startswith("map.") and row[1] and row[2]:
+                            for tr in row[2:]:
+                                k = "".join(c for c in tr.lower() if c.isalnum())
+                                if k:
+                                    tb.setdefault(k, row[1])
+            except Exception:
+                pass
+        if not tb:
+            return name
+        k = "".join(c for c in str(name).lower() if c.isalnum())
+        if k in tb:
+            return tb[k]
+        import difflib
+        m = difflib.get_close_matches(k, list(tb), n=1, cutoff=0.85)
+        return tb[m[0]] if m else name
+
     def _read_pos(self, img=None):
         r = ocr.read_position(self.img if img is None else img, self.cfg["calib"].get("pos_box"))
         if not r:
@@ -2043,6 +2070,7 @@ class Bot:
                     return
         if name.startswith("\\"):
             name = "A" + name[1:]
+        name = self._loc_map_name(name)
         name = self._canon_map(name)
         # un cambio de mapa tiene que leerse dos veces seguidas (el OCR a veces lee mal una letra)
         if self.pos.get("map") and name.lower() != self.pos["map"].lower():

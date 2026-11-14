@@ -1,1 +1,1 @@
-{"version": 115, "notes": "Multi-servidor: cada servidor guarda lo aprendido aparte; el bot solo arranca si marcaste que los admins permiten bots."}
+{"version": 116, "notes": "Olympia: entiende los nombres de mapas en castellano y encuentra el juego en AppData."}

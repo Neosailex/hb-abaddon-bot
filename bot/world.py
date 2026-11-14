@@ -71,7 +71,8 @@ DEFAULT_GAME_DIRS = [
 
 def _helbreath_dirs(server=None):
     """Carpetas de juegos Helbreath instalados (cualquier servidor), con el del servidor elegido primero."""
-    roots = [os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs"), r"C:\Program Files", r"C:\Program Files (x86)",
+    roots = [os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs"), os.environ.get("APPDATA", ""),
+             os.environ.get("LOCALAPPDATA", ""), r"C:\Program Files", r"C:\Program Files (x86)",
              r"C:\Games", "C:\\"]
     out = []
     for r in roots:
