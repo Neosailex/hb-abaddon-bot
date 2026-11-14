@@ -470,3 +470,48 @@ def find_seq(proc, values, widths=(4, 2), gap=(0,), chunk=8 << 20, limit=50):
                         i = d.find(pat, i + 1)
             off += n
     return out
+
+
+class OlyEntities:
+    """Bichos/NPC de Olympia. El cliente guarda cada uno en un objeto del heap (no en una grilla): se reconoce por
+    un patrón fijo alrededor de la posición: 15 justo antes, 0x64000000 en +8 y 16 en -56; el tipo (10 = Slime)
+    está en -92 y un id en -88. Barrer toda la memoria tarda ~0,5 s; después solo releo los bloques donde estaban."""
+
+    def __init__(self):
+        self.chunks, self.t_full = [], 0.0
+
+    def _scan(self, proc, regs, step=4 << 20):
+        out, chunks = [], []
+        for base, size in regs:
+            off = 0
+            while off < size:
+                n = min(step, size - off)
+                d = proc.read(base + off, n)
+                if not d:
+                    break
+                a = np.frombuffer(d[:len(d) // 4 * 4], np.uint32)
+                if len(a) > 40:
+                    i = np.nonzero(a[22:-4] == 15)[0] + 22
+                    i = i[(a[i + 3] == 0x64000000) & (a[i - 13] == 16)]
+                    if len(i):
+                        chunks.append((base + off, n))
+                    for k in i:
+                        xy = int(a[k + 1])
+                        x, y = xy & 0xFFFF, xy >> 16
+                        x, y = (x - 65536 if x > 32767 else x), (y - 65536 if y > 32767 else y)
+                        out.append((x, y, int(a[k - 22] & 0xFFFF), int(a[k - 22] >> 16), int(a[k - 21])))
+                off += n
+        return out, chunks
+
+    def read(self, proc, full_every=20.0):
+        """[(x, y, tipo, estado, id)] en coordenadas del mapa."""
+        import time as _t
+        now = _t.time()
+        if not self.chunks or now - self.t_full > full_every:
+            out, self.chunks = self._scan(proc, proc.regions())
+            self.t_full = now
+            return out
+        out, ch = self._scan(proc, self.chunks)
+        if not out:
+            self.t_full = 0
+        return out

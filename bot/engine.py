@@ -60,6 +60,7 @@ class Bot:
         self._mem_hold = False
         self._last_ocr_xy = None
         self.ents = memory.Entities(self.log)
+        self.oly = memory.OlyEntities()
         self._ent_bl = {}
         self._last_ocr = 0
         self.nav = {"status": "", "dest": None, "last_click": 0, "last_pos": None, "still_since": 0, "target_tile": None}
@@ -942,6 +943,10 @@ class Bot:
                 return
             if not self._fleeing() and self._goto_spot():
                 return
+        # Olympia: lista de bichos leída de la memoria (objetos del heap)
+        if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
+                and (not focused or self._under_attack()) and self._oly_step()):
+            return
         # me están pegando y no tengo la lista de bichos de la memoria: freno, busco quién es y le pego
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing()
                 and (self.nav.get("walking") or self._is_travelling()) and self._under_attack()
@@ -3092,6 +3097,77 @@ class Bot:
         dk = next((k for k in known if self._same(k, dest)), None)
         return bool(dk and self.world.route(cur, dk, forbidden=avoid, cost=self._map_cost))
 
+    def _oly_ents(self):
+        """Bichos alrededor según la memoria de Olympia: [(x, y, criatura, id)]. [] si no hay."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not getattr(self.mem, "proc", None):
+            return []
+        now = time.time()
+        if now - getattr(self, "_oly_t", 0) < 0.4:
+            return self._oly_last
+        self._oly_t = now
+        try:
+            raw = self.oly.read(self.mem.proc)
+        except Exception:
+            raw = []
+        crs = self._creatures_db()
+        seen, out = set(), []
+        for x, y, typ, st, oid in raw:
+            cr = crs.get(typ)
+            if not cr or oid in seen:
+                continue
+            seen.add(oid)
+            out.append((x, y, cr, oid))
+        if out and not getattr(self, "_oly_said", False):
+            self._oly_said = True
+            self.log(f"🧠 Memoria (Olympia): ya veo la lista de bichos ({len(out)} cerca). Cazo con ella.")
+        self._oly_last = out
+        return out
+
+    def _oly_step(self):
+        """Elijo un bicho de la lista de memoria: si está en pantalla le pego; si no, camino hasta él."""
+        if self.pos.get("x") is None or time.time() - self.pos.get("t", 0) > 5:
+            return False
+        ents = self._oly_ents()
+        if not ents:
+            return False
+        px, py = self.pos["x"], self.pos["y"]
+        now = time.time()
+        bad = getattr(self, "_oly_bad", {})
+        self._oly_bad = bad = {k: v for k, v in bad.items() if v > now}
+        hpmax = self._hpmax_est() or 40
+        cap = max(3.0, 0.10 * hpmax) if hpmax < 150 else 0.04 * hpmax
+        want = getattr(self, "_hunt_mob", None)
+        ok = [e for e in ents if e[3] not in bad and (e[2].get("dmg_avg", 99) <= cap or e[2]["name"] == want)]
+        if not ok:
+            return False
+        d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
+        e = min(ok, key=d)
+        vx, vy = self.cfg.get("view_tiles", [9, 6])
+        if abs(e[0] - px) <= vx and abs(e[1] - py) <= vy:
+            # mismo bicho muchas veces sin morir: lo salteo un rato (puede ser un dato viejo de la memoria)
+            cnt = getattr(self, "_oly_cnt", {})
+            c = cnt.get(e[3], [0, now])
+            if now - c[1] > 90:
+                c = [0, now]
+            c[0] += 1
+            cnt[e[3]] = c
+            self._oly_cnt = cnt
+            if c[0] > 25:
+                bad[e[3]] = now + 120
+                return False
+            cx, cy = self._char()
+            tw, th = self._tile()
+            self._engage((int(cx + (e[0] - px) * tw), int(cy + (e[1] - py) * th - th * 0.3)))
+            self.stats["target"] = e[2]["name"]
+            return True
+        if d(e) <= 30:
+            m = self.world.map_for(self.pos.get("map") or "")
+            if m:
+                self.stats["state"] = f"voy a un {e[2]['name']} ({e[0]},{e[1]})"
+                self._walk_to(m, (int(e[0]), int(e[1])), e[2]["name"])
+                return True
+        return False
+
     def _goto_step(self):
         """Clic en el mapa del bot: el pj va solo a ese mapa y punto. Si le pegan, pelea primero."""
         g = getattr(self, "goto", None)
@@ -3928,6 +4004,7 @@ class Bot:
             self.stats["state"] = "saliendo de zona peligrosa"
             return True
         self.stats["hunt_zone"] = f"{zn['mob']} ({ctr[0]},{ctr[1]})"
+        self._hunt_mob = zn["mob"]
         if x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4:
             self._zone_mob, self._zone_mob_t = zn["mob"], now
             vis = not (self.ents.center and self._mem_struct())  # sin lista de bichos en memoria: busco con el mouse
