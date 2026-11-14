@@ -320,11 +320,15 @@ def _wake():
     _last_wake = now
     for m, w in ((0x1C, 1), (0x86, 1), (0x06, 1), (0x07, 0)):  # ACTIVATEAPP, NCACTIVATE, ACTIVATE, SETFOCUS
         user32.PostMessageW(BG_HWND, m, w, 0)
+    time.sleep(0.1)  # le doy un momento al juego para que "se crea" activo antes del click
 
 
 def _post(msg, w, l):
     if msg in (WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_KEYDOWN, WM_MOUSEMOVE):
         _wake()
+        if msg != WM_MOUSEMOVE:
+            global _last_wake
+            _last_wake = time.time()
     user32.PostMessageW(BG_HWND, msg, w, l)
 
 

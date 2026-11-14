@@ -2585,10 +2585,15 @@ class Bot:
             sb = next((w for w in ws if norm(w[0]).startswith("subir") or norm(w[0]) == "nivel"), None)
             ob = self.cfg["calib"].get("levelup_btn") or {"x": int(self.rect[2] * 0.816), "y": int(self.rect[3] * 0.883)}
             pt = (sb[1] + 40, sb[2]) if sb else (ob["x"], ob["y"])  # el texto gótico casi nunca se lee: uso el lugar conocido
-            click(*pt)
-            time.sleep(1.2)
-            img = grab()
-            win = find_win(img)
+            for _try in range(2):
+                winapi.move(*self.abs_pt(*pt))
+                time.sleep(0.4)
+                click(*pt)
+                time.sleep(1.2)
+                img = grab()
+                win = find_win(img)
+                if win:
+                    break
             if not win:
                 self.log("Stats: no encuentro la ventana 'Subir nivel'.")
                 self._stats_fail = getattr(self, "_stats_fail", 0) + 1
