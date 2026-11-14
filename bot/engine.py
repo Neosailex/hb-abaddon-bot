@@ -2653,9 +2653,19 @@ class Bot:
             return any(norm(w[0]).startswith("estad") for w in ws) and any(norm(w[0]).startswith("misiones") for w in ws)
 
         pts = points(img)
+        for _ in range(3):
+            if pts is not None:
+                break
+            time.sleep(0.6)
+            img = grab()
+            pts = points(img)
         if not pts:
-            click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro
-            self._stats_fail = 0
+            if pts is None:
+                self.log("Stats: no pude leer cuántos puntos hay para asignar; pruebo más tarde.")
+                self._stats_fail = getattr(self, "_stats_fail", 0) + 1
+            else:
+                self._stats_fail = 0
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # cierro
             return
         # leo los stats actuales en la ventana de personaje (cierro un momento 'Subir nivel')
         click((st[1] + ap[1]) / 2, st[2] - 60, "right")
