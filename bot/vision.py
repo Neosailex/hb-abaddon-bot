@@ -517,7 +517,21 @@ def find_bag_origin(img):
     xs = np.nonzero(band.any(axis=0))[0]
     if not len(xs):
         return None
-    return (xs[0] / sc, y / sc)
+    # tiene que ser el par "UPGRADE" ... "MANUFACTURE" en la misma línea (si no, es un barril o una lámpara)
+    cl, st_, pv = [], xs[0], xs[0]
+    for c in xs[1:]:
+        if c - pv > 25 * sc:
+            cl.append((st_, pv))
+            st_ = c
+        pv = c
+    cl.append((st_, pv))
+    for a0, a1 in cl:
+        if not (110 * sc <= a1 - a0 <= 220 * sc):
+            continue
+        for b0, b1 in cl:
+            if 400 * sc <= b0 - a0 <= 500 * sc and 170 * sc <= b1 - b0 <= 310 * sc:
+                return (a0 / sc, y / sc)
+    return None
 
 
 _ROW_TPL = {}

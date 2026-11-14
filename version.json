@@ -1,1 +1,1 @@
-{"version": 103, "notes": "Arreglo: la vuelta de venta ya no deja al pj quieto mientras camina; más margen con las zonas de golems."}
+{"version": 104, "notes": "Detecta bien el bolso abierto (antes confundía un barril con el bolso y no podía vender)."}
