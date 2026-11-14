@@ -2655,15 +2655,33 @@ class Bot:
             im = grab()
             ws = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
             out = {}
+            alias = {"LUK": ("luk", "lux", "lik", "lix", "luc"), "STR": ("str", "slr", "sir"), "INT": ("int", "lnt", "iNt")}
+            lab = None
             for n in names:
-                lab = next((w for w in ws if norm(w[0]) == n.lower() or (n == "LUK" and norm(w[0]) in ("luk", "lux", "lik", "lix"))), None)
-                if lab:
-                    right = sorted([w for w in ws if abs(w[2] - lab[2]) < 10 and 0 < w[1] - lab[1] < 90], key=lambda w: w[1])
-                    out[n] = num(right[0][0]) if right else None
-            nv = next((w for w in ws if norm(w[0]).startswith("nivel") and not norm(w[0]).startswith("nivelsig")), None)
-            if nv:
-                right = sorted([w for w in ws if abs(w[2] - nv[2]) < 10 and 0 < w[1] - nv[1] < 260], key=lambda w: w[1])
-                out["LEVEL"] = next((num(w[0]) for w in right if num(w[0])), None)
+                keys = alias.get(n, (n.lower(),))
+                for w in ws:
+                    t = norm(w[0])
+                    k = next((k for k in keys if t.startswith(k.lower())), None)
+                    if not k:
+                        continue
+                    rest = t[len(k):]
+                    if rest and num(rest) is not None:  # 'STR:14' leído pegado
+                        out[n], lab = num(rest), w
+                        break
+                    if t == k.lower():
+                        right = sorted([v for v in ws if abs(v[2] - w[2]) < 10 and 0 < v[1] - w[1] < 90], key=lambda v: v[1])
+                        if right and num(right[0][0]) is not None:
+                            out[n], lab = num(right[0][0]), w
+                            break
+                out.setdefault(n, None)
+            # nivel: la fila 'Nivel:' de arriba (no 'A sig. nivel' ni el botón 'Subir nivel')
+            nvs = sorted([w for w in ws if norm(w[0]) == "nivel" and w[0].strip()[:1] == "N"], key=lambda w: w[2])
+            for nv in nvs:
+                right = sorted([v for v in ws if abs(v[2] - nv[2]) < 10 and 0 < v[1] - nv[1] < 260], key=lambda v: v[1])
+                lv = next((num(v[0]) for v in right if num(v[0])), None)
+                if lv:
+                    out["LEVEL"] = lv
+                    break
             winapi.press("F5")  # la cierro (misma tecla)
             time.sleep(0.6)
             if find_win_char(grab()):
