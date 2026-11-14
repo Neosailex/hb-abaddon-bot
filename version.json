@@ -1,1 +1,1 @@
-{"version": 169, "notes": "Misión activa: si no hay bichos de la misión cerca no se distrae con otros (salvo que lo ataquen) y va a la zona donde salen."}
+{"version": 170, "notes": "Revive siempre: reconoce el botón Reiniciar aunque el OCR lo lea mal y recuerda dónde está."}

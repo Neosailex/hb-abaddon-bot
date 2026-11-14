@@ -1216,8 +1216,14 @@ class Bot:
             H, W = img.shape[:2]
             words = ocr.read_words(img, {"x1": int(W * 0.6), "y1": int(H * 0.7), "x2": W, "y2": int(H * 0.92)}, scale=1.0)
             w = self._find_word(words, "restart") or self._find_word(words, "reiniciar")  # Olympia en castellano
+            if not w:  # la letra gótica sale mal ('(IViniciAr'): alcanza con que tenga 'iciar'
+                w = next((x for x in words if "iciar" in "".join(c for c in x[0].lower() if c.isalnum())), None)
             if w:
                 pt = (w[1], w[2])
+                rb_ = self.cfg["calib"].get("restart_btn") or {}
+                if abs(rb_.get("x", 0) - pt[0]) > 15 or abs(rb_.get("y", 0) - pt[1]) > 15:
+                    self.cfg["calib"]["restart_btn"] = {"x": int(pt[0]), "y": int(pt[1])}
+                    cfgmod.save(self.cfg)
         except Exception:
             pass
         self._restart_tries = getattr(self, "_restart_tries", 0) + 1
