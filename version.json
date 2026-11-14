@@ -1,1 +1,1 @@
-{"version": 164, "notes": "Pulido: nivel siempre sincronizado, descanso sin cortes ni spam (no descansa con slimes cerca), carteles de tirar objeto o elegir talento se responden No, y el registro ya no dice pociones que no tiene."}
+{"version": 165, "notes": "Stats automáticos activados en Olympia (estaban apagados) y se revisan también mientras descansa."}

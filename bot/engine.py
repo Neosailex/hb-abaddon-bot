@@ -891,6 +891,11 @@ class Bot:
         if self.stats["state"] == "pausa (juego en 2º plano)":
             self.stats["state"] = "buscando"
         if self._survival():
+            # descansando: buen momento para revisar los stats (sin bichos cerca, quieto)
+            if (getattr(self, "_rest_since", 0) and cfg.get("stats_auto", {}).get("enabled")
+                    and cfgmod.server_slug(cfg) != "abaddon" and time.time() - getattr(self, "_stats_done", 0) > 180):
+                self._stats_done = self._last_stats = time.time()
+                self._do_stats()
             return
         self._timers()
         sa = cfg.get("stats_auto", {})
