@@ -3373,7 +3373,9 @@ class Bot:
         hpmax = self._hpmax_est() or 40
         cap = max(3.0, 0.10 * hpmax) if hpmax < 150 else 0.04 * hpmax
         want = getattr(self, "_hunt_mob", None)
-        ok = [e for e in ents if e[3] not in bad and (e[2].get("dmg_avg", 99) <= cap or e[2]["name"] == want)]
+        # un bicho "en mi misma baldosa" es un dato viejo de la memoria (dos no pueden ocupar el mismo lugar)
+        ok = [e for e in ents if e[3] not in bad and (e[0], e[1]) != (px, py)
+              and (e[2].get("dmg_avg", 99) <= cap or e[2]["name"] == want)]
         if not ok:
             return False
         d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
