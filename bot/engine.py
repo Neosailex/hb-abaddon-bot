@@ -4267,10 +4267,10 @@ class Bot:
             t = t.lower()
             if any(k in t for k in two_h):
                 return 100
+            if any(k in t for k in armor):
+                return 70
             if "gold" in t or " oro" in t:
                 return 60
-            if any(k in t for k in armor):
-                return 50
             if any(k in t for k in bad):
                 return 5
             return 20
