@@ -894,6 +894,10 @@ class Bot:
             if (not indoors and not getattr(self, "mission", None) and (lu_pts or vision.find_level_up(self.img))
                     and time.time() - getattr(self, "_stats_done", 0) > wait_):
                 self._last_stats = 0
+            # Olympia: no hay cartel de Level Up legible ni memoria del pj: miro la ventana cada 3 minutos
+            if (cfgmod.server_slug(cfg) != "abaddon" and not indoors
+                    and time.time() - getattr(self, "_stats_done", 0) > 60 * float(sa.get("every_min_ui", 3))):
+                self._last_stats = 0
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0:
             self._last_stats = time.time()
             self._stats_done = time.time()
@@ -2555,7 +2559,111 @@ class Bot:
         winapi.left_up()
         time.sleep(0.7)
 
+    def _do_stats_ui(self):
+        """Reparto de stats en clientes nuevos (Olympia): ventana 'Subir nivel' con '-' y '+' por stat y 'Aplicar'.
+        Sigue la guía de guerrero 2H (training_path.json). Verifica cada número leído antes de aplicar."""
+        if not self.rect:
+            return
+        self._release()
+        grab = lambda: self.screen.grab(self.rect)
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
+
+        def find_win(img):
+            ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
+            st = next((w for w in ws if norm(w[0]) == "str"), None)
+            ap = next((w for w in ws if norm(w[0]).startswith("aplicar")), None)
+            asg = next((w for w in ws if norm(w[0]).startswith("asignar")), None)
+            return (st, ap, asg) if st and ap else None
+
+        img = grab()
+        win = find_win(img)
+        if not win:
+            # el texto 'Subir de Nivel' de abajo a la derecha abre la ventana
+            ws = ocr.read_words(img, {"x1": int(img.shape[1] * 0.6), "y1": int(img.shape[0] * 0.78),
+                                      "x2": img.shape[1], "y2": int(img.shape[0] * 0.93)}, scale=1.0)
+            sb = next((w for w in ws if norm(w[0]).startswith("subir") or norm(w[0]) == "nivel"), None)
+            ob = self.cfg["calib"].get("levelup_btn")
+            pt = (sb[1] + 40, sb[2]) if sb else ((ob["x"], ob["y"]) if ob else None)
+            if not pt:
+                return
+            click(*pt)
+            time.sleep(1.2)
+            img = grab()
+            win = find_win(img)
+            if not win:
+                self.log("Stats: no encuentro la ventana 'Subir nivel'.")
+                self._stats_fail = getattr(self, "_stats_fail", 0) + 1
+                return
+            self.cfg["calib"]["levelup_btn"] = {"x": int(pt[0]), "y": int(pt[1])}
+        st, ap, asg = win
+        rowh = 54 * self.rect[3] / 1080.0
+        names = ["STR", "VIT", "DEX", "INT", "MAG", "LUK"]
+        plus_x = st[1] + 225 * self.rect[2] / 1920.0
+
+        def read_num(img, x1, y1, x2, y2):
+            crop = img[int(y1):int(y2), int(x1):int(x2)]
+            for sc in (4, 3):
+                t = ocr.read_text_fixed(crop, sc, 150) or ""
+                d = "".join(c for c in t if c.isdigit())
+                if d:
+                    return int(d)
+            return None
+
+        def read_all(img):
+            vals = {}
+            for i, n in enumerate(names):
+                y = st[2] + i * rowh
+                vals[n] = read_num(img, st[1] + 40, y - 16, st[1] + 110, y + 16)
+            pts = read_num(img, asg[1] + 40, asg[2] - 16, asg[1] + 110, asg[2] + 16) if asg else None
+            return vals, pts
+
+        vals, pts = read_all(img)
+        if not pts:
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro
+            self._stats_fail = 0
+            return
+        if any(vals.get(n) is None for n in ("STR", "VIT", "DEX")):
+            self.log(f"Stats: no leo bien los números de la ventana ({vals}); no toco nada.")
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")
+            self._stats_fail = getattr(self, "_stats_fail", 0) + 1
+            return
+        plan_vals = dict(vals, CHR=vals.get("LUK"))
+        added = {}
+        for _ in range(int(pts)):
+            n = self._next_stat(plan_vals)
+            if n not in names:
+                break
+            i = names.index(n)
+            click(plus_x, st[2] + i * rowh)
+            time.sleep(0.25)
+            plan_vals[n] = (plan_vals.get(n) or 0) + 1
+            added[n] = added.get(n, 0) + 1
+        img2 = grab()
+        vals2, pts2 = read_all(img2)
+        ok = all(vals2.get(n) == vals[n] + added.get(n, 0) for n in added if vals2.get(n) is not None)
+        if not ok:
+            self.log(f"Stats: la ventana no muestra lo que sumé ({vals2} vs {vals} + {added}); no aplico.")
+            ws = ocr.read_words(img2, {"x1": 0, "y1": 0, "x2": img2.shape[1], "y2": img2.shape[0]}, scale=1.0)
+            rb = next((w for w in ws if norm(w[0]).startswith("restablecer")), None)
+            if rb:
+                click(rb[1], rb[2])  # deshago lo pendiente (no se aplicó nada)
+                time.sleep(0.5)
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")
+            self._stats_fail = getattr(self, "_stats_fail", 0) + 1
+            return
+        click(ap[1], ap[2])
+        time.sleep(1.0)
+        self.log("📈 Stats (guía 2H): " + ", ".join(f"+{v} {k}" for k, v in added.items()) + ".")
+        self._stats_fail = 0
+        img3 = grab()
+        if find_win(img3):
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # cierro con click derecho
+            time.sleep(0.5)
+
     def _do_stats(self):
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            return self._do_stats_ui()
         """Abre 'Level up Setting' (cartel Level Up!), reparte los puntos según el plan y confirma con Ok."""
         if not self.rect:
             return
