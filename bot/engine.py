@@ -133,6 +133,9 @@ class Bot:
         with self.lock:
             if self.running:
                 return
+            if getattr(self, "_setup_busy", False):
+                self.log("Estoy haciendo la puesta a punto: arranco cuando termine.")
+                return
             sv = self.cfg.get("server") or {}
             if not sv.get("bots_permitidos"):
                 self.log(f"⛔ No arranco: en Config → Servidor no está marcado que {sv.get('name') or 'este servidor'} permite bots. "
@@ -847,6 +850,9 @@ class Bot:
         return bool(getattr(self, "_escape", None))
 
     def _tick(self):
+        # segundo plano: los clicks SIEMPRE van directo a la ventana del juego (nunca al mouse de tu PC)
+        if self.cfg.get("background_mode") and self.hwnd and winapi.BG_HWND != self.hwnd:
+            winapi.set_background(self.hwnd)
         if self._watchdog():
             return
         self._town_account()
@@ -1838,7 +1844,7 @@ class Bot:
             time.sleep(1.2)
             winapi.left_up()
         finally:
-            winapi.set_background(None)
+            winapi.set_background(self.hwnd if self.cfg.get("background_mode") else None)
         time.sleep(1.0)
         c = winapi.capture_window(self.hwnd)
         p2 = ocr.read_position(c, self.cfg["calib"]["pos_box"]) if c is not None else None
@@ -1926,7 +1932,7 @@ class Bot:
 
         def go():
             from . import setup_scan as ss
-            bg = winapi.BG_HWND
+            self._setup_busy = True
             if self.cfg.get("background_mode"):
                 winapi.set_background(self.hwnd)
             try:
@@ -1937,7 +1943,8 @@ class Bot:
             except Exception as e:
                 self.log(f"🛠 Puesta a punto: error {e!r}")
             finally:
-                winapi.set_background(bg)
+                self._setup_busy = False
+                winapi.set_background(self.hwnd if self.cfg.get("background_mode") else None)
                 if was:
                     self.start()
 
@@ -2515,6 +2522,8 @@ class Bot:
 
     def _drag_real(self, x1, y1, x2, y2):
         """Arrastra con el mouse de verdad (las ventanas del juego no se mueven con clicks en segundo plano)."""
+        if self.cfg.get("background_mode"):
+            return self._drag_bg(x1, y1, x2, y2)  # en segundo plano nunca toco tu mouse
         bg = winapi.BG_HWND
         winapi.set_background(None)
         try:
