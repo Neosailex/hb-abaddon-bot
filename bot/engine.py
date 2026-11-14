@@ -2784,11 +2784,11 @@ class Bot:
             nv = next((w for w in ws_l if norm(w[0]).startswith("nivel") and asg and abs(w[2] - asg[2]) < 25 and w[1] > asg[1]), None)
             lvl_ = None
             if nv:
-                if norm(nv[0])[5:].isdigit():
-                    lvl_ = int(norm(nv[0])[5:])
-                else:
-                    lw = next((w for w in ws_l if abs(w[2] - nv[2]) < 12 and 0 < w[1] - nv[1] < 90 and norm(w[0]).isdigit()), None)
-                    lvl_ = int(norm(lw[0])) if lw else None
+                if num(nv[0][5:]):
+                    lvl_ = num(nv[0][5:])
+                else:  # el OCR a veces lee el 5 como 'S': uso la misma tabla de arreglos que para los números
+                    lw = next((w for w in sorted(ws_l, key=lambda w: w[1]) if abs(w[2] - nv[2]) < 12 and 0 < w[1] - nv[1] < 90 and num(w[0])), None)
+                    lvl_ = num(lw[0]) if lw else None
             if lvl_ and 1 <= lvl_ <= 200:
                 t_ = self.cfg.setdefault("travel", {})
                 if int(t_.get("my_level", 0) or 0) != lvl_:
@@ -2942,6 +2942,16 @@ class Bot:
             try:
                 return self._do_stats_ui()
             finally:
+                # nunca dejar 'Subir nivel' abierta (tapa el juego): si sigue ahí, click derecho adentro
+                try:
+                    im_ = self.screen.grab(self.rect)
+                    ws_ = ocr.read_words(im_, {"x1": 0, "y1": 0, "x2": im_.shape[1], "y2": int(im_.shape[0] * 0.6)}, scale=1.0)
+                    asg_ = next((w for w in ws_ if "".join(c for c in w[0].lower() if c.isalnum()).startswith("asignar")), None)
+                    if asg_:
+                        winapi.click(*self.abs_pt(asg_[1] + 300 * self.rect[2] / 1920.0, asg_[2]), button="right")
+                        time.sleep(0.4)
+                except Exception:
+                    pass
                 self._junk_t = 0  # revisar ya que no haya quedado ninguna ventana abierta
                 self.img = self.screen.grab(self.rect) if self.rect else self.img
                 self._close_junk_windows()
