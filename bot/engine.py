@@ -3142,7 +3142,7 @@ class Bot:
         near_bad = lambda px, py, m=4: any(r[0] - m <= px <= r[2] + m and r[1] - m <= py <= r[3] + m for r in bad)
         for zn in ent["zones"]:
             x1, y1, x2, y2 = zn["rect"]
-            if any(not (x2 < r[0] - 2 or x1 > r[2] + 2 or y2 < r[1] - 2 or y1 > r[3] + 2) for r in bad):
+            if any(not (x2 < r[0] - 7 or x1 > r[2] + 7 or y2 < r[1] - 7 or y1 > r[3] + 7) for r in bad):
                 if zn["rect"] not in bad:
                     continue  # se superpone con una zona peligrosa
             cr = crs.get(zn.get("type"))
@@ -3188,7 +3188,7 @@ class Bot:
             self._zone_since = now
         score, zn, ctr, key, measured = best_c
         x1, y1, x2, y2 = zn["rect"]
-        if near_bad(x, y, 2) and not (x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4):
+        if near_bad(x, y, 3) and not (x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4):
             if now - getattr(self, "_bad_said", 0) > 120:
                 self._bad_said = now
                 self.log(f"⚠ Estoy en zona de bichos que todavía no aguanto: me voy a la de {zn['mob']} ({ctr[0]},{ctr[1]}).")
@@ -3348,7 +3348,6 @@ class Bot:
                 self._sell_last = time.time()
                 self._restock_now = True
                 self.log(f"🛒 Vuelta de recarga: primero vendo {len(d['sell'])} cosa(s) que no sirven, después compro pociones.")
-                self._busy_ui = True
                 self._gear_th = threading.Thread(target=self._gear_trip, args=(dict(d, buy=[], equip=[]), town_, True), daemon=True)
                 self._gear_th.start()
                 return
