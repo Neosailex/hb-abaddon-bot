@@ -1453,6 +1453,28 @@ class Bot:
         words = ocr.read_words(self.img, {"x1": 0, "y1": 0, "x2": w, "y2": h}, scale=1.0)
         return words, " ".join(x[0].lower() for x in words)
 
+    def _game_on_top(self):
+        """True si en el centro y en las cuatro esquinas del área del juego lo que hay en pantalla es la ventana del juego."""
+        if not winapi.IS_WIN or not self.hwnd or not getattr(self, "rect", None):
+            return True
+        try:
+            import ctypes
+            import ctypes.wintypes as wt
+            u = ctypes.windll.user32
+            u.WindowFromPoint.argtypes = [wt.POINT]
+            u.WindowFromPoint.restype = wt.HWND
+            u.GetAncestor.argtypes = [wt.HWND, ctypes.c_uint]
+            u.GetAncestor.restype = wt.HWND
+            x, y, w, h = self.rect
+            for fx, fy in ((0.5, 0.45), (0.1, 0.1), (0.9, 0.1), (0.1, 0.85), (0.9, 0.85)):
+                hw = u.WindowFromPoint(wt.POINT(int(x + w * fx), int(y + h * fy)))
+                root = u.GetAncestor(hw, 2) if hw else None
+                if not root or int(root) != int(self.hwnd):
+                    return False
+            return True
+        except Exception:
+            return False
+
     def _autologin_step(self):
         """True si está ocupado reconectando (no cazar). Sale solo cuando vuelve a leer la posición en el mapa."""
         al = self.cfg.get("autologin", {})
@@ -1488,6 +1510,15 @@ class Bot:
         if not winapi.is_foreground(self.hwnd) and not self.cfg.get("background_mode"):
             winapi.focus(self.hwnd)
             time.sleep(0.5)
+        # SEGURIDAD: si lo que veo no es el juego (otra ventana encima, el propio bot, la barra de tareas),
+        # no hago clicks ni escribo nada: el texto leído podría ser de otra ventana.
+        if not self._game_on_top():
+            self._release()
+            self.stats["state"] = "reconectando: no veo el juego"
+            if now - getattr(self, "_al_hidden_said", 0) > 300:
+                self._al_hidden_said = now
+                self.log("⛔ Auto-login: hay otra ventana encima del juego. No toco nada hasta ver el juego adelante.")
+            return True
         words, txt = self._screen_words()
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         # 1b) lista de personajes (acá vuelve el juego cuando se corta la conexión). OJO: tiene un botón
@@ -1563,6 +1594,11 @@ class Bot:
             if now - getattr(self, "_al_login_try", 0) < 25:
                 return True
             self._al_login_try = now
+            # la contraseña solo se escribe con el juego en primer plano, sin nada encima, y en una pantalla de login
+            # leída del juego (nunca en segundo plano: las teclas podrían terminar en el chat)
+            if winapi.IS_WIN and (not winapi.is_foreground(self.hwnd) or not self._game_on_top()):
+                self.log("⛔ Auto-login: el juego no está adelante; no escribo la contraseña.")
+                return True
             pwd = secret.unprotect(al.get("password_enc", ""))
             if not al.get("account") or not pwd:
                 self.log("Auto-login: falta cuenta o contraseña en Configuración.")

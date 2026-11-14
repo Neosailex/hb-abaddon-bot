@@ -1,1 +1,1 @@
-{"version": 116, "notes": "Olympia: entiende los nombres de mapas en castellano y encuentra el juego en AppData."}
+{"version": 117, "notes": "Seguridad: el auto-login no hace clicks ni escribe nada si hay otra ventana encima del juego, y la contraseña solo con el juego adelante."}
