@@ -1012,6 +1012,20 @@ class Bot:
         winapi.click(x, y, double=True)
         return True
 
+    def _close_shop_window(self, words=None):
+        """Ventana 'Tienda' abierta (el título gótico no se lee: la reconozco por las pestañas Pociones/Vender).
+        La cierro con click derecho en la lista vacía. True si estaba abierta."""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        if words is None:
+            words = ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.6)}, scale=1.0)
+        tab = next((w for w in words if norm(w[0]).startswith(("pocion", "pocl", "pocio"))), None)
+        if not tab or not any(norm(v[0]).startswith(("vender", "varios", "undcr", "arios")) and abs(v[2] - tab[2]) < 15 for v in words):
+            return False
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        winapi.click(*self.abs_pt(tab[1] + 166 * kx, tab[2] + 317 * ky), button="right")
+        time.sleep(0.4)
+        return True
+
     def _close_junk_windows(self):
         """Ventanas que el bot no usa (ej. 'Resumen de Muerte' de Olympia): las cierro con click derecho
         sobre la ventana. Miro cada ~8 s, solo si no estoy peleando."""
@@ -1032,6 +1046,10 @@ class Bot:
             return False
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         txt = [(norm(w[0]), w) for w in words]
+        if not getattr(self, "_shop_th", None) or not self._shop_th.is_alive():
+            if self._close_shop_window(words):
+                self.log("Cierro la ventana de la tienda (click derecho).")
+                return True
         for title in titles:
             first = norm(title.split()[0])
             for t, w in txt:
@@ -4790,7 +4808,7 @@ class Bot:
         n = getattr(self, "_left", {}).get("pot")
         lim = 0 if getattr(self, "_pots_unknown", False) else int(self.cfg.get("buy_pots_below", 3))
         gold = getattr(self, "_gold", None)
-        afford = gold is None or gold >= int(self.cfg.get("gold_reserve", 150)) + 45
+        afford = gold is not None and gold >= int(self.cfg.get("gold_reserve", 150)) + 45
         many = (getattr(self, "_bag_items", 0) or 0) >= int(self.cfg.get("sell_when_items", 12))
         if now - getattr(self, "_shop_last", 0) < 900:
             return
@@ -4920,11 +4938,7 @@ class Bot:
         finally:
             # cierro la ventana de la tienda (click derecho adentro); abierta no deja caminar
             try:
-                tw_ = next((w for w in ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.5)}, scale=1.0)
-                            if "".join(c for c in w[0].lower() if c.isalnum()) == "tienda"), None)
-                if tw_:
-                    winapi.click(*self.abs_pt(tw_[1], tw_[2] + 190 * self.rect[3] / 1080.0), button="right")
-                    time.sleep(0.4)
+                self._close_shop_window()
             except Exception:
                 pass
             self.mission = None
