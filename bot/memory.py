@@ -442,3 +442,31 @@ class Entities:
             name = bytes(row[8:8 + int(row[24])]).decode("latin-1", "replace")
             out.append((dx, dy, name, int(row[176]), int(row[177]), int(row[180])))
         return out
+
+
+def find_seq(proc, values, widths=(4, 2), gap=(0,), chunk=8 << 20, limit=50):
+    """Busca en la memoria del juego una secuencia de números conocidos (ej. STR, VIT, DEX, INT, MAG, LUK
+    de la ventana de personaje). Sirve para ubicar el bloque del pj en un cliente nuevo: al lado suelen
+    estar nivel, vida, maná, exp. Devuelve [(dirección, ancho, separación)]. Solo lee."""
+    import struct
+    out = []
+    for base, size in proc.regions():
+        off = 0
+        while off < size and len(out) < limit:
+            n = min(chunk, size - off)
+            d = proc.read(base + off, n + 64)
+            if not d:
+                break
+            for w in widths:
+                fmt = "<i" if w == 4 else "<h"
+                for g in gap:
+                    step = w + g
+                    pat = b"".join(struct.pack(fmt, v) + b"\0" * g for v in values)
+                    pat = pat[:len(pat) - g] if g else pat
+                    i = d.find(pat)
+                    while i != -1 and i < n and len(out) < limit:
+                        if (base + off + i) % w == 0:
+                            out.append((base + off + i, w, g))
+                        i = d.find(pat, i + 1)
+            off += n
+    return out
