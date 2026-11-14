@@ -1046,6 +1046,17 @@ class Bot:
             return False
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         txt = [(norm(w[0]), w) for w in words]
+        # carteles peligrosos: '¿tirar este objeto?' / '¿cuánto oro tirar?' y elegir talento → siempre No/Cancelar
+        for key in ("tirar", "talento"):
+            hit = next((w for t, w in txt if key in t), None)
+            if hit:
+                btn = next((w for t, w in txt if t in ("no", "cancelar") and 0 < w[2] - hit[2] < 200 and abs(w[1] - hit[1]) < 400), None)
+                if btn:
+                    winapi.left_up()
+                    winapi.click(*self.abs_pt(btn[1], btn[2]))
+                    self.log(f"Cartel '{key}': respondo '{btn[0]}' (nunca tiro cosas ni elijo talentos solo).")
+                    time.sleep(0.4)
+                    return True
         if not getattr(self, "_shop_th", None) or not self._shop_th.is_alive():
             if self._close_shop_window(words):
                 self.log("Cierro la ventana de la tienda (click derecho).")
@@ -1249,6 +1260,10 @@ class Bot:
             self._hm_prev = hm
             # fuera de pelea la vida vuelve sola: no gasto pociones (idea del bot de prueba de Helbreath/server)
             fighting = now - getattr(self, "_last_dmg_t", 0) < 5 or self._adjacent_mobs() > 0
+            if not fighting and self.pos.get("x") is not None and cfgmod.server_slug(cfg) != "abaddon":
+                # un slime a 3 baldosas me ve y viene: no me siento a descansar al lado
+                px_, py_ = self.pos["x"], self.pos["y"]
+                fighting = any(max(abs(e[0] - px_), abs(e[1] - py_)) <= 3 for e in (getattr(self, "_oly_last", None) or []))
             if (hp <= max(60, cfg.get("hp_pot_pct", 55)) and (fighting or hp <= 35)
                     and now - getattr(self, "_last_pot_t", 0) > min(0.8, cfg.get("pot_cooldown", 1.5))):
                 self._last_pot_t = now
@@ -1294,7 +1309,10 @@ class Bot:
                     self._rest_since = 0
                     if now - rs > 60 and hp < 80:
                         self._rest_block = now + 30
-                    self.log(f"Descanso terminado (vida {hp:.0f}%).")
+                    if fighting and now - rs < 8:
+                        self._rest_block = now + 10  # me interrumpieron enseguida: no insisto ya mismo
+                    elif now - rs >= 8:
+                        self.log(f"Descanso terminado (vida {hp:.0f}%).")
                 else:
                     self._release()
                     self.stats["state"] = f"descansando ({hp:.0f}%)"
@@ -1303,7 +1321,9 @@ class Bot:
                 self._rest_since = now
                 self._release()
                 self.state, self.target = "seek", None
-                self.log(f"Vida {hp:.0f}% y nadie me pega: descanso un poco en vez de gastar pociones.")
+                if now - getattr(self, "_rest_said", 0) > 60:
+                    self._rest_said = now
+                    self.log(f"Vida {hp:.0f}% y nadie me pega: descanso un poco en vez de gastar pociones.")
                 return True
         # enjambre: con 3+ bichos pegados y menos de 60% de vida, me retiro antes de quedar acorralado
         if (hp is not None and hp < 60 and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0)
@@ -2753,6 +2773,25 @@ class Bot:
             ws = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
             return any(norm(w[0]).startswith("estad") for w in ws) and any(norm(w[0]).startswith("misiones") for w in ws)
 
+        # el nivel está arriba a la derecha de esta ventana ('Nivel 5'): lo sincronizo siempre, haya puntos o no
+        try:
+            ws_l = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
+            nv = next((w for w in ws_l if norm(w[0]).startswith("nivel") and asg and abs(w[2] - asg[2]) < 25 and w[1] > asg[1]), None)
+            lvl_ = None
+            if nv:
+                if norm(nv[0])[5:].isdigit():
+                    lvl_ = int(norm(nv[0])[5:])
+                else:
+                    lw = next((w for w in ws_l if abs(w[2] - nv[2]) < 12 and 0 < w[1] - nv[1] < 90 and norm(w[0]).isdigit()), None)
+                    lvl_ = int(norm(lw[0])) if lw else None
+            if lvl_ and 1 <= lvl_ <= 200:
+                t_ = self.cfg.setdefault("travel", {})
+                if int(t_.get("my_level", 0) or 0) != lvl_:
+                    self.log(f"Nivel real: {lvl_} (leído en 'Subir nivel').")
+                    t_["my_level"] = lvl_
+                    cfgmod.save(self.cfg)
+        except Exception:
+            pass
         # si quedaron sumas sin aplicar de un intento anterior, las deshago para empezar de cero
         try:
             ws0 = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": img.shape[0]}, scale=1.0)

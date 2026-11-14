@@ -118,7 +118,7 @@ def plan(db, path, cat, level, stats, gold=None, owned=None, reachable=None, cur
             b = g["blocked"]
             need = f"STR {b['str']}" if stats.get("STR", 0) < b.get("str", 0) else f"nivel {b.get('level')}"
             lines.append(f"{g['slot'].capitalize()}: la mejora es {b['name']} (pide {need}{'' if b.get('confirmed') else ', a confirmar'}).")
-    lines.append(f"Llevo {prov['pots']} pociones y {prov['meat']} carnes.")
+    lines.append(f"Para este nivel conviene llevar {prov['pots']} pociones y {prov['meat']} carnes.")
     return {"level": level, "hunt_map": hunt_map, "ideal_map": ideal["maps"][0].split(" (")[0] if ideal else None,
             "monsters": (hunt_phase or ideal or {}).get("monsters", []), "gear": gp, "buy_now": buy_now,
             "saving": saving, "provisions": prov, "lines": lines}

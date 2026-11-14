@@ -1,1 +1,1 @@
-{"version": 163, "notes": "Olympia: reconoce y cierra la ventana de la tienda aunque no pueda leer el título; no va a comprar si no sabe cuánto oro tiene."}
+{"version": 164, "notes": "Pulido: nivel siempre sincronizado, descanso sin cortes ni spam (no descansa con slimes cerca), carteles de tirar objeto o elegir talento se responden No, y el registro ya no dice pociones que no tiene."}
