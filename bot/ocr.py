@@ -79,7 +79,7 @@ def parse(text):
     m = POS_RE.search(t)
     if not m:
         return None
-    name = m.group(1).strip(" -:|")
+    name = m.group(1).strip(" -:|,.;'`")
     try:
         x = int(m.group(2).translate(FIX))
         y = int(m.group(3).translate(FIX))
@@ -98,7 +98,29 @@ def read_position(img, box):
         return None
     txt = read_text(crop)
     p = parse(txt)
+    if not p:
+        # letra chica sobre fondo con degradé (Olympia): más aumento y umbral fijo de brillo
+        for sc in (3, 4):
+            t2 = read_text_fixed(crop, sc, 150)
+            p = parse(t2)
+            if p:
+                txt = t2
+                break
     return (p[0], p[1], p[2], txt) if p else (None, None, None, txt)
+
+
+def read_text_fixed(crop, scale=3, thr=150):
+    if crop is None or _get_engine() is None:
+        return None
+    g = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    g = cv2.resize(g, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    th = np.where(g > thr, 0, 255).astype(np.uint8)
+    th = cv2.copyMakeBorder(th, 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=255)
+    with _lock:
+        try:
+            return asyncio.run(_recognize(th))
+        except Exception:
+            return None
 
 
 async def _recognize_words(img_gray):
