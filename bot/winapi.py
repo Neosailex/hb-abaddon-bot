@@ -307,7 +307,24 @@ def _lparam(x, y):
     return ((int(y) & 0xFFFF) << 16) | (int(x) & 0xFFFF)
 
 
+_last_wake = 0.0
+
+
+def _wake():
+    """El juego (SDL) ignora el mouse y el teclado si cree que no tiene el foco. Le aviso que está activo
+    (los mismos mensajes que manda Windows al traer una ventana adelante), sin traerla de verdad."""
+    global _last_wake
+    now = time.time()
+    if now - _last_wake < 0.5:
+        return
+    _last_wake = now
+    for m, w in ((0x1C, 1), (0x86, 1), (0x06, 1), (0x07, 0)):  # ACTIVATEAPP, NCACTIVATE, ACTIVATE, SETFOCUS
+        user32.PostMessageW(BG_HWND, m, w, 0)
+
+
 def _post(msg, w, l):
+    if msg in (WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_KEYDOWN, WM_MOUSEMOVE):
+        _wake()
     user32.PostMessageW(BG_HWND, msg, w, l)
 
 

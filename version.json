@@ -1,1 +1,1 @@
-{"version": 123, "notes": "Captura de ventana (como OBS): el bot ve el juego aunque tengas otra ventana arriba."}
+{"version": 124, "notes": "Segundo plano real: los clicks llegan al juego aunque estés usando otra ventana."}
