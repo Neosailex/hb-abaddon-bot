@@ -102,9 +102,20 @@ def find_game_dir(cfg_dir=None, server=None):
     return found[0] if found else None
 
 
+def _zstd(data):
+    try:
+        import zstandard
+        return zstandard.ZstdDecompressor().decompress(data, max_output_size=64 << 20)
+    except ImportError:
+        from compression import zstd  # Python 3.14+
+        return zstd.decompress(data)
+
+
 class MapData:
     def __init__(self, path):
         d = open(path, "rb").read()
+        if d[256:260] == b"\x28\xb5\x2f\xfd":  # cuerpo comprimido con zstd (cliente de Olympia)
+            d = d[:256] + _zstd(d[256:])
         h = d[:256].decode("latin1", "ignore")
         self.w = int(re.search(r"MAPSIZEX\s*=\s*(\d+)", h).group(1))
         self.h = int(re.search(r"MAPSIZEY\s*=\s*(\d+)", h).group(1))
@@ -115,6 +126,33 @@ class MapData:
         ys, xs = np.where(self.tele)
         self.teleports = list(zip(xs.tolist(), ys.tolist()))
         self.name = os.path.splitext(os.path.basename(path))[0]
+        if not self.teleports:
+            self._borrow_portals()
+
+    def _borrow_portals(self):
+        """Algunos clientes (Olympia) sacaron la marca de portales del archivo del mapa: si hay instalado un
+        Helbreath clásico con el mismo mapa (mismo tamaño), uso sus portales."""
+        for gd in DEFAULT_GAME_DIRS:
+            try:
+                md = os.path.join(gd, "MAPDATA")
+                fn = next((f for f in os.listdir(md) if os.path.splitext(f)[0].lower() == self.name.lower()), None)
+                if not fn:
+                    continue
+                d = open(os.path.join(md, fn), "rb").read()
+                if d[256:260] == b"\x28\xb5\x2f\xfd":
+                    continue
+                h = d[:256].decode("latin1", "ignore")
+                w = int(re.search(r"MAPSIZEX\s*=\s*(\d+)", h).group(1))
+                hh = int(re.search(r"MAPSIZEY\s*=\s*(\d+)", h).group(1))
+                if (w, hh) != (self.w, self.h):
+                    continue
+                t = np.frombuffer(d[256:256 + w * hh * 10], np.uint8).reshape(hh, w, 10)
+                self.tele = (t[:, :, 8] & 0x40) != 0
+                ys, xs = np.where(self.tele)
+                self.teleports = list(zip(xs.tolist(), ys.tolist()))
+                return
+            except Exception:
+                continue
 
     def ok(self, x, y):
         return 0 <= x < self.w and 0 <= y < self.h and bool(self.walk[y, x])

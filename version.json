@@ -1,1 +1,1 @@
-{"version": 117, "notes": "Seguridad: el auto-login no hace clicks ni escribe nada si hay otra ventana encima del juego, y la contraseña solo con el juego adelante."}
+{"version": 118, "notes": "Olympia: lee sus mapas comprimidos y toma los portales del Helbreath clásico."}
