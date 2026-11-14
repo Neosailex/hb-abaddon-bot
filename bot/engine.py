@@ -747,7 +747,23 @@ class Bot:
                 return True
         self._escape = None
         cur = (self.pos.get("map") or "").lower()
-        if getattr(self, "mission", None) or any(k in cur for k in ("shop", "blacksmith")) or not cur:
+        if not cur:
+            # sin mapa: puede ser que el juego esté en un menú (desconectado)
+            if now - getattr(self, "_nomap_t", now) > 30 and now - getattr(self, "_nomap_chk", 0) > 30:
+                self._nomap_chk = now
+                try:
+                    _w, txt = self._screen_words()
+                    nt = "".join(c for c in txt if c.isalnum())
+                    if any(k in nt for k in ("newaccount", "selectserver", "characterlist", "connectionlost", "createnewcharacter", "password")):
+                        self._force_relog = now + 180
+                        self.log("⚠ Alerta: el juego está en el menú (desconectado). Reconecto.")
+                except Exception:
+                    pass
+            if not hasattr(self, "_nomap_t") or self._nomap_t is None:
+                self._nomap_t = now
+            return False
+        self._nomap_t = None
+        if getattr(self, "mission", None) or any(k in cur for k in ("shop", "blacksmith")):
             return False
         stuck_pos = now - pos_t > float(self.cfg.get("stuck_secs", 40)) and now - exp_t > float(self.cfg.get("stuck_secs", 40))
         no_exp = now - exp_t > float(self.cfg.get("no_exp_secs", 180)) and not self._is_travelling()
@@ -1392,7 +1408,7 @@ class Bot:
         if not al.get("enabled"):
             return False
         now = time.time()
-        in_game = (not self.cfg["calib"].get("pos_box")) or (self.pos.get("t") and now - self.pos["t"] < 20)
+        in_game = (not self.cfg["calib"].get("pos_box")) or (self.pos.get("t") and now - self.pos["t"] < 20 and self.pos.get("map"))
         # la memoria puede seguir dando la última posición aunque el juego se haya desconectado: si el vigilante
         # vio una pantalla de menú, mando a reconectar igual
         if now < getattr(self, "_force_relog", 0):

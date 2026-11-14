@@ -1,1 +1,1 @@
-{"version": 110, "notes": "Detecta cuando el juego se desconecta aunque la memoria siga dando la posición, y reconecta desde el menú principal."}
+{"version": 111, "notes": "Reconexión: si no lee el mapa, revisa si el juego quedó en un menú y reconecta."}
