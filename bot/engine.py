@@ -754,7 +754,7 @@ class Bot:
                 try:
                     _w, txt = self._screen_words()
                     nt = "".join(c for c in txt if c.isalnum())
-                    if any(k in nt for k in ("newaccount", "selectserver", "characterlist", "connectionlost", "createnewcharacter", "password")):
+                    if any(k in nt.lower() for k in ("account", "server", "characterlist", "connectionlost", "createnew", "password", "logout")):
                         self._force_relog = now + 180
                         self.log("⚠ Alerta: el juego está en el menú (desconectado). Reconecto.")
                 except Exception:
@@ -773,7 +773,7 @@ class Bot:
         try:
             _w, txt = self._screen_words()
             nt = "".join(c for c in txt if c.isalnum())
-            if any(k in nt for k in ("newaccount", "selectserver", "characterlist", "connectionlost", "createnewcharacter")):
+            if any(k in nt.lower() for k in ("newaccount", "server", "characterlist", "connectionlost", "createnew", "logout")):
                 self._force_relog = now + 180
                 self.pos["t"] = 0
                 self.log("⚠ Alerta: el juego se desconectó (estoy en el menú). Reconecto.")
@@ -1444,7 +1444,7 @@ class Bot:
         sc_ = self.rect[2] / 1280.0
         ntxt = norm(txt)
         # 0) menú principal (Log In / New Account / Exit): aprieto "Log In"
-        if "newaccount" in ntxt and "exit" in ntxt and "password" not in ntxt:
+        if "exit" in ntxt and ("account" in ntxt or "log" in ntxt) and "password" not in ntxt and "server" not in ntxt:
             self._release()
             self.stats["state"] = "reconectando: menú"
             if now - getattr(self, "_al_menu_try", 0) < 12:
@@ -1455,14 +1455,17 @@ class Bot:
             self.log("Auto-login: estoy en el menú principal, aprieto Log In.")
             return True
         # 1a) elegir servidor (primera pantalla del juego)
-        if any(k in ntxt for k in ("selectserver", "abaddonserver", "apocalypseserver", "whichyouwantlogin")):
+        # (el OCR lee mal esa letra gótica: alcanza con ver "server" sin nada de la lista de personajes)
+        if ("server" in ntxt and "password" not in ntxt
+                and not any(k in ntxt for k in ("character", "createnew", "logout", "delete"))):
             self._release()
             self.stats["state"] = "reconectando: servidor"
             if now - getattr(self, "_al_srv_try", 0) < 15:
                 return True
             self._al_srv_try = now
-            w_ = next((w for w in words if norm(w[0]) == "abaddon" and w[2] > self.rect[3] * 0.33), None)
-            winapi.click(*(self.abs_pt(w_[1] + w_[3], w_[2]) if w_ else self.abs_pt(430 * sc_, 392 * sc_)))
+            # el primer renglón que dice SERVER es "ABADDON SERVER" (el segundo es Apocalypse)
+            sv = sorted([w for w in words if "server" in norm(w[0])], key=lambda w: w[2])
+            winapi.click(*(self.abs_pt(sv[0][1] - 60 * sc_, sv[0][2]) if sv else self.abs_pt(430 * sc_, 392 * sc_)))
             self.log("Auto-login: elijo el servidor Abaddon.")
             return True
         on_list = any(k in ntxt for k in ("characterlist", "character", "createnew", "logout", "newpass", "passconfirm", "change", "testserver"))
