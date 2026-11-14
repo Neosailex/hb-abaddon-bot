@@ -500,38 +500,46 @@ def find_npc_menu(img, thr=0.6):
 
 
 def find_bag_origin(img):
-    """Ubica el bolso abierto por el texto amarillo "UPGRADE" (el bolso se puede mover).
-    Devuelve (x, y) del texto en pantalla de 1280 o None. Origen de items = (x + 5, y - 212)."""
+    """Ubica el bolso abierto por sus textos dorados "UPGRADE" y "MANUFACTURE" en la misma línea (el bolso se puede
+    mover). Devuelve (x, y) de UPGRADE en pantalla de 1280 o None. Origen de items = (x + 5, y - 212).
+    Medido en el juego (1280x960): UPGRADE ~70 px de ancho; MANUFACTURE ~100 px, empieza ~188 px a la derecha."""
     import numpy as np
+    if img is None:
+        return None
     sc = img.shape[1] / 1280.0
     im = img.astype(np.int16)
     b, g, r = im[:, :, 0], im[:, :, 1], im[:, :, 2]
-    m = (r > 190) & (g > 160) & (b < 130) & (r - b > 80)
-    m[int(860 * sc):, :] = False
+    m = (r > 185) & (g > 160) & (b > 95) & (b < 180) & (r - b > 50) & (g - b > 30) & (r >= g)
+    m[int(870 * sc):, :] = False
     rows = m.sum(axis=1)
-    k = np.convolve(rows, np.ones(max(1, int(14 * sc))), mode="same")
-    y = int(np.argmax(k))
-    if k[y] < 150:
-        return None
-    band = m[max(0, y - int(8 * sc)):y + int(8 * sc)]
-    xs = np.nonzero(band.any(axis=0))[0]
-    if not len(xs):
-        return None
-    # tiene que ser el par "UPGRADE" ... "MANUFACTURE" en la misma línea (si no, es un barril o una lámpara)
-    cl, st_, pv = [], xs[0], xs[0]
-    for c in xs[1:]:
-        if c - pv > 25 * sc:
-            cl.append((st_, pv))
-            st_ = c
-        pv = c
-    cl.append((st_, pv))
-    for a0, a1 in cl:
-        if not (110 * sc <= a1 - a0 <= 220 * sc):
+    cand = np.nonzero(rows >= 12 * sc)[0]
+    best = None
+    tried = set()
+    for y in cand:
+        yb = int(y // max(1, int(4 * sc)))
+        if yb in tried:
             continue
-        for b0, b1 in cl:
-            if 400 * sc <= b0 - a0 <= 500 * sc and 170 * sc <= b1 - b0 <= 310 * sc:
-                return (a0 / sc, y / sc)
-    return None
+        tried.add(yb)
+        band = m[max(0, y - int(6 * sc)):y + int(6 * sc)]
+        xs = np.nonzero(band.sum(axis=0) >= 2)[0]
+        if len(xs) < 20:
+            continue
+        cl, st_, pv = [], xs[0], xs[0]
+        for c in xs[1:]:
+            if c - pv > 22 * sc:
+                cl.append((st_, pv))
+                st_ = c
+            pv = c
+        cl.append((st_, pv))
+        for a0, a1 in cl:
+            if not (45 * sc <= a1 - a0 <= 110 * sc):
+                continue
+            for b0, b1 in cl:
+                if 150 * sc <= b0 - a0 <= 235 * sc and 70 * sc <= b1 - b0 <= 150 * sc:
+                    score = int(band[:, a0:a1 + 1].sum() + band[:, b0:b1 + 1].sum())
+                    if best is None or score > best[0]:
+                        best = (score, a0 / sc, float(y) / sc)
+    return (best[1], best[2]) if best else None
 
 
 _ROW_TPL = {}

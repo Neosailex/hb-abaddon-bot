@@ -1,1 +1,1 @@
-{"version": 104, "notes": "Detecta bien el bolso abierto (antes confundía un barril con el bolso y no podía vender)."}
+{"version": 105, "notes": "Detección del bolso arreglada (colores reales del texto) y nunca tira items al piso por error."}

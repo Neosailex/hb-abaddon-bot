@@ -3927,12 +3927,32 @@ class Bot:
                 return {k: (v[0] / sc, v[1] / sc) for k, v in m.items() if k != "score"}
         return None
 
+    def _cancel_drop(self):
+        """Si quedó abierto el cartel "¿tirar este item al piso?" (un arrastre que cayó afuera), aprieto No."""
+        try:
+            img = self.screen.grab(self.rect)
+            ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": img.shape[0]}, scale=1.0)
+            if not any("drop" in w[0].lower() for w in ws):
+                return False
+            no = next((w for w in ws if w[0].strip().lower() == "no"), None)
+            if no:
+                winapi.click(*self.abs_pt(no[1], no[2]))
+            else:
+                winapi.press("ESC")
+            time.sleep(0.6)
+            self.log("💰 Se había abierto el cartel de tirar un item: apreté No (no tiré nada).")
+            return True
+        except Exception:
+            return False
+
     def _sell_items(self, entries, kind):
         """Con el vendedor adelante: abre Sell, arrastra cada cosa al cartel y confirma. Devuelve cuántas vendió."""
         sc = self.rect[2] / 1280.0
         P = lambda x, y: self.abs_pt(x * sc, y * sc)
         entries = entries[:12]
+        self._cancel_drop()
         if not entries or not self._bag_ready(True):
+            self.log("💰 No pude abrir el bolso para vender.")
             return 0
         m = self._talk_keeper(kind)
         if not m:
@@ -3958,6 +3978,8 @@ class Bot:
             if not (self.alive and self.running):
                 break
             iso = self._isolate(e["slot"])
+            if self._cancel_drop():
+                iso = None
             if not iso:
                 continue
             btn = sell_btn()
@@ -3966,6 +3988,7 @@ class Bot:
             self._drag_bg(*self._bag_pt(iso["x"], iso["y"]), (btn[0] + 102) * sc, (btn[1] - 114) * sc)
             time.sleep(0.8)
             put += 1
+        self._cancel_drop()
         btn = sell_btn()
         if not btn or not put:
             winapi.press("ESC")
