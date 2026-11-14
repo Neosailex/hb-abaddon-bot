@@ -2708,6 +2708,16 @@ class Bot:
             ws = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
             return any(norm(w[0]).startswith("estad") for w in ws) and any(norm(w[0]).startswith("misiones") for w in ws)
 
+        # si quedaron sumas sin aplicar de un intento anterior, las deshago para empezar de cero
+        try:
+            ws0 = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": img.shape[0]}, scale=1.0)
+            rb0 = next((w for w in ws0 if norm(w[0]).startswith("restablecer")), None)
+            if rb0:
+                click(rb0[1], rb0[2])
+                time.sleep(0.6)
+                img = grab()
+        except Exception:
+            pass
         pts = points(img)
         for _ in range(3):
             if pts is not None:
