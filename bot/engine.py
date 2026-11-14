@@ -3382,6 +3382,10 @@ class Bot:
             qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 30]
             if qok:
                 ok = qok  # misión activa: primero sus bichos
+            else:
+                # no hay bichos de la misión cerca: no pierdo tiempo con otros (salvo que me peguen encima);
+                # dejo que el bot camine a la zona de spawn del bicho de la misión
+                ok = [e for e in ok if d(e) <= 1]
         if not ok:
             if now - getattr(self, "_oly_nest_said", 0) > 120:
                 self._oly_nest_said = now
