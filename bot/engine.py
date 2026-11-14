@@ -2757,9 +2757,9 @@ class Bot:
             try:
                 wsl = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
                 nv = next((w for w in wsl if norm(w[0]) == "nivel" and abs(w[2] - asg[2]) < 25), None) if asg else None
-                num = next((w for w in wsl if nv and abs(w[2] - nv[2]) < 12 and 0 < w[1] - nv[1] < 90 and norm(w[0]).isdigit()), None)
-                if num:
-                    vals["LEVEL"] = int(norm(num[0]))
+                lvw = next((w for w in wsl if nv and abs(w[2] - nv[2]) < 12 and 0 < w[1] - nv[1] < 90 and norm(w[0]).isdigit()), None)
+                if lvw:
+                    vals["LEVEL"] = int(norm(lvw[0]))
                 elif nv and norm(nv[0]) != "nivel" and norm(nv[0])[5:].isdigit():
                     vals["LEVEL"] = int(norm(nv[0])[5:])
             except Exception:
