@@ -3256,6 +3256,13 @@ class Bot:
                 self._walk_to(m, pg, f"una salida nueva (buscando {want})")
                 return True
             self._portal_goal = None
+            # tengo la tabla de zonas de bichos de este mapa: voy a la zona que corresponde y busco ahí
+            if not (self.ents.center and self._mem_struct()) and self.pos.get("x") is not None:
+                mk_ = cur.strip().lower()
+                z_ = self.world.learn.setdefault("xpz", {}).setdefault(mk_, {})
+                r_ = self._spawn_step(m, mk_, z_, self.pos["x"], self.pos["y"])
+                if r_ is not None:
+                    return r_
             # sin monstruos hace rato: salgo a explorar otra parte del mapa
             if idle > self.cfg.get("explore_after_sec", 35):
                 goal = getattr(self, "_explore_goal", None)
@@ -3463,12 +3470,22 @@ class Bot:
         cx, cy = self._char()
         before = self.img
         pts = []
-        for r in self.cfg.get("scan_rings", [1.0, 1.6, 2.3, 3.0]):
+        rings = self.cfg.get("scan_rings", [1.0, 1.6, 2.3, 3.0])
+        if time.time() - getattr(self, "_zone_mob_t", 0) < 5:
+            # estoy en la zona de un bicho conocido: miro más lejos (los slimes casi no se mueven)
+            rings = self.cfg.get("scan_rings_zone", [1.0, 1.6, 2.3, 3.0, 3.8, 4.6, 5.4, 6.2])
+        for r in rings:
             n = max(8, int(r * 8))
             for i in range(n):
                 a = 2 * math.pi * i / n + (r * 0.37)
                 pts.append((int(cx + math.cos(a) * r * tw), int(cy - th * 0.3 + math.sin(a) * r * th)))
         roi = self._game_roi()
+        # muchos puntos (zona amplia): reviso de a tandas de 40 para no frenar el resto del bot
+        if len(pts) > 48:
+            off = getattr(self, "_ring_off", 0) % len(pts)
+            near = pts[:24]  # lo pegado al pj siempre
+            pts = near + (pts[24:] * 2)[off:off + 40]
+            self._ring_off = off + 40
         for x, y in pts:
             if not (roi["x1"] < x < roi["x2"] and roi["y1"] < y < roi["y2"]) or self._excluded(x, y):
                 continue
@@ -3869,11 +3886,27 @@ class Bot:
         self.stats["hunt_zone"] = f"{zn['mob']} ({ctr[0]},{ctr[1]})"
         if x1 - 4 <= x <= x2 + 4 and y1 - 4 <= y <= y2 + 4:
             self._zone_mob, self._zone_mob_t = zn["mob"], now
-            if self._mem_near():
+            vis = not (self.ents.center and self._mem_struct())  # sin lista de bichos en memoria: busco con el mouse
+            if self._mem_near() or (vis and now - getattr(self, "_last_enemy", 0) < 40):
                 self._zone_idle = now
-            elif now - getattr(self, "_zone_idle", now) > 40:
+            elif now - getattr(self, "_zone_idle", now) > (120 if vis else 40):
                 empty[key] = now + 120  # no queda nada: mientras reaparecen voy a la siguiente
                 self._zone_idle = now
+                if vis:
+                    self.log(f"Revisé la zona de {zn['mob']} y no encontré nada: pruebo otra mientras reaparecen.")
+            elif vis:
+                # adentro de la zona: me muevo por puntos de la zona y dejo que el buscador revise alrededor
+                g = getattr(self, "_zone_pt", None)
+                if not g or g[2] != key or max(abs(g[0] - x), abs(g[1] - y)) <= 1 or now - g[3] > 25:
+                    for _ in range(30):
+                        gx, gy = random.randint(x1, x2), random.randint(y1, y2)
+                        if mp.ok(gx, gy) and not self._is_danger(gx, gy):
+                            g = self._zone_pt = (gx, gy, key, now)
+                            break
+                if g and now - getattr(self, "_last_enemy", 0) > 6 and self.state == "seek":
+                    self._walk_to(mp, (g[0], g[1]), f"buscando {zn['mob']} en su zona")
+                    self.stats["state"] = f"buscando {zn['mob']} en su zona"
+                return False
             elif max(abs(ctr[0] - x), abs(ctr[1] - y)) > 3:
                 self._walk_to(mp, ctr, f"centro de la zona de {zn['mob']}")
                 self.stats["state"] = "buscando en la zona"

@@ -1,1 +1,1 @@
-{"version": 138, "notes": "Olympia: nivel real desde la ventana de personaje y cierra todas las ventanas que deja abiertas."}
+{"version": 139, "notes": "Sin lista de bichos en memoria: va a la zona de spawn del bicho que le toca y lo busca ahí con el mouse en un radio amplio."}
