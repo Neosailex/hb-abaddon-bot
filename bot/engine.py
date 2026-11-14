@@ -903,6 +903,7 @@ class Bot:
         self._maybe_shop()
         self._maybe_repair()
         self._brain_step()
+        self._close_junk_windows()
         self._maybe_gear()
         if self._mission_step():
             return
@@ -983,6 +984,39 @@ class Bot:
         x, y = self.abs_pt(slot["x"], slot["y"])
         winapi.click(x, y, double=True)
         return True
+
+    def _close_junk_windows(self):
+        """Ventanas que el bot no usa (ej. 'Resumen de Muerte' de Olympia): las cierro con click derecho
+        sobre la ventana. Miro cada ~8 s, solo si no estoy peleando."""
+        titles = self.cfg.get("close_windows") or []
+        if not titles or not self.rect or self.state == "attack":
+            return False
+        now = time.time()
+        if now - getattr(self, "_junk_t", 0) < 8:
+            return False
+        self._junk_t = now
+        img = self.img if self.img is not None else self.screen.grab(self.rect)
+        if img is None:
+            return False
+        H, W = img.shape[:2]
+        try:
+            words = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": W, "y2": int(H * 0.88)}, scale=1.0)
+        except Exception:
+            return False
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        txt = [(norm(w[0]), w) for w in words]
+        for title in titles:
+            first = norm(title.split()[0])
+            for t, w in txt:
+                if t.startswith(first):
+                    rest = [norm(x) for x in title.split()[1:]]
+                    near = " ".join(t2 for t2, w2 in txt if abs(w2[2] - w[2]) < 15 and 0 <= w2[1] - w[1] < 400)
+                    if all(r in near for r in rest):
+                        winapi.click(*self.abs_pt(w[1], w[2] + 25), button="right")
+                        self.log(f"Cierro la ventana '{title}' (click derecho).")
+                        time.sleep(0.3)
+                        return True
+        return False
 
     def _adjacent_mobs(self):
         """Bichos a una baldosa del pj (lista de la memoria). 0 si no se sabe."""

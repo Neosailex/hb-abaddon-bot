@@ -95,6 +95,8 @@ DEFAULTS = {
     "game_dir": "",
     # servidor: cada uno guarda lo aprendido (mapas, rendimiento, progreso) en su propia carpeta
     "server": {"name": "Abaddon", "bots_permitidos": False},
+    # ventanas que el bot cierra con click derecho si aparecen (título como se ve en pantalla)
+    "close_windows": ["Resumen de Muerte"],
     # --- Auto-login ---
     "autologin": {"enabled": False, "account": "", "password_enc": "", "char_name": "", "relaunch": True},
     "login_field_offset": 140,
