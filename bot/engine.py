@@ -1048,7 +1048,8 @@ class Bot:
                             self.log("Cierro el bolso (F6).")
                             time.sleep(0.3)
                             return True
-                        winapi.click(*self.abs_pt(w[1], w[2] + 25), button="right")
+                        dy = 190 if first == "tienda" else 25
+                        winapi.click(*self.abs_pt(w[1], w[2] + dy * self.rect[3] / 1080.0), button="right")
                         self.log(f"Cierro la ventana '{title}' (click derecho).")
                         time.sleep(0.3)
                         return True
@@ -4826,7 +4827,15 @@ class Bot:
             tw, th = self._tile()
             cx, cy = self._char()
             com = None
-            for tx, ty in ((57, 42), (57, 41), (58, 42), (56, 42), (58, 41)):
+            tiles = [(57, 42), (57, 41), (58, 42), (56, 42), (58, 41)]
+            try:  # la tendera camina: si la veo en la memoria (tipo 15 = vendedora) voy a donde está
+                kio = [(r[0], r[1]) for r in self.oly.read(self.mem.proc) if r[2] == 15]
+                px0, py0 = self.pos.get("x"), self.pos.get("y")
+                if kio and px0 is not None:
+                    tiles = [min(kio, key=lambda t_: abs(t_[0] - px0) + abs(t_[1] - py0))] + tiles
+            except Exception:
+                pass
+            for tx, ty in tiles:
                 px, py = self.pos.get("x"), self.pos.get("y")
                 click(cx + (tx - px) * tw, cy + (ty - py) * th - th * 0.3)
                 time.sleep(2.2)
@@ -4909,6 +4918,15 @@ class Bot:
         except Exception as e:
             self.log(f"🛒 Error en la tienda: {e!r}")
         finally:
+            # cierro la ventana de la tienda (click derecho adentro); abierta no deja caminar
+            try:
+                tw_ = next((w for w in ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.5)}, scale=1.0)
+                            if "".join(c for c in w[0].lower() if c.isalnum()) == "tienda"), None)
+                if tw_:
+                    winapi.click(*self.abs_pt(tw_[1], tw_[2] + 190 * self.rect[3] / 1080.0), button="right")
+                    time.sleep(0.4)
+            except Exception:
+                pass
             self.mission = None
             self._busy_ui = False
             self._shop_last = time.time()
