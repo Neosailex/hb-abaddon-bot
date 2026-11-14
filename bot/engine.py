@@ -4206,6 +4206,36 @@ class Bot:
         except Exception:
             return False
 
+    def _read_small_num(self, img, x1, y1, x2, y2):
+        """Lee un número chico (1-3 cifras) de un recuadro: aíslo el texto claro, lo recorto justo y lo pongo dos
+        veces seguido ('4' -> '44'), porque el OCR de Windows no lee una cifra sola."""
+        import cv2 as _cv
+        roi = img[max(0, y1):y2, max(0, x1):x2]
+        if roi.size == 0:
+            return None
+        r_, g_, b_ = roi[:, :, 2].astype(int), roi[:, :, 1].astype(int), roi[:, :, 0].astype(int)
+        m = ((g_ > 100) & (g_ - r_ > 30) & (g_ - b_ > 30)) | ((r_ > 170) & (g_ > 170) & (b_ > 170))
+        ys, xs = np.nonzero(m)
+        if len(xs) < 4:
+            return None
+        a, b, c, d = max(0, ys.min() - 3), ys.max() + 4, max(0, xs.min() - 3), xs.max() + 4
+        t = np.where(m[a:b, c:d], 255, 0).astype(np.uint8)
+        t = _cv.cvtColor(t, _cv.COLOR_GRAY2BGR)
+        pad = np.zeros((t.shape[0], 24, 3), np.uint8)
+        gap = np.zeros((t.shape[0], 3, 3), np.uint8)
+        for k, sc in ((2, 3.0), (2, 2.0), (3, 3.0), (2, 4.0)):
+            row = np.hstack([pad] + sum(([t, gap] for _ in range(k)), [])[:-1] + [pad])
+            row = _cv.copyMakeBorder(row, 10, 10, 0, 0, _cv.BORDER_CONSTANT, value=0)
+            try:
+                ws = ocr.read_words(row, {"x1": 0, "y1": 0, "x2": row.shape[1], "y2": row.shape[0]}, scale=sc)
+            except Exception:
+                ws = []
+            txt = "".join(w[0] for w in ws)
+            txt = "".join(ch for ch in txt if ch.isdigit())
+            if txt and len(txt) % k == 0 and txt == txt[:len(txt) // k] * k:
+                return int(txt[:len(txt) // k])
+        return None
+
     def _oly_pots(self):
         """Pociones de vida en el bolso (Olympia): abro F6, busco los frascos rojos y leo el número de abajo."""
         import cv2
@@ -4235,14 +4265,19 @@ class Bot:
             b_, g_, r_ = roi[:, :, 0].astype(int), roi[:, :, 1].astype(int), roi[:, :, 2].astype(int)
             mask = ((r_ > 140) & (g_ < 70) & (b_ < 80)).astype(np.uint8)
             n, lab, st_, cen = cv2.connectedComponentsWithStats(mask)
-            total = 0
+            total, seen, unknown = 0, [], False
             for i in range(1, n):
                 if st_[i, cv2.CC_STAT_AREA] < 12:
                     continue
                 cx, cy = int(cen[i][0]) + x1, int(cen[i][1]) + y1
-                ws = ocr.read_words(img, {"x1": cx - int(30 * kx), "y1": cy + int(4 * ky), "x2": cx + int(40 * kx), "y2": cy + int(40 * ky)}, scale=2.0)
-                d = next((norm(w[0]) for w in ws if norm(w[0]).isdigit()), None)
-                total += int(d) if d else 1
+                if any(abs(cx - q[0]) < 20 * kx and abs(cy - q[1]) < 20 * ky for q in seen):
+                    continue  # el mismo frasco partido en dos manchas (tapa y cuerpo)
+                seen.append((cx, cy))
+                d = self._read_small_num(img, cx - int(12 * kx), cy + int(6 * ky), cx + int(42 * kx), cy + int(36 * ky))
+                if d is None:
+                    unknown = True
+                total += d if d else 1
+            self._pots_unknown = unknown
             return total
         finally:
             if opened:
@@ -4265,10 +4300,11 @@ class Bot:
                 n = None
             if n is not None:
                 if n != getattr(self, "_left", {}).get("pot"):
-                    self.log(f"🧪 Me quedan {n} pociones de vida.")
+                    self.log(f"🧪 Me quedan {n}{'+' if getattr(self, '_pots_unknown', False) else ''} pociones de vida.")
                 self._left = {"pot": n, "meat": 99}
         n = getattr(self, "_left", {}).get("pot")
-        if n is None or n > int(self.cfg.get("buy_pots_below", 3)) or now - getattr(self, "_shop_last", 0) < 900:
+        lim = 0 if getattr(self, "_pots_unknown", False) else int(self.cfg.get("buy_pots_below", 3))
+        if n is None or n > lim or now - getattr(self, "_shop_last", 0) < 900:
             return
         self._shop_last = now
         self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
