@@ -3426,6 +3426,18 @@ class Bot:
         ox, oy = getattr(self, "_bag_oxy", None) or (self.BAG_OX, self.BAG_OY)
         return (ox + self.BAG_S * x) * sc, (oy + self.BAG_S * y) * sc
 
+    def _bag_keep(self, o0):
+        """Si un arrastre agarró el bolso en vez de un item (se movió la ventana), lo vuelvo a donde estaba."""
+        sc = self.rect[2] / 1280.0
+        winapi.move(*self.abs_pt(640 * sc, 790 * sc))
+        time.sleep(0.2)
+        o = self._bag_sync()
+        if o and o0 and (abs(o[0] - o0[0]) > 8 or abs(o[1] - o0[1]) > 8):
+            gx, gy = o[0] + 150, o[1] - 262  # la tapa del bolso
+            self._drag_bg(gx * sc, gy * sc, (gx + o0[0] - o[0]) * sc, (gy + o0[1] - o[1]) * sc)
+            time.sleep(0.4)
+            self._bag_sync()
+
     def _bag_sync(self):
         """El bolso se puede mover: lo ubico por el texto "UPGRADE". Devuelve dónde está o None si está cerrado."""
         o = vision.find_bag_origin(self.screen.grab(self.rect))
@@ -3510,7 +3522,8 @@ class Bot:
         """Lleva el item de ese casillero a un lugar libre del bolso. Como las cosas se tapan, puede que agarre
         otra: lo sé porque en la memoria se mueve la que agarré. Insisto hasta mover la que quiero."""
         for _ in range(tries):
-            if not self._bag_sync():
+            o0 = self._bag_sync()
+            if not o0:
                 return None  # bolso cerrado
             it = self._inv_item(slot=slot)
             if not it:
@@ -3519,6 +3532,8 @@ class Bot:
             ex, ey = self._free_spot()
             self._drag_bg(*self._bag_pt(it["x"], it["y"]), *self._bag_pt(ex, ey))
             time.sleep(0.5)
+            self._cancel_drop()
+            self._bag_keep(o0)
             self._inv_cache = None
             moved = [i for i in self._inv_mem() or [] if before.get(i["slot"]) != (i["x"], i["y"])]
             if any(i["slot"] == slot for i in moved):
@@ -3527,6 +3542,8 @@ class Bot:
                 # no agarré nada: pruebo un poco corrido
                 self._drag_bg(*self._bag_pt(it["x"] + 6, it["y"] + 10), *self._bag_pt(ex, ey))
                 time.sleep(0.5)
+                self._cancel_drop()
+                self._bag_keep(o0)
                 self._inv_cache = None
                 if (self._inv_item(slot=slot) or {}).get("x") != it["x"]:
                     return self._inv_item(slot=slot)
