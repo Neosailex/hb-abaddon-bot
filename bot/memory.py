@@ -472,16 +472,30 @@ def find_seq(proc, values, widths=(4, 2), gap=(0,), chunk=8 << 20, limit=50):
     return out
 
 
-class OlyEntities:
-    """Bichos/NPC de Olympia. El cliente guarda cada uno en un objeto del heap (no en una grilla): se reconoce por
-    un patrón fijo alrededor de la posición: 15 justo antes, 0x64000000 en +8 y 16 en -56; el tipo (10 = Slime)
-    está en -92 y un id en -88. Barrer toda la memoria tarda ~0,5 s; después solo releo los bloques donde estaban."""
+DEFAULT_SIG = {"sig": [[-4, 15], [8, 0x64000000], [-56, 16]], "type_off": -92, "id_off": -88}
 
-    def __init__(self):
+
+class OlyEntities:
+    """Bichos/NPC de clientes nuevos (Olympia). Cada uno es un objeto del heap que se reconoce por una "firma":
+    valores fijos a ciertas distancias de su posición (x,y en int16). En Olympia: 15 justo antes, 0x64000000 en
+    +8 y 16 en -56; el tipo (10 = Slime) en -92 y un id en -88. En otro server la firma se descubre sola
+    (discover_entities). Barrer toda la memoria tarda ~0,5 s; después solo releo los bloques donde estaban."""
+
+    def __init__(self, sig=None):
+        self.set_sig(sig or DEFAULT_SIG)
+
+    def set_sig(self, sig):
+        self.sig = sig
         self.chunks, self.t_full = [], 0.0
 
     def _scan(self, proc, regs, step=4 << 20):
         out, chunks = [], []
+        sig = [(int(o) // 4, int(v) & 0xFFFFFFFF) for o, v in self.sig["sig"]]
+        t_off = self.sig.get("type_off")
+        i_off = self.sig.get("id_off")
+        offs = [o for o, _ in sig] + [(t_off or 0) // 4, (i_off or 0) // 4, 0]
+        lo, hi = -min(offs) if min(offs) < 0 else 0, max(offs) if max(offs) > 0 else 0
+        o0, v0 = sig[0]
         for base, size in regs:
             off = 0
             while off < size:
@@ -490,16 +504,23 @@ class OlyEntities:
                 if not d:
                     break
                 a = np.frombuffer(d[:len(d) // 4 * 4], np.uint32)
-                if len(a) > 40:
-                    i = np.nonzero(a[22:-4] == 15)[0] + 22
-                    i = i[(a[i + 3] == 0x64000000) & (a[i - 13] == 16)]
-                    if len(i):
+                if len(a) > lo + hi + 4:
+                    p = np.nonzero(a == v0)[0] - o0
+                    p = p[(p >= lo) & (p < len(a) - hi)]
+                    for o, v in sig[1:]:
+                        if len(p) == 0:
+                            break
+                        p = p[a[p + o] == v]
+                    if len(p):
                         chunks.append((base + off, n))
-                    for k in i:
-                        xy = int(a[k + 1])
+                    for k in p:
+                        xy = int(a[k])
                         x, y = xy & 0xFFFF, xy >> 16
                         x, y = (x - 65536 if x > 32767 else x), (y - 65536 if y > 32767 else y)
-                        out.append((x, y, int(a[k - 22] & 0xFFFF), int(a[k - 22] >> 16), int(a[k - 21])))
+                        typ = int(a[k + t_off // 4] & 0xFFFF) if t_off is not None else -1
+                        st = int(a[k + t_off // 4] >> 16) if t_off is not None else 0
+                        oid = int(a[k + i_off // 4]) if i_off is not None else int(base + off + k * 4)
+                        out.append((x, y, typ, st, oid))
                 off += n
         return out, chunks
 
@@ -515,3 +536,78 @@ class OlyEntities:
         if not out:
             self.t_full = 0
         return out
+
+
+def discover_entities(proc, px, py, rounds=4, wait=1.5, log=print):
+    """Server nuevo: busca solo dónde guarda el juego a los bichos. Junta todos los pares (x,y) cerca del pj,
+    los relee varias veces y se queda con los que se mueven de a una baldosa (bichos caminando). Después mira
+    qué valores alrededor son iguales en todos ellos: esa es la firma. Devuelve el dict de firma o None."""
+    import struct
+    import time as _t
+    hits = {}
+    for base, size in proc.regions():
+        off = 0
+        while off < size:
+            n = min(8 << 20, size - off)
+            d = proc.read(base + off, n)
+            if not d:
+                break
+            a = np.frombuffer(d[:len(d) // 4 * 4], np.int16)
+            m = (np.abs(a[:-1] - px) <= 14) & (np.abs(a[1:] - py) <= 11)
+            for i in np.nonzero(m)[0][:60000]:
+                addr = base + off + int(i) * 2
+                if addr % 4 == 0:
+                    hits[addr] = (int(a[i]), int(a[i + 1]))
+            off += n
+    snaps = [hits]
+    for _ in range(rounds):
+        _t.sleep(wait)
+        cur = {}
+        for addr in hits:
+            b = proc.read(addr, 4)
+            if b and len(b) == 4:
+                cur[addr] = struct.unpack("<hh", b)
+        snaps.append(cur)
+    cand = []
+    for addr in hits:
+        xy = [sn.get(addr) for sn in snaps]
+        if any(v is None for v in xy) or len(set(xy)) < 2:
+            continue
+        if all(abs(x - px) <= 14 and abs(y - py) <= 11 for x, y in xy) and \
+                all(abs(xy[i][0] - xy[i + 1][0]) <= 1 and abs(xy[i][1] - xy[i + 1][1]) <= 1 for i in range(len(xy) - 1)):
+            cand.append(addr)
+    log(f"🔎 Memoria: {len(hits)} posiciones cerca, {len(cand)} se mueven como bichos.")
+    if len(cand) < 3:
+        return None
+    blocks = []
+    for addr in cand:
+        b = proc.read(addr - 0x100, 0x180)
+        if b and len(b) == 0x180:
+            blocks.append(np.frombuffer(b, np.uint32))
+    if len(blocks) < 3:
+        return None
+    M = np.stack(blocks)  # filas: candidatos; columnas: palabras desde -0x100
+    same = (M == M[0]).all(axis=0)
+    sig = []
+    for j in np.nonzero(same)[0]:
+        o = int(j) * 4 - 0x100
+        v = int(M[0, j])
+        if o == 0 or v in (0, 0xFFFFFFFF):
+            continue
+        sig.append([o, v])
+    if not sig:
+        return None
+    sig.sort(key=lambda e: abs(e[0]))
+    sig = sig[:4]
+    # tipo: palabra cuyo int16 bajo es chico (1..300) y es igual en la mayoría; id: palabra distinta en todos
+    t_off = i_off = None
+    for j in sorted(range(M.shape[1]), key=lambda j: abs(j * 4 - 0x100)):
+        o = j * 4 - 0x100
+        if o == 0 or same[j]:
+            continue
+        low = M[:, j] & 0xFFFF
+        if t_off is None and (low >= 1).all() and (low <= 300).all() and len(set(low.tolist())) <= max(1, len(low) // 3):
+            t_off = o
+        if i_off is None and len(set(M[:, j].tolist())) == len(M) and (M[:, j] > 0x10000).all():
+            i_off = o
+    return {"sig": sig, "type_off": t_off, "id_off": i_off, "found": len(cand)}

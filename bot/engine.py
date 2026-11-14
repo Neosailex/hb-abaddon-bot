@@ -12,6 +12,7 @@ from . import config as cfgmod
 from . import events as evmod
 from . import memory, ocr, secret, vision, winapi
 from . import world as worldmod
+from . import learn as learnmod
 import difflib
 import numpy as np
 
@@ -61,6 +62,7 @@ class Bot:
         self._last_ocr_xy = None
         self.ents = memory.Entities(self.log)
         self.oly = memory.OlyEntities()
+        self.learner = learnmod.Learner(self)
         self._ent_bl = {}
         self._last_ocr = 0
         self.nav = {"status": "", "dest": None, "last_click": 0, "last_pos": None, "still_since": 0, "target_tile": None}
@@ -859,6 +861,12 @@ class Bot:
         self._town_account()
         self._tab_check()
         self._yield_tick()
+        try:
+            self.learner.tick()
+        except Exception as e:
+            if time.time() - getattr(self, "_learn_err_t", 0) > 600:
+                self._learn_err_t = time.time()
+                self.log(f"Aprendizaje: error {e!r}")
         self._zone_flush()
         self._fight_sample()
         if getattr(self, "_busy_ui", False):
@@ -1158,6 +1166,10 @@ class Bot:
                 self._avoid_t = 0
                 if cfgmod.server_slug(self.cfg) != "abaddon":
                     self._oly_died()
+                try:
+                    self.learner.on_death()
+                except Exception:
+                    pass
                 if dm["n"] >= 2:
                     self.log(f"☠ {dm['n']} muertes seguidas en {self.pos.get('map')}: lo dejo por {dm['n']} hora(s) (o hasta subir 3 niveles) y mientras cazo un escalón más abajo.")
             except Exception:
@@ -1198,7 +1210,8 @@ class Bot:
         cfg, b, now = self.cfg, self.bars, time.time()
         # con pociones encima aguanto peleando y tomando; escapar a pie casi nunca salva. Sin pociones, me voy antes.
         _sm = self._supplies_mem()
-        panic = cfg["panic_hp_pct"] if not _sm or _sm["pot"] < 2 else min(cfg["panic_hp_pct"], int(cfg.get("panic_with_pots_pct", 18)))
+        panic_base = self.learner.knob("panic_hp_pct", cfg["panic_hp_pct"]) if cfgmod.server_slug(cfg) != "abaddon" else cfg["panic_hp_pct"]
+        panic = panic_base if not _sm or _sm["pot"] < 2 else min(panic_base, int(cfg.get("panic_with_pots_pct", 18)))
         hp = b.get("hp")
         hm = self._hp_mem()
         if hm is not None and hm > 0:
@@ -1258,7 +1271,7 @@ class Bot:
             fighting = now - getattr(self, "_last_dmg_t", 0) < 5 or self._adjacent_mobs() > 0
             rs = getattr(self, "_rest_since", 0)
             if rs:
-                if hp >= 80 or fighting or now - rs > 60:
+                if hp >= self.learner.knob("rest_until_pct", 80) or fighting or now - rs > 60:
                     self._rest_since = 0
                     if now - rs > 60 and hp < 80:
                         self._rest_block = now + 30
@@ -1267,7 +1280,7 @@ class Bot:
                     self._release()
                     self.stats["state"] = f"descansando ({hp:.0f}%)"
                     return True
-            elif hp < 50 and not fighting and now > getattr(self, "_rest_block", 0) and not self._is_travelling():
+            elif hp < self.learner.knob("rest_below_pct", 50) and not fighting and now > getattr(self, "_rest_block", 0) and not self._is_travelling():
                 self._rest_since = now
                 self._release()
                 self.state, self.target = "seek", None
@@ -2792,6 +2805,7 @@ class Bot:
             click((st[1] + ap[1]) / 2, st[2] - 60, "right")
             time.sleep(0.6)
             vals = stats_f5()
+        self._stats_vals = {k: v for k, v in vals.items() if v is not None}
         if vals.get("LEVEL"):
             t = self.cfg.setdefault("travel", {})
             if int(t.get("my_level", 0) or 0) != vals["LEVEL"]:
@@ -3182,14 +3196,37 @@ class Bot:
         if now - getattr(self, "_oly_t", 0) < 0.4:
             return self._oly_last
         self._oly_t = now
+        pdir = cfgmod.profile_dir(self.cfg)
+        if getattr(self, "_oly_sig_dir", None) != pdir:
+            self._oly_sig_dir = pdir
+            sig = None
+            try:
+                with open(os.path.join(pdir, "memoria.json"), encoding="utf-8") as f:
+                    sig = json.load(f).get("entidades")
+            except Exception:
+                pass
+            self.oly.set_sig(sig or memory.DEFAULT_SIG)
         try:
             raw = self.oly.read(self.mem.proc)
         except Exception:
             raw = []
+        # server nuevo / cliente actualizado: si en 3 minutos cazando no veo ningún bicho en memoria, busco
+        # solo dónde los guarda (los bichos que se mueven cerca del pj) y guardo la firma para la próxima
+        if raw:
+            self._oly_empty_t = 0
+        elif self.running and self.pos.get("x") is not None:
+            t0 = getattr(self, "_oly_empty_t", 0) or now
+            self._oly_empty_t = t0
+            th = getattr(self, "_oly_disc_th", None)
+            if now - t0 > 180 and now - getattr(self, "_oly_disc_last", 0) > 900 and not (th and th.is_alive()):
+                self._oly_disc_last = now
+                self._oly_disc_th = threading.Thread(target=self._oly_discover, daemon=True)
+                self._oly_disc_th.start()
         crs = self._creatures_db()
         seen, out = set(), []
+        generic = {"name": "bicho", "type": -1, "dmg_avg": 0, "hit": 0, "hp": 0} if self.oly.sig.get("type_off") is None else None
         for x, y, typ, st, oid in raw:
-            cr = crs.get(typ)
+            cr = crs.get(typ) or generic
             if not cr or oid in seen:
                 continue
             seen.add(oid)
@@ -3199,6 +3236,25 @@ class Bot:
             self.log(f"🧠 Memoria (Olympia): ya veo la lista de bichos ({len(out)} cerca). Cazo con ella.")
         self._oly_last = out
         return out
+
+    def _oly_discover(self):
+        try:
+            self.log("🔎 No encuentro a los bichos en la memoria: los busco solo (los que se mueven cerca).")
+            sig = memory.discover_entities(self.mem.proc, self.pos["x"], self.pos["y"], log=self.log)
+            if not sig:
+                self.log("🔎 No los encontré esta vez (necesito bichos moviéndose cerca). Pruebo en 15 minutos.")
+                return
+            path = os.path.join(cfgmod.profile_dir(self.cfg), "memoria.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"entidades": sig, "t": int(time.time())}, f, indent=1)
+            self.oly.set_sig(sig)
+            self.log(f"🔎 ¡Encontré cómo guarda los bichos este server! ({sig['found']} moviéndose). Firma guardada.")
+            try:
+                self.learner.note("Encontré la firma de bichos en memoria: " + json.dumps(sig))
+            except Exception:
+                pass
+        except Exception as e:
+            self.log(f"🔎 Error buscando bichos en memoria: {e!r}")
 
     def _oly_step(self):
         """Elijo un bicho de la lista de memoria: si está en pantalla le pego; si no, camino hasta él."""
@@ -3285,8 +3341,17 @@ class Bot:
         return False
 
     def _oly_allow(self):
-        lr = self.world.learn.setdefault("oly_nest", {"allow": 0, "ok": 0})
-        return int(lr.get("allow", 0))
+        mob = getattr(self, "_hunt_mob", None) or "Slime"
+        if "oly_nest" not in self.world.learn:
+            # primera vez en este server: arranco con lo que aguanté en otros servers con números parecidos
+            prior = self.learner.nest_prior(mob)
+            self.world.learn["oly_nest"] = {"allow": prior, "ok": 0}
+            if prior:
+                self.log(f"🧠 Por lo aprendido en otros servers, arranco aceptando {prior} vecino/s por bicho.")
+        lr = self.world.learn["oly_nest"]
+        allow = int(lr.get("allow", 0))
+        cap = self.learner.crowd_cap(mob, int(self.cfg.get("travel", {}).get("my_level", 1) or 1))
+        return allow if cap is None else min(allow, cap)
 
     def _oly_fight_review(self):
         """Terminó la pelea anterior (elijo otro bicho): si salí con buena vida sumo una buena; si quedé muy
@@ -3312,6 +3377,10 @@ class Bot:
                 lr["allow"] += 1
                 lr["ok"] = 0
                 self.log(f"🪺 Vengo aguantando bien: me animo a bichos con hasta {lr['allow']} vecinos (nidos más cargados).")
+                try:
+                    self.learner.note_nest(lr["allow"], getattr(self, "_hunt_mob", None) or "Slime")
+                except Exception:
+                    pass
         self.world.save()
 
     def _oly_died(self):
@@ -4300,12 +4369,12 @@ class Bot:
         roi = img[max(0, y1):y2, max(0, x1):x2]
         if roi.size == 0:
             return None
-        r_, g_, b_ = roi[:, :, 2].astype(int), roi[:, :, 1].astype(int), roi[:, :, 0].astype(int)
-        m = ((g_ > 100) & (g_ - r_ > 30) & (g_ - b_ > 30)) | ((r_ > 170) & (g_ > 170) & (b_ > 170))
+        m = self._text_mask(roi)
         ys, xs = np.nonzero(m)
         if len(xs) < 4:
             return None
         a, b, c, d = max(0, ys.min() - 3), ys.max() + 4, max(0, xs.min() - 3), xs.max() + 4
+        gr = self._glyph_reader()
         t = np.where(m[a:b, c:d], 255, 0).astype(np.uint8)
         t = _cv.cvtColor(t, _cv.COLOR_GRAY2BGR)
         pad = np.zeros((t.shape[0], 24, 3), np.uint8)
@@ -4320,8 +4389,50 @@ class Bot:
             txt = "".join(w[0] for w in ws)
             txt = "".join(ch for ch in txt if ch.isdigit())
             if txt and len(txt) % k == 0 and txt == txt[:len(txt) // k] * k:
-                return int(txt[:len(txt) // k])
-        return None
+                val = int(txt[:len(txt) // k])
+                if gr:
+                    gr.learn(m[a:b, c:d], str(val))
+                return val
+        # el OCR no pudo: pruebo con las cifras que fui aprendiendo en este server
+        return gr.read(m[a:b, c:d]) if gr else None
+
+    @staticmethod
+    def _text_mask(roi):
+        """Píxeles de texto del juego: verde, blanco o amarillo sobre fondo oscuro."""
+        r_, g_, b_ = roi[:, :, 2].astype(int), roi[:, :, 1].astype(int), roi[:, :, 0].astype(int)
+        mx = np.maximum(np.maximum(r_, g_), b_)
+        mn = np.minimum(np.minimum(r_, g_), b_)
+        return (((g_ > 100) & (g_ - r_ > 30) & (g_ - b_ > 30)) | ((mn > 120) & (mx - mn < 50))
+                | ((r_ > 150) & (g_ > 120) & (b_ < 110) & (r_ - b_ > 70)))
+
+    def _glyph_reader(self):
+        """Plantillas de cifras aprendidas en este server (glifos.json)."""
+        try:
+            from . import glyphs as glmod
+            path = os.path.join(cfgmod.profile_dir(self.cfg), "glifos.json")
+            g = getattr(self, "_glyphs", None)
+            if g is None or g.path != path:
+                g = self._glyphs = glmod.GlyphReader(path)
+            return g
+        except Exception:
+            return None
+
+    def _glyph_learn(self, img, box, text):
+        """El OCR leyó bien un número de 2+ cifras en 'box': guardo sus cifras como ejemplos."""
+        t = "".join(ch for ch in str(text) if ch.isdigit())
+        if len(t) < 2:
+            return
+        x1, y1, x2, y2 = [int(v) for v in box]
+        roi = img[max(0, y1):y2, max(0, x1):x2]
+        if roi.size == 0:
+            return
+        m = self._text_mask(roi)
+        ys, xs = np.nonzero(m)
+        if len(xs) < 4:
+            return
+        gr = self._glyph_reader()
+        if gr:
+            gr.learn(m[ys.min():ys.max() + 1, xs.min():xs.max() + 1], t)
 
     # ---------------------------------------------------------------- misiones (Olympia)
     QUEST_TURNIN = ("completar", "entregar", "finalizar", "reclamar", "terminar", "recompensa")
@@ -4569,12 +4680,15 @@ class Bot:
         for o in out:
             if o["kind"] == "gold":
                 o["name"] = "Gold"
+                gbox = (o["x"] + int(2 * kx), o["y"] + int(10 * ky), o["x"] + int(80 * kx), o["y"] + int(38 * ky))
                 try:
-                    d = next((int(norm(w[0])) for w in ocr.read_words(img, {"x1": o["x"] - int(10 * kx), "y1": o["y"] + int(4 * ky), "x2": o["x"] + int(80 * kx), "y2": o["y"] + int(36 * ky)}, scale=2.0) if norm(w[0]).isdigit()), None)
+                    d = next((int(norm(w[0])) for w in ocr.read_words(img, {"x1": gbox[0], "y1": gbox[1], "x2": gbox[2], "y2": gbox[3]}, scale=2.0) if norm(w[0]).isdigit()), None)
                 except Exception:
                     d = None
+                if d is not None and d >= 10:
+                    self._glyph_learn(img, gbox, d)
                 if d is None:
-                    d = self._read_small_num(img, o["x"] - int(10 * kx), o["y"] + int(4 * ky), o["x"] + int(60 * kx), o["y"] + int(36 * ky))
+                    d = self._read_small_num(img, *gbox)
                 self._gold = d
                 continue
             if not names:
@@ -4638,7 +4752,7 @@ class Bot:
                 if any(abs(cx - q[0]) < 20 * kx and abs(cy - q[1]) < 20 * ky for q in seen):
                     continue  # el mismo frasco partido en dos manchas (tapa y cuerpo)
                 seen.append((cx, cy))
-                d = self._read_small_num(img, cx - int(12 * kx), cy + int(6 * ky), cx + int(42 * kx), cy + int(36 * ky))
+                d = self._read_small_num(img, cx + int(2 * kx), cy + int(13 * ky), cx + int(42 * kx), cy + int(36 * ky))
                 if d is None:
                     unknown = True
                 total += d if d else 1
@@ -4751,6 +4865,19 @@ class Bot:
                 self.log(f"🛒 No compro pociones: tengo {gold} de oro y guardo {reserve} para equipo.")
                 return
             ws = words(grab())
+            try:
+                rows = {}
+                for w in ws:
+                    rows.setdefault(round(w[2] / 10), []).append(w)
+                pr = {}
+                for r_ in rows.values():
+                    r_ = sorted(r_, key=lambda v: v[1])
+                    if len(r_) >= 2 and r_[-1][0].strip().isdigit() and any(k in " ".join(v[0] for v in r_).lower() for k in ("potion", "meat", "baguette")):
+                        pr[" ".join(v[0] for v in r_[:-1])] = int(r_[-1][0].strip())
+                if pr:
+                    self.learner.note_prices(pr)
+            except Exception:
+                pass
             hp = None
             for w in ws:
                 if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws):
