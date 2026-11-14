@@ -4353,9 +4353,8 @@ class Bot:
                 time.sleep(1.2)
                 self.log(f"📜 Acepté una misión nueva (NPC en {key[0]} {key[1]},{key[2]}).")
                 self._q_npc = None
-            hd = next((w for w in self._q_words(grab()) if norm(w[0]) == "misiones"), None)
-            if hd:
-                click(hd[1], hd[2], "right")
+            if any(norm(w[0]) == "activas" for w in self._q_words(grab())):
+                winapi.press("CTRL+Q")
             return True
         return False
 
@@ -4392,6 +4391,9 @@ class Bot:
                     mp = self._loc_map_name(m.group(2)) or m.group(2)
                     out = {"npc": m.group(1), "map": mp, "x": int(m.group(3)), "y": int(m.group(4))}
         finally:
+            if any(norm(w[0]) == "activas" for w in self._q_words(self.screen.grab(self.rect))):
+                winapi.press("CTRL+Q")  # la cierro con la misma tecla
+                time.sleep(0.5)
             for t in ("misiones", "menú", "menu"):
                 hd = next((w for w in self._q_words(self.screen.grab(self.rect)) if norm(w[0]).startswith(norm(t))), None)
                 if hd:
@@ -4441,9 +4443,8 @@ class Bot:
             self._q_t = time.time() + 600
             return
         self._q_npc = None
-        hd = next((w for w in self._q_words(grab()) if norm(w[0]) == "misiones"), None)
-        if hd:
-            click(hd[1], hd[2], "right")
+        if any(norm(w[0]) == "activas" for w in self._q_words(grab())):
+            winapi.press("CTRL+Q")
 
     def _oly_pots(self):
         """Pociones de vida en el bolso (Olympia): abro F6, busco los frascos rojos y leo el número de abajo."""
