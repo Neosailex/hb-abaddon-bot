@@ -929,6 +929,20 @@ class Bot:
                 return
             if not self._fleeing() and self._goto_spot():
                 return
+        # me están pegando y no tengo la lista de bichos de la memoria: freno, busco quién es y le pego
+        if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing()
+                and (self.nav.get("walking") or self._is_travelling()) and self._under_attack()
+                and time.time() - getattr(self, "_hit_scan_t", 0) > 1.0):
+            self._hit_scan_t = time.time()
+            self._release()
+            self.nav["walking"] = False
+            time.sleep(0.15)
+            self.img = self.screen.grab(self.rect)
+            hit = self._scan_ring()
+            if hit:
+                self._engage(hit)
+                return
+            self._pit()  # no lo veo: pego alrededor una vez y sigo
         # mirar alrededor aunque esté viajando o explorando
         if (not mem_ok and not focused and self.state == "seek" and self.nav.get("walking") and self.cfg.get("hover_confirm", True)
                 and time.time() - getattr(self, "_last_scan", 0) > self.cfg.get("scan_while_walking_every", 2.0)):
@@ -1092,6 +1106,9 @@ class Bot:
         except Exception:
             pass
         self._restart_tries = getattr(self, "_restart_tries", 0) + 1
+        if not pt and self.cfg["calib"].get("restart_btn"):
+            rb = self.cfg["calib"]["restart_btn"]
+            pt = (int(rb["x"]), int(rb["y"]))
         if not pt and self.rect:
             pt = (int(self.rect[2] * 0.943), int(self.rect[3] * 0.85))
             if self._restart_tries >= 3 and self._restart_tries % 3 == 0:
