@@ -3200,6 +3200,21 @@ class Bot:
             return False
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
+        # recién maté uno: levanto lo que haya tirado (Shift + clic en la baldosa) si no tengo a nadie encima
+        lt = getattr(self, "_oly_loot", None)
+        if lt and now - lt[2] < 10 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents):
+            self._oly_loot = None
+            if max(abs(lt[0] - px), abs(lt[1] - py)) <= 6:
+                cx, cy = self._char()
+                tw, th = self._tile()
+                self._release()
+                winapi.key_down("SHIFT")
+                time.sleep(0.05)
+                winapi.click(*self.abs_pt(int(cx + (lt[0] - px) * tw), int(cy + (lt[1] - py) * th)))
+                time.sleep(0.05)
+                winapi.key_up("SHIFT")
+                time.sleep(1.2)
+                return True
         bad = getattr(self, "_oly_bad", {})
         self._oly_bad = bad = {k: v for k, v in bad.items() if v > now}
         hpmax = self._hpmax_est() or 40
@@ -3233,7 +3248,7 @@ class Bot:
             self.log(f"👑 Ese {e[2]['name']} no muere: debe ser élite (100 de vida). Lo dejo y me alejo.")
             self._release()
             return False
-        self._oly_cur = {"id": e[3], "crowd": crowd(e), "allow": allow, "t": now}
+        self._oly_cur = {"id": e[3], "crowd": crowd(e), "allow": allow, "t": now, "x": e[0], "y": e[1]}
         vx, vy = self.cfg.get("view_tiles", [9, 6])
         if abs(e[0] - px) <= vx and abs(e[1] - py) <= vy:
             # mismo bicho muchas veces sin morir: lo salteo un rato (puede ser un dato viejo de la memoria)
@@ -3271,6 +3286,8 @@ class Bot:
         if not cur or any(e[3] == cur["id"] for e in (getattr(self, "_oly_last", None) or [])):
             return
         self._oly_cur = None
+        if self.cfg.get("loot_olympia", True) and cur.get("x") is not None:
+            self._oly_loot = (cur["x"], cur["y"], time.time())
         hp = self.bars.get("hp")
         if hp is None:
             return
@@ -4505,6 +4522,66 @@ class Bot:
         if any(norm(w[0]) == "activas" for w in self._q_words(grab())):
             winapi.press("CTRL+Q")
 
+    KEEP_WORDS = ("potion", "poción", "pocion", "gold", "oro", "ring", "anillo", "necklace", "collar", "ticket",
+                  "scroll", "pergamino", "key", "llave", "baguette", "meat", "carne")
+
+    def _oly_bag(self, names=True):
+        """Bolso abierto (F6): [{'name','x','y','kind'}] con lo que hay; kind = pot/gold/item. También deja
+        self._gold con el oro leído. Pasa el mouse por cada cosa para leer el nombre en el cartelito."""
+        import cv2
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        img = self.screen.grab(self.rect)
+        ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
+        pw = next((w for w in ws if norm(w[0]).startswith("peso")), None)
+        if not pw:
+            return None
+        x1, y1 = int(pw[1] - 40 * kx), int(pw[2] + 15 * ky)
+        x2, y2 = int(pw[1] + 440 * kx), int(pw[2] + 330 * ky)
+        roi = img[y1:y2, x1:x2]
+        mask = (roi.max(axis=2) > 90).astype(np.uint8)
+        mask = cv2.dilate(mask, np.ones((5, 5), np.uint8))
+        n, lab, st_, cen = cv2.connectedComponentsWithStats(mask)
+        comps = sorted(range(1, n), key=lambda i: -st_[i, cv2.CC_STAT_AREA])
+        out = []
+        for i in comps:
+            if st_[i, cv2.CC_STAT_AREA] < 60 * kx * ky or st_[i, cv2.CC_STAT_HEIGHT] < 10 * ky:
+                continue
+            bx, by = int(cen[i][0]) + x1, int(cen[i][1]) + y1
+            # salto los números (cantidades): bajitos y justo debajo de otro objeto
+            if st_[i, cv2.CC_STAT_HEIGHT] < 20 * ky and any(abs(bx - o["x"]) < 45 * kx and 0 < by - o["y"] < 45 * ky for o in out):
+                continue
+            px_ = roi[max(0, by - y1 - 6):by - y1 + 6, max(0, bx - x1 - 6):bx - x1 + 6].reshape(-1, 3).astype(int)
+            b_, g_, r_ = px_[:, 0].mean(), px_[:, 1].mean(), px_[:, 2].mean()
+            kind = "gold" if (r_ > 120 and g_ > 110 and b_ < 90) else "item"
+            out.append({"x": bx, "y": by, "kind": kind, "name": ""})
+        for o in out:
+            if o["kind"] == "gold":
+                o["name"] = "Gold"
+                try:
+                    d = next((int(norm(w[0])) for w in ocr.read_words(img, {"x1": o["x"] - int(10 * kx), "y1": o["y"] + int(4 * ky), "x2": o["x"] + int(80 * kx), "y2": o["y"] + int(36 * ky)}, scale=2.0) if norm(w[0]).isdigit()), None)
+                except Exception:
+                    d = None
+                if d is None:
+                    d = self._read_small_num(img, o["x"] - int(10 * kx), o["y"] + int(4 * ky), o["x"] + int(60 * kx), o["y"] + int(36 * ky))
+                self._gold = d
+                continue
+            if not names:
+                continue
+            winapi.move(*self.abs_pt(o["x"], o["y"]))
+            time.sleep(0.45)
+            im2 = self.screen.grab(self.rect)
+            tw_ = ocr.read_words(im2, {"x1": max(0, o["x"] - int(380 * kx)), "y1": max(0, o["y"] - int(120 * ky)),
+                                        "x2": min(im2.shape[1], o["x"] + int(380 * kx)), "y2": min(im2.shape[0], o["y"] + int(120 * ky))}, scale=1.0)
+            tw_ = [w for w in tw_ if not w[0].strip().isdigit()]
+            if tw_:
+                top = min(w[2] for w in tw_)
+                o["name"] = " ".join(w[0] for w in sorted([w for w in tw_ if w[2] - top < 10 * ky], key=lambda w: w[1]))
+            if any(k in o["name"].lower() for k in ("potion", "poción", "pocion")):
+                o["kind"] = "pot"
+        winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
+        return out
+
     def _oly_pots(self):
         """Pociones de vida en el bolso (Olympia): abro F6, busco los frascos rojos y leo el número de abajo."""
         import cv2
@@ -4547,6 +4624,11 @@ class Bot:
                     unknown = True
                 total += d if d else 1
             self._pots_unknown = unknown
+            try:
+                bag = self._oly_bag(names=False) or []
+                self._bag_items = max(0, sum(1 for o in bag if o["kind"] == "item") - len(seen))
+            except Exception:
+                pass
             return total
         finally:
             if opened:
@@ -4573,7 +4655,12 @@ class Bot:
                 self._left = {"pot": n, "meat": 99}
         n = getattr(self, "_left", {}).get("pot")
         lim = 0 if getattr(self, "_pots_unknown", False) else int(self.cfg.get("buy_pots_below", 3))
-        if n is None or n > lim or now - getattr(self, "_shop_last", 0) < 900:
+        gold = getattr(self, "_gold", None)
+        afford = gold is None or gold >= int(self.cfg.get("gold_reserve", 150)) + 45
+        many = (getattr(self, "_bag_items", 0) or 0) >= int(self.cfg.get("sell_when_items", 12))
+        if now - getattr(self, "_shop_last", 0) < 900:
+            return
+        if not many and (n is None or n > lim or not afford):
             return
         self._shop_last = now
         self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
@@ -4619,6 +4706,32 @@ class Bot:
             click(com[1], com[2])
             time.sleep(1.8)
             ws = words(grab())
+            tabp = next((w for w in ws if norm(w[0]).startswith("poci") or norm(w[0]).startswith("pocl")), None)
+            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
+            bag = self._oly_bag() or []
+            sell = [o for o in bag if o["kind"] == "item" and o["name"] and not any(k in o["name"].lower() for k in self.KEEP_WORDS)]
+            if sell and tabp:
+                click(tabp[1] + 346 * kx, tabp[2])
+                time.sleep(1.0)
+                for o in sell:
+                    self._drag_bg(o["x"], o["y"], tabp[1] + 166 * kx, tabp[2] + 317 * ky)
+                vb = next((w for w in words(grab()) if norm(w[0]) == "vender" and w[2] > tabp[2] + 500 * ky), None)
+                click(*(vb[1:3] if vb else (tabp[1] + 170 * kx, tabp[2] + 647 * ky)))
+                time.sleep(1.5)
+                self.log("🛒 Vendí: " + ", ".join(o["name"] for o in sell) + ".")
+                click(tabp[1], tabp[2])
+                time.sleep(1.0)
+            self._oly_bag(names=False)  # leo el oro
+            # 2) pociones: solo con el oro que sobra después de la reserva para equipo, y hasta 4
+            gold = getattr(self, "_gold", None)
+            have = getattr(self, "_left", {}).get("pot") or 0
+            reserve = int(self.cfg.get("gold_reserve", 150))
+            n = 0 if gold is None else max(0, min(4 - have, (gold - reserve) // 45))
+            if n <= 0:
+                self.log(f"🛒 No compro pociones: tengo {gold} de oro y guardo {reserve} para equipo.")
+                return
+            ws = words(grab())
             hp = None
             for w in ws:
                 if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws):
@@ -4630,17 +4743,18 @@ class Bot:
             click(hp[1], hp[2])
             time.sleep(1.0)
             ws = words(grab())
-            mx = next((w for w in ws if norm(w[0]).startswith("max") or norm(w[0]).startswith("máx")), None)
-            if mx:
-                click(mx[1], mx[2])
-                time.sleep(0.8)
+            plus = next((w for w in ws if w[0].strip() == "+" and w[2] > hp[2] + 400 * ky), None)
+            for _ in range(n - 1):
+                if plus:
+                    click(plus[1], plus[2])
+                    time.sleep(0.25)
             cp = next((w for w in words(grab()) if norm(w[0]).startswith("comprar")), None)
             if not cp:
                 self.log("🛒 No veo el botón Comprar.")
                 return
             click(cp[1], cp[2])
             time.sleep(1.5)
-            self.log("🛒 Compré pociones de vida con el oro que tenía.")
+            self.log(f"🛒 Compré {n} pociones de vida (tenía {gold} de oro).")
             self._pots_t = 0
             tienda = next((w for w in words(grab()) if norm(w[0]) == "tienda"), None)
             if tienda:
