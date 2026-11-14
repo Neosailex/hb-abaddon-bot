@@ -910,6 +910,8 @@ class Bot:
                 self._release()
                 self.stats["state"] = "descansando"
             return
+        if self._goto_step():
+            return
         self._maybe_shop()
         self._maybe_repair()
         self._brain_step()
@@ -3089,6 +3091,42 @@ class Bot:
         known = {v["to"] for v in self.world.learn["links"].values()}
         dk = next((k for k in known if self._same(k, dest)), None)
         return bool(dk and self.world.route(cur, dk, forbidden=avoid, cost=self._map_cost))
+
+    def _goto_step(self):
+        """Clic en el mapa del bot: el pj va solo a ese mapa y punto. Si le pegan, pelea primero."""
+        g = getattr(self, "goto", None)
+        if not g or not self.pos.get("map") or time.time() - self.pos.get("t", 0) > 5:
+            return False
+        if time.time() - g["t"] > 1800:
+            self.log("🗺 Cancelé el viaje del mapa: tardaba más de 30 min.")
+            self.goto = None
+            return False
+        if self._attacked_recently():
+            return False
+        cur = self.pos["map"]
+        label = f"{g['map']} ({g['x']},{g['y']})"
+        if not self._same(cur, g["map"]):
+            self.stats["state"] = f"yendo a {label}"
+            if self._travel(force_dest=g["map"]):
+                return True
+            if not self._same(self.pos.get("map") or "", g["map"]):
+                self.log(f"🗺 No encuentro camino a {g['map']}. Cancelo.")
+                self.goto = None
+                return False
+        m = self.world.map_for(cur)
+        if not m:
+            return False
+        px, py = self.pos["x"], self.pos["y"]
+        if max(abs(g["x"] - px), abs(g["y"] - py)) <= 1:
+            self._release()
+            self.nav["walking"] = False
+            self.log(f"🗺 Llegué a {label}.")
+            self.goto = None
+            return False
+        self.stats["state"] = f"yendo a {label}"
+        self.nav["status"] = f"voy al punto del mapa {label}"
+        self._walk_to(m, (int(g["x"]), int(g["y"])), label)
+        return True
 
     def _walk_to(self, m, goal, label):
         now = time.time()
@@ -5616,4 +5654,5 @@ class Bot:
                          "rate": self.progress.get("rate"), "eta_min": self.progress.get("eta_min"),
                          "levelups": self.progress.get("levelups", 0)},
             "nav": {"status": self.nav["status"], "dest": self.nav["dest"]},
+            "goto": getattr(self, "goto", None),
         }

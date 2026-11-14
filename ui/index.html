@@ -393,12 +393,13 @@ input[type=range]{accent-color:var(--gold);width:100%}
 
     <!-- EVENTOS -->
     <section class="page" id="p-world">
-      <h1>Mapa del mundo</h1><p class="sub">Rueda o + / − para acercar, arrastrá para mover. Líneas doradas: portales que el pj ya cruzó. Grises: del mapa base, a confirmar.</p>
+      <h1>Mapa del mundo</h1><p class="sub">Rueda o + / − para acercar, arrastrá para mover. Clic en cualquier punto: el pj va solo ahí (clic derecho cancela). Cuadros de color: zonas de spawn de cada bicho. Líneas doradas: portales que el pj ya cruzó. Grises: del mapa base, a confirmar.</p>
       <div class="card" style="padding:8px;position:relative">
         <canvas id="wCanvas" style="width:100%;height:calc(100vh - 190px);min-height:380px;display:block;border-radius:10px;background:#0d0b0a;cursor:grab"></canvas>
         <div style="position:absolute;right:18px;top:18px;display:flex;flex-direction:column;gap:6px">
           <button class="btn sm" id="wIn" title="Acercar">+</button><button class="btn sm" id="wOut" title="Alejar">−</button>
-          <button class="btn sm" id="wMe" title="Centrar en el pj">📍</button><button class="btn sm" id="wAll" title="Ver todo">⤢</button></div>
+          <button class="btn sm" id="wMe" title="Centrar en el pj">📍</button><button class="btn sm" id="wAll" title="Ver todo">⤢</button>
+          <label class="hint" style="background:#0008;padding:4px 6px;border-radius:6px"><input type="checkbox" id="wSp" checked onchange="drawWorld()"> bichos</label></div>
         <div class="hint" id="wInfo" style="position:absolute;left:18px;bottom:14px"></div>
       </div>
     </section>
@@ -438,7 +439,7 @@ function go(p){curPage=p;$$('#nav button').forEach(b=>b.classList.toggle('on',b.
 
 
 /* ---------- mapa del mundo ---------- */
-let WORLD=null, WPOS=null, WV={x:0,y:0,z:0.5}, WIMG={};
+let WGOTO=null, WDRAG=0, WORLD=null, WPOS=null, WV={x:0,y:0,z:0.5}, WIMG={};
 const CELL=340, BOX=300;
 function wMap(k){return WORLD&&WORLD.maps.find(m=>m.key===k)}
 function wPt(m,x,y){const s=BOX/Math.max(m.w,m.h);return [m.gx*CELL+(BOX-m.w*s)/2+x*s, m.gy*CELL+(BOX-m.h*s)/2+y*s]}
@@ -464,11 +465,18 @@ function drawWorld(){
     g.imageSmoothingEnabled=WV.z<3;const im=WIMG[m.key];if(im&&im.complete)g.drawImage(im,x,y,m.w*s,m.h*s);else{g.fillStyle='#2a2320';g.fillRect(x,y,m.w*s,m.h*s)}
     g.lineWidth=(m===cur?3:1)/WV.z;g.strokeStyle=m===cur?'#e9c46a':'#5b4d44';g.strokeRect(x,y,m.w*s,m.h*s);
     g.fillStyle=m===cur?'#e9c46a':'#cdbfb3';g.font=`${Math.min(30,Math.max(11,13/WV.z))}px system-ui`;g.textAlign='center';g.fillText(m.name,m.gx*CELL+BOX/2,y-6/WV.z)}
+  // zonas de spawn de los bichos (color por bicho; el nombre se ve al acercarse)
+  if($('#wSp')?.checked!==false)for(const z of (WORLD.spawns||[])){const m=wMap(z.map);if(!m)continue;
+    const [x1,y1]=wPt(m,z.rect[0],z.rect[1]),[x2,y2]=wPt(m,z.rect[2]+1,z.rect[3]+1);let h=0;for(const ch of z.mob)h=(h*31+ch.charCodeAt(0))%360;
+    g.fillStyle=`hsla(${h},70%,55%,.22)`;g.strokeStyle=`hsla(${h},80%,60%,.9)`;g.lineWidth=1/WV.z;g.fillRect(x1,y1,x2-x1,y2-y1);g.strokeRect(x1,y1,x2-x1,y2-y1);
+    if(WV.z>1.1){g.fillStyle=`hsl(${h},90%,75%)`;g.font=`${Math.max(4,11/WV.z)}px system-ui`;g.textAlign='left';g.fillText(z.mob,x1+2/WV.z,y1+10/WV.z)}}
   for(const l of WORLD.links){const a=wMap(l.from),b=wMap(l.to);if(!a)continue;const [x1,y1]=wPt(a,l.x,l.y);
     g.fillStyle=l.seen?'#e9c46a':'#8d8178';g.beginPath();g.arc(x1,y1,3/Math.max(WV.z,0.6),0,7);g.fill();
     if(!b||b===a)continue;const [x2,y2]=l.tx!=null?wPt(b,l.tx,l.ty):wPt(b,b.w/2,b.h/2);
     g.strokeStyle=l.seen?'rgba(233,196,106,.8)':'rgba(160,150,140,.35)';g.lineWidth=(l.seen?2:1)/WV.z;g.setLineDash(l.seen?[]:[6/WV.z,5/WV.z]);
     g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.setLineDash([])}
+  if(WGOTO){const gm=wMap(WGOTO.map);if(gm){const [gx,gy]=wPt(gm,WGOTO.x+.5,WGOTO.y+.5);g.strokeStyle='#4cc9f0';g.lineWidth=2/WV.z;
+    g.beginPath();g.moveTo(gx-7/WV.z,gy-7/WV.z);g.lineTo(gx+7/WV.z,gy+7/WV.z);g.moveTo(gx+7/WV.z,gy-7/WV.z);g.lineTo(gx-7/WV.z,gy+7/WV.z);g.stroke()}}
   if(cur){const [px,py]=wPt(cur,WPOS.x,WPOS.y);const r=(6+3*Math.sin(Date.now()/250))/WV.z;
     g.fillStyle='rgba(239,71,111,.25)';g.beginPath();g.arc(px,py,r*2.2,0,7);g.fill();
     g.fillStyle='#ef476f';g.strokeStyle='#fff';g.lineWidth=2/WV.z;g.beginPath();g.arc(px,py,r,0,7);g.fill();g.stroke()}
@@ -476,9 +484,19 @@ function drawWorld(){
   $('#wInfo').textContent=WPOS&&WPOS.map?(`📍 ${WPOS.map} (${WPOS.x},${WPOS.y})`+(cur?'':' — este mapa no está dibujado')):'📍 sin leer la posición'}
 (()=>{const c=$('#wCanvas');let drag=null;
   c.addEventListener('wheel',e=>{e.preventDefault();const r=c.getBoundingClientRect();wZoom(e.deltaY<0?1.2:1/1.2,e.clientX-r.left,e.clientY-r.top)},{passive:false});
-  c.addEventListener('mousedown',e=>{drag=[e.clientX,e.clientY,WV.x,WV.y];c.style.cursor='grabbing'});
-  window.addEventListener('mousemove',e=>{if(!drag)return;WV.x=drag[2]-(e.clientX-drag[0])/WV.z;WV.y=drag[3]-(e.clientY-drag[1])/WV.z;drawWorld()});
+  c.addEventListener('mousedown',e=>{WDRAG=0;drag=[e.clientX,e.clientY,WV.x,WV.y];c.style.cursor='grabbing'});
+  c.addEventListener('click',async e=>{if(!WORLD||!API.goto)return;if(WDRAG>6)return;const r=c.getBoundingClientRect();const wx=WV.x+(e.clientX-r.left)/WV.z,wy=WV.y+(e.clientY-r.top)/WV.z;
+    for(const m of WORLD.maps){const s=BOX/Math.max(m.w,m.h),x0=m.gx*CELL+(BOX-m.w*s)/2,y0=m.gy*CELL+(BOX-m.h*s)/2;
+      if(wx>=x0&&wy>=y0&&wx<x0+m.w*s&&wy<y0+m.h*s){const tx=Math.floor((wx-x0)/s),ty=Math.floor((wy-y0)/s);
+        const res=await API.goto(m.name,tx,ty);WGOTO={map:m.key,x:tx,y:ty};toast(`🗺 Voy a ${m.name} (${tx},${ty})`+(res&&res.running===false?' — prendé el bot':''));drawWorld();return}}});
+  c.addEventListener('contextmenu',async e=>{e.preventDefault();if(API.goto){await API.goto('',0,0);WGOTO=null;toast('🗺 Viaje cancelado');drawWorld()}});
+  window.addEventListener('mousemove',e=>{if(!drag)return;WDRAG=Math.abs(e.clientX-drag[0])+Math.abs(e.clientY-drag[1]);WV.x=drag[2]-(e.clientX-drag[0])/WV.z;WV.y=drag[3]-(e.clientY-drag[1])/WV.z;drawWorld()});
   window.addEventListener('mouseup',()=>{drag=null;c.style.cursor='grab'});
+  c.addEventListener('mousemove',e=>{if(drag||!WORLD)return;const r=c.getBoundingClientRect();const wx=WV.x+(e.clientX-r.left)/WV.z,wy=WV.y+(e.clientY-r.top)/WV.z;
+    for(const m of WORLD.maps){const s=BOX/Math.max(m.w,m.h),x0=m.gx*CELL+(BOX-m.w*s)/2,y0=m.gy*CELL+(BOX-m.h*s)/2;
+      if(wx>=x0&&wy>=y0&&wx<x0+m.w*s&&wy<y0+m.h*s){const tx=Math.floor((wx-x0)/s),ty=Math.floor((wy-y0)/s);
+        const zs=(WORLD.spawns||[]).filter(z=>z.map===m.key&&tx>=z.rect[0]&&tx<=z.rect[2]&&ty>=z.rect[1]&&ty<=z.rect[3]);
+        $('#wInfo').textContent=`${m.name} (${tx},${ty})`+(zs.length?' — '+zs.map(z=>`${z.mob} (vida ${z.hp}, pega ~${z.dmg}, exp ~${z.exp})`).join(' · '):'');return}}});
   $('#wIn').onclick=()=>wZoom(1.4);$('#wOut').onclick=()=>wZoom(1/1.4);$('#wMe').onclick=wCenterMe;$('#wAll').onclick=wFit;
   window.addEventListener('resize',drawWorld);setInterval(()=>{if(curPage==='world')drawWorld()},120)})();
 
@@ -494,7 +512,7 @@ async function poll(){
     $('#mini').classList.toggle('on',on); $('#miniTxt').textContent=on?'Prendido':'Apagado';
     const w=$('#cWin'); w.textContent=s.window?('🎮 '+s.window):'Sin juego'; w.className='chip '+(s.window?'good':'bad');
     $('#cState').textContent=s.stats.state||'—';
-    WPOS=s.pos; if(curPage==='world')drawWorld();
+    WPOS=s.pos; if(s.goto===null&&WGOTO)WGOTO=null; if(curPage==='world')drawWorld();
     $('#cPos').textContent=s.pos&&s.pos.map?`📍 ${s.pos.map} (${s.pos.x},${s.pos.y})`:'📍 sin leer';
     {const m=$('#cMem');m.textContent='🧠 '+(s.mem||'—');m.className='chip '+(s.mem&&s.mem.startsWith('posición exacta')?'good':'');}
     $('#cNav').textContent=s.nav&&s.nav.status?s.nav.status:'';

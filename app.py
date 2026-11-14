@@ -121,9 +121,37 @@ class Api:
     def world_map(self):
         from bot import world as worldmod
         try:
-            return worldmod.world_view(self._bot.world)
+            v = worldmod.world_view(self._bot.world)
         except Exception as e:
             return {"maps": [], "links": [], "error": repr(e)}
+        # zonas de spawn de todos los bichos de cada mapa (base de criaturas)
+        try:
+            names = {m["name"].lower(): m["key"] for m in v["maps"]}
+            files = {m["key"].lower(): m["key"] for m in v["maps"]}
+            crs = {c["type"]: c for c in self._bot._creatures_db().values()}
+            sp = []
+            for mname, md in (self._bot._load_json("spawns.json").get("maps") or {}).items():
+                mk = files.get(str(md.get("file", "")).lower()) or names.get(mname.lower())
+                if not mk:
+                    continue
+                for z in md.get("zones", []):
+                    cr = crs.get(z.get("type"), {})
+                    sp.append({"map": mk, "mob": z.get("mob") or cr.get("name", "?"), "rect": z["rect"], "hp": cr.get("hp"),
+                               "dmg": cr.get("dmg_avg"), "exp": cr.get("exp_dice"), "max": z.get("max"), "lvl": z.get("min_level")})
+            v["spawns"] = sp
+        except Exception as e:
+            v["spawns"], v["spawn_error"] = [], repr(e)
+        return v
+
+    def goto(self, mapname, x, y):
+        import time as _t
+        if not mapname:
+            self._bot.goto = None
+            self._bot.log("🗺 Viaje del mapa cancelado.")
+            return {"ok": True}
+        self._bot.goto = {"map": str(mapname), "x": int(x), "y": int(y), "t": _t.time()}
+        self._bot.log(f"🗺 Voy a {mapname} ({int(x)},{int(y)}) (clic en el mapa).")
+        return {"ok": True, "running": bool(self._bot.running)}
 
     # datos
     def db(self):
