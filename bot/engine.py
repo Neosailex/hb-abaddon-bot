@@ -710,7 +710,82 @@ class Bot:
             winapi.press("TAB")
             self.log("⚔ Con TAB no cambió nada: lo vuelvo a como estaba.")
 
+    def _watchdog(self):
+        """Que no se quede nunca quieto: si hace rato que no se mueve ni gana experiencia (o un hilo de compras quedó
+        colgado), lo destraba solo. Devuelve True si en este paso está escapando."""
+        now = time.time()
+        if not self.running:
+            self._wd_pos_t = self._wd_exp_t = now
+            return False
+        # hilo de compras/ventanas colgado
+        if getattr(self, "_busy_ui", False):
+            self._busy_t0 = getattr(self, "_busy_t0", None) or now
+            if now - self._busy_t0 > 300:
+                self._busy_ui = False
+                self.mission = None
+                self._busy_t0 = None
+                self.log("⚠ Alerta: una compra/venta quedó colgada más de 5 minutos. La corto y sigo cazando.")
+            return False
+        self._busy_t0 = None
+        p = (self.pos.get("map"), self.pos.get("x"), self.pos.get("y"))
+        if p != getattr(self, "_wd_pos", None):
+            self._wd_pos, self._wd_pos_t = p, now
+        e = self._exp_mem()
+        if e is not None and e != getattr(self, "_wd_exp", None):
+            self._wd_exp, self._wd_exp_t = e, now
+        pos_t, exp_t = getattr(self, "_wd_pos_t", now), getattr(self, "_wd_exp_t", now)
+        # escape en curso
+        esc = getattr(self, "_escape", None)
+        if esc and now < esc[1]:
+            mp = self.world.map_for(self.pos.get("map") or "")
+            if mp and self.pos.get("x") is not None:
+                if max(abs(esc[0][0] - self.pos["x"]), abs(esc[0][1] - self.pos["y"])) <= 1:
+                    self._escape = None
+                    return False
+                self._walk_to(mp, esc[0], "destrabándome")
+                self.stats["state"] = "destrabándome"
+                return True
+        self._escape = None
+        cur = (self.pos.get("map") or "").lower()
+        if getattr(self, "mission", None) or any(k in cur for k in ("shop", "blacksmith")) or not cur:
+            return False
+        stuck_pos = now - pos_t > float(self.cfg.get("stuck_secs", 40)) and now - exp_t > float(self.cfg.get("stuck_secs", 40))
+        no_exp = now - exp_t > float(self.cfg.get("no_exp_secs", 180)) and not self._is_travelling()
+        if not (stuck_pos or no_exp):
+            return False
+        self._wd_pos_t = self._wd_exp_t = now
+        n = [t for t in getattr(self, "_wd_hits", []) if now - t < 600] + [now]
+        self._wd_hits = n
+        t = self.target or {}
+        if t.get("ename"):
+            self._ent_bl[t["ename"]] = now + 90
+        self._release()
+        self.state, self.target, self._track = "seek", None, None
+        why = "no me muevo hace 40 s" if stuck_pos else "hace 3 minutos que no gano experiencia"
+        if no_exp or len(n) >= 3:
+            # la zona no rinde o me trabo seguido acá: la dejo descansar y busco otra
+            zg = getattr(self, "_zone_goal", None)
+            if zg:
+                self.__dict__.setdefault("_zone_empty", {})[zg] = now + 900
+            self._zone_goal = None
+        mp = self.world.map_for(self.pos.get("map") or "")
+        x, y = self.pos.get("x"), self.pos.get("y")
+        if mp and x is not None:
+            import random as _r
+            for _ in range(40):
+                gx, gy = x + _r.randint(-14, 14), y + _r.randint(-10, 10)
+                if max(abs(gx - x), abs(gy - y)) < 6 or not mp.ok(gx, gy) or self._is_danger(gx, gy) or mp.near_tele(gx, gy, 3):
+                    continue
+                path = mp.astar((x, y), (gx, gy), max_nodes=8000)
+                if path and len(path) <= 40:
+                    self._escape = ((gx, gy), now + 15)
+                    break
+        self.log(f"⚠ Alerta: {why}. Suelto el objetivo y me muevo{' a otra zona' if (no_exp or len(n) >= 3) else ''}.")
+        return bool(getattr(self, "_escape", None))
+
     def _tick(self):
+        if self._watchdog():
+            return
         self._town_account()
         self._tab_check()
         self._yield_tick()
@@ -4438,7 +4513,14 @@ class Bot:
         px, py = self.pos.get("x"), self.pos.get("y")
         d = max(abs(e[0]), abs(e[1]))
         mp = self.world.map_for(self.pos["map"]) if self.pos.get("map") else None
-        if px is None or not mp or d <= 1:
+        if px is None or not mp or d < 1:
+            return (d, False)
+        if d == 1:
+            # pegado pero con una cerca/pared en el medio (en diagonal se corta): hay que rodear
+            tx, ty = px + e[0], py + e[1]
+            if e[0] and e[1] and not (mp.ok(px + e[0], py) or mp.ok(px, py + e[1])):
+                path = mp.astar((px, py), (tx, ty) if mp.ok(tx, ty) else (mp.nearest_walkable(tx, ty, r=2) or (tx, ty)), max_nodes=6000)
+                return (len(path), True) if path and len(path) <= 45 else None
             return (d, False)
         now = time.time()
         rc = self.__dict__.setdefault("_reach_c", {})
