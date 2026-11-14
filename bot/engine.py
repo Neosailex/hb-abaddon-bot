@@ -2730,15 +2730,26 @@ class Bot:
                 c = im[max(0, cy - int(11 * ky)):cy + int(11 * ky), max(0, cx - int(24 * kx)):cx + int(26 * kx)]
                 if c.size == 0:
                     return None
-                parts += [c, np.zeros((c.shape[0], int(30 * kx), 3), np.uint8)]
+                parts += [c, np.zeros((c.shape[0], int(60 * kx), 3), np.uint8)]
             h = min(p_.shape[0] for p_ in parts)
             row = np.hstack([p_[:h] for p_ in parts])
-            for sc, th in ((4, 120), (3, 150), (5, 100)):
-                t = ocr.read_text_fixed(row, scale=sc, thr=th) or ""
-                nums = [int(v) for v in re.findall(r"\d+", t.replace("O", "0").replace("o", "0"))]
-                if len(nums) == 6 and all(1 <= v <= 250 for v in nums):
-                    return dict(zip(names, nums))
-            return None
+            pitch = parts[0].shape[1] + parts[1].shape[1]
+            out = {}
+            for sc in (3.0, 4.0, 2.0):
+                try:
+                    ws_ = ocr.read_words(row, {"x1": 0, "y1": 0, "x2": row.shape[1], "y2": row.shape[0]}, scale=sc)
+                except Exception:
+                    ws_ = []
+                for w in ws_:
+                    t = w[0].strip()
+                    if t.isdigit() and 1 <= int(t) <= 250:
+                        k = int(w[1] // pitch)
+                        if 0 <= k < 6 and names[k] not in out:
+                            out[names[k]] = int(t)
+                if all(n in out for n in names):
+                    break
+            # para el plan alcanzan STR, VIT y DEX
+            return out if all(n in out for n in ("STR", "VIT", "DEX")) else None
 
         bx = boxes(img)
         if bx:
