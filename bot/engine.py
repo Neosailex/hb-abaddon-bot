@@ -913,6 +913,8 @@ class Bot:
             return
         if self._goto_step():
             return
+        if self._quest_step():
+            return
         self._maybe_shop()
         self._maybe_repair()
         self._brain_step()
@@ -4235,6 +4237,204 @@ class Bot:
             if txt and len(txt) % k == 0 and txt == txt[:len(txt) // k] * k:
                 return int(txt[:len(txt) // k])
         return None
+
+    # ---------------------------------------------------------------- misiones (Olympia)
+    QUEST_TURNIN = ("completar", "entregar", "finalizar", "reclamar", "terminar", "recompensa")
+
+    def _q_words(self, img, box=None):
+        box = box or {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}
+        return ocr.read_words(img, box, scale=1.0)
+
+    def _quest_hud(self, img):
+        """Cartel de la misión activa arriba a la derecha: ('Humble Beginning', hechos, total) o None."""
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        ws = self._q_words(img, {"x1": int(1670 * kx), "y1": int(225 * ky), "x2": img.shape[1], "y2": int(420 * ky)})
+        prog = next((w for w in ws if re.fullmatch(r"\d+/\d+", w[0].strip())), None)
+        if not prog:
+            return None
+        a_, b_ = map(int, prog[0].strip().split("/"))
+        name = " ".join(w[0] for w in ws if w[2] < prog[2] - 12 * ky)
+        return name.strip(), a_, b_
+
+    def _reward_pick(self, opts):
+        """Premio a elegir: lo más cómodo para un guerrero de espada a dos manos. opts = [(texto, x, y)]."""
+        two_h = ("claymore", "great sword", "greatsword", "flameberge", "giant sword", "battle axe", "two-hand",
+                 "two hand", "2h", "templar", "barbarian", "dark executor", "black shadow", "lightning blade")
+        armor = ("plate", "chain", "scale", "hauberk", "helm", "leggings", "hose", "boots", "cape", "shield", "mail")
+        bad = ("wand", "staff", "bow", "dagger", "rapier", "esterk", "robe", "magic")
+
+        def score(t):
+            t = t.lower()
+            if any(k in t for k in two_h):
+                return 100
+            if "gold" in t or " oro" in t:
+                return 60
+            if any(k in t for k in armor):
+                return 50
+            if any(k in t for k in bad):
+                return 5
+            return 20
+        return max(opts, key=lambda o: score(o[0])) if opts else None
+
+    def _quest_step(self):
+        """Misiones: acepta las que ofrezca un NPC con '!' amarillo y, cuando el cartel marca la misión completa,
+        vuelve al NPC (Ctrl+Q dice dónde está) y cobra eligiendo el premio más útil para el guerrero 2H."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.cfg.get("quests_auto", True):
+            return False
+        now = time.time()
+        if self.state != "seek" or self._under_attack() or self._fleeing() or not self.rect:
+            return False
+        if now - getattr(self, "_q_t", 0) < 20:
+            return False
+        self._q_t = now
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        grab = lambda: self.screen.grab(self.rect)
+        click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        img = grab()
+        hud = self._quest_hud(img)
+        self.quest = hud
+        # 1) misión completa: voy a cobrar
+        if hud and hud[2] > 0 and hud[1] >= hud[2]:
+            qn = getattr(self, "_q_npc", None)
+            if not qn or now - qn.get("t", 0) > 600:
+                qn = self._quest_where()
+                if qn:
+                    qn["t"] = now
+                    self._q_npc = qn
+            if not qn:
+                return False
+            if not self._same(self.pos.get("map") or "", qn["map"]) or max(abs(self.pos["x"] - qn["x"]), abs(self.pos["y"] - qn["y"])) > 2:
+                if not getattr(self, "goto", None):
+                    self.log(f"📜 Misión '{hud[0]}' lista ({hud[1]}/{hud[2]}): voy a cobrarla con {qn['npc']} ({qn['map']} {qn['x']},{qn['y']}).")
+                    self.goto = {"map": qn["map"], "x": qn["x"], "y": qn["y"] + 1, "t": now}
+                return True
+            self._quest_turnin(qn, hud)
+            return True
+        # 2) NPC con '!' amarillo en pantalla: le hablo y acepto
+        if now - getattr(self, "_q_scan_t", 0) < 45:
+            return False
+        self._q_scan_t = now
+        g = self._game_roi()
+        roi = img[g["y1"]:g["y2"], g["x1"]:min(g["x2"], int(1660 * kx))]
+        b_, g_, r_ = roi[:, :, 0].astype(int), roi[:, :, 1].astype(int), roi[:, :, 2].astype(int)
+        mask = ((r_ > 200) & (g_ > 170) & (b_ < 90)).astype(np.uint8)
+        import cv2
+        n, lab, st_, cen = cv2.connectedComponentsWithStats(mask)
+        marks = []
+        for i in range(1, n):
+            w_, h_, ar = st_[i, cv2.CC_STAT_WIDTH], st_[i, cv2.CC_STAT_HEIGHT], st_[i, cv2.CC_STAT_AREA]
+            if 8 <= ar <= 260 and h_ >= 1.6 * w_ and 8 * ky <= h_ <= 40 * ky:
+                marks.append((int(cen[i][0]) + g["x1"], int(cen[i][1]) + g["y1"]))
+        tried = getattr(self, "_q_tried", {})
+        self._q_tried = tried = {k: v for k, v in tried.items() if v > now}
+        for mx, my in marks:
+            key = (self.pos.get("map"), round((mx - self._char()[0]) / (72 * kx)) + (self.pos.get("x") or 0),
+                   round((my - self._char()[1]) / (72 * ky)) + (self.pos.get("y") or 0))
+            if key in tried:
+                continue
+            tried[key] = now + 900
+            self._release()
+            click(mx, my + 60 * ky)
+            time.sleep(2.2)
+            ws = self._q_words(grab())
+            ms = next((w for w in ws if norm(w[0]).startswith("misi")), None)
+            if not ms:
+                cancel = next((w for w in ws if norm(w[0]) == "cancelar"), None)
+                if cancel:
+                    click(cancel[1], cancel[2])
+                continue
+            click(ms[1] + 60 * kx, ms[2])
+            time.sleep(1.5)
+            ws = self._q_words(grab())
+            ac = next((w for w in ws if norm(w[0]) == "aceptar"), None)
+            if ac:
+                click(ac[1] + 30 * kx, ac[2])
+                time.sleep(1.2)
+                self.log(f"📜 Acepté una misión nueva (NPC en {key[0]} {key[1]},{key[2]}).")
+                self._q_npc = None
+            hd = next((w for w in self._q_words(grab()) if norm(w[0]) == "misiones"), None)
+            if hd:
+                click(hd[1], hd[2], "right")
+            return True
+        return False
+
+    def _quest_where(self):
+        """Abre la lista de misiones (Ctrl+Q) y lee dónde está el NPC: 'Enzu (Granja Aresden en 49,97)'."""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        self._release()
+        winapi.press("CTRL+Q")
+        time.sleep(1.2)
+        img = self.screen.grab(self.rect)
+        ws = self._q_words(img)
+        out = None
+        try:
+            line = None
+            for w in ws:
+                if norm(w[0]) == "en":
+                    row = sorted([v for v in ws if abs(v[2] - w[2]) < 9], key=lambda v: v[1])
+                    txt = " ".join(v[0] for v in row)
+                    if "(" in txt and re.search(r"\d+\s*,\s*\d+", txt):
+                        line = txt
+                        break
+            if line:
+                m = re.match(r"\s*(.+?)\s*\((.+?)\s+en\s+(\d+)\s*,\s*(\d+)", line)
+                if m:
+                    mp = self._loc_map_name(m.group(2)) or m.group(2)
+                    out = {"npc": m.group(1), "map": mp, "x": int(m.group(3)), "y": int(m.group(4))}
+        finally:
+            for t in ("misiones", "menú", "menu"):
+                hd = next((w for w in self._q_words(self.screen.grab(self.rect)) if norm(w[0]).startswith(norm(t))), None)
+                if hd:
+                    winapi.click(*self.abs_pt(hd[1], hd[2]), button="right")
+                    time.sleep(0.4)
+        return out
+
+    def _quest_turnin(self, qn, hud):
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        grab = lambda: self.screen.grab(self.rect)
+        click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
+        tw, th = self._tile()
+        cx, cy = self._char()
+        self._release()
+        click(cx + (qn["x"] - self.pos["x"]) * tw, cy + (qn["y"] - self.pos["y"]) * th - th * 0.3)
+        time.sleep(2.2)
+        ws = self._q_words(grab())
+        ms = next((w for w in ws if norm(w[0]).startswith("misi")), None)
+        if not ms:
+            self.log(f"📜 No me abre la charla con {qn['npc']}. Pruebo de nuevo en un rato.")
+            self._q_npc = None
+            return
+        click(ms[1] + 60 * tw / 72, ms[2])
+        time.sleep(1.5)
+        ws = self._q_words(grab())
+        el = next((w for w in ws if norm(w[0]).startswith("elige")), None)
+        if el:
+            rows = {}
+            for w in ws:
+                if el[2] + 8 < w[2] < el[2] + 140 * th / 72 and w[1] > el[1] - 20:
+                    rows.setdefault(round(w[2] / 9), []).append(w)
+            opts = [(" ".join(v[0] for v in sorted(r_, key=lambda v: v[1])), min(v[1] for v in r_), r_[0][2]) for r_ in rows.values()]
+            opts = [o for o in opts if not any(k in o[0].lower() for k in ("aceptar", "abandonar", "ocultar", "complet", "entregar"))]
+            pick = self._reward_pick(opts)
+            if pick:
+                click(pick[1] + 20, pick[2])
+                time.sleep(0.8)
+                self.log(f"📜 Premio elegido: {pick[0]}.")
+        ws = self._q_words(grab())
+        bt = next((w for w in ws if any(norm(w[0]).startswith(k) for k in self.QUEST_TURNIN)), None)
+        if bt:
+            click(bt[1], bt[2])
+            time.sleep(1.5)
+            self.log(f"📜 Cobré la misión '{hud[0]}'.")
+        else:
+            self.log("📜 No encuentro el botón para cobrar la misión (dejo la ventana para que la veas).")
+            self._q_t = time.time() + 600
+            return
+        self._q_npc = None
+        hd = next((w for w in self._q_words(grab()) if norm(w[0]) == "misiones"), None)
+        if hd:
+            click(hd[1], hd[2], "right")
 
     def _oly_pots(self):
         """Pociones de vida en el bolso (Olympia): abro F6, busco los frascos rojos y leo el número de abajo."""
