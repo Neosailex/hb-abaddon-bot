@@ -3088,6 +3088,12 @@ class Bot:
         d = t.get("dest") or "auto"
         if d != "auto":
             return d
+        try:
+            qd = self._quest_dest()
+        except Exception:
+            qd = None
+        if qd:
+            return qd
         lvl = int(t.get("my_level", 1))
         path = self._load_json("training_path.json")
         from . import brain as _brain
@@ -3368,6 +3374,11 @@ class Bot:
         self._oly_fight_review()
         allow = self._oly_allow()
         ok = [e for e in ok if crowd(e) <= allow]
+        qm = self._quest_mob_names()
+        if qm:
+            qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 30]
+            if qok:
+                ok = qok  # misión activa: primero sus bichos
         if not ok:
             if now - getattr(self, "_oly_nest_said", 0) > 120:
                 self._oly_nest_said = now
@@ -4275,6 +4286,12 @@ class Bot:
             cand.append([xp, zn, c, f"{mk}|{x1},{y1}", xp is not None])
         if not cand:
             return None
+        qm = self._quest_mob_names()
+        if qm:
+            qc = [c_ for c_ in cand if c_[1].get("mob") in qm]
+            if qc:
+                cand = qc  # misión activa: solo zonas de su bicho
+                meas = [c_[0] for c_ in qc if c_[0] is not None] or meas
         top = max(meas) if meas else 1000.0
         for c_ in cand:
             if c_[0] is None:
@@ -4545,6 +4562,151 @@ class Bot:
             return 20
         return max(opts, key=lambda o: score(o[0])) if opts else None
 
+    # ---- base de misiones (wiki de Olympia) para ir subiendo con misiones
+    def _quest_db(self):
+        db = getattr(self, "_qdb", None)
+        if db is None:
+            db = self._qdb = self._load_json("misiones_olympia.json") or {"quests": [], "npcs": {}}
+        return db
+
+    def _quest_active(self):
+        """Misión del cartel (Humble Beginning 2/50) cruzada con la base: (entrada, hechos, total) o None."""
+        hud = getattr(self, "quest", None)
+        if not hud or not hud[0]:
+            return None
+        nm = "".join(c for c in hud[0].lower() if c.isalnum())
+        best, br = None, 0.0
+        for q in self._quest_db().get("quests", []):
+            r = difflib.SequenceMatcher(None, nm, "".join(c for c in q["name"].lower() if c.isalnum())).ratio()
+            if r > br:
+                best, br = q, r
+        return (best, hud[1], hud[2]) if best and br >= 0.75 else None
+
+    def _quest_mob_names(self):
+        qa = self._quest_active()
+        if not qa or qa[1] >= qa[2]:
+            return set()
+        return {o["mob"] for o in qa[0]["objectives"] if o["mob"] != "*" and not o.get("elite")}
+
+    def _quest_map_for(self, q):
+        """Mapa de la misión que me corresponde (lado Aresden) y que conozco."""
+        side = [m for m in q["maps"] if not any(k in m.lower() for k in ("elvine", "eldiniel"))] or q["maps"]
+        for m in side:
+            if self.world.map_for(m) or m.lower() in ("beginner zone",):
+                return m
+        return None
+
+    def _quest_dest(self):
+        """Con una misión activa: el mapa donde se cumple (si es de mapa) o donde salen sus bichos."""
+        qa = self._quest_active()
+        if not qa or qa[1] >= qa[2]:
+            return None
+        q = qa[0]
+        cur = self.pos.get("map") or ""
+        if q.get("map_only"):
+            m = self._quest_map_for(q)
+            return m
+        mobs = self._quest_mob_names()
+        sp = getattr(self, "_spawns", None)
+        if sp is None:
+            sp = self._spawns = (self._load_json("spawns.json").get("maps") or {})
+        here = next((v for k, v in sp.items() if self._same(k, cur)), None)
+        if here and any(z.get("mob") in mobs for z in here.get("zones", [])):
+            return cur
+        for k, v in sp.items():
+            if any(z.get("mob") in mobs for z in v.get("zones", [])) and not any(w in k.lower() for w in ("elvine", "eldiniel")) \
+                    and self.world.map_for(k):
+                return k
+        return None
+
+    def _quest_pick(self):
+        """Sin misión: la próxima que conviene (kill, nivel, sin enfriamiento, bichos que aguanto), por exp por bicho."""
+        lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
+        done = (self.learner.st or {}).get("quests_done", {}) if self.learner.st else {}
+        crs = {c["name"]: c for c in self._creatures_db().values()}
+        hpmax = self._hpmax_est() or 40
+        cap = max(3.0, 0.10 * hpmax) if hpmax < 150 else 0.04 * hpmax
+        now = time.time()
+        best = None
+        for q in self._quest_db().get("quests", []):
+            if q.get("kind") != "kill" or lvl < int(q.get("level") or 1):
+                continue
+            t_done = done.get(q["name"])
+            if t_done:
+                rep = q.get("repeat_h")
+                if rep is None or now - t_done < max(0.05, rep or 0) * 3600:
+                    continue
+            if not self._quest_map_for(q) and q.get("map_only"):
+                continue
+            ok = True
+            for o in q["objectives"]:
+                cr = crs.get(o["mob"])
+                if o["mob"] == "*" or o.get("elite") or not cr or cr.get("dmg_avg", 99) > cap:
+                    ok = False
+            if not ok:
+                continue
+            kills = sum(o["count"] for o in q["objectives"]) or 1
+            score = q["exp"] / kills
+            if best is None or score > best[0]:
+                best = (score, q)
+        return best[1] if best else None
+
+    def _quest_go_accept(self):
+        """Voy al NPC de la próxima misión (si sé dónde está) y la acepto."""
+        q = self._quest_pick()
+        if not q:
+            return False
+        now = time.time()
+        if now - getattr(self, "_qacc_t", 0) < 600 and getattr(self, "_qacc_name", None) == q["name"] and not getattr(self, "goto", None):
+            return False
+        loc = None
+        for mp_, xy in (self._quest_db().get("npcs", {}).get(q["npc"], {}) or {}).items():
+            if not any(k in mp_.lower() for k in ("elvine", "eldiniel")):
+                loc = (mp_, xy[0], xy[1])
+                break
+        if not loc:
+            return False
+        cur = self.pos.get("map") or ""
+        if not self._same(cur, loc[0]) or max(abs(self.pos["x"] - loc[1]), abs(self.pos["y"] - loc[2])) > 2:
+            if not getattr(self, "goto", None) and now - getattr(self, "_qacc_go_t", 0) > 120:
+                self._qacc_go_t = now
+                self.log(f"📜 Próxima misión: '{q['name']}' ({q['exp']:,} de exp). Voy a buscarla con {q['npc']} ({loc[0]} {loc[1]},{loc[2]}).")
+                self.goto = {"map": loc[0], "x": loc[1], "y": loc[2] + 1, "t": now}
+            return bool(getattr(self, "goto", None))
+        self._qacc_t, self._qacc_name = now, q["name"]
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        grab = lambda: self.screen.grab(self.rect)
+        click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
+        tw, th = self._tile()
+        cx, cy = self._char()
+        self._release()
+        click(cx + (loc[1] - self.pos["x"]) * tw, cy + (loc[2] - self.pos["y"]) * th - th * 0.3)
+        time.sleep(2.2)
+        ws = self._q_words(grab())
+        key = norm(q["name"].split()[0])
+        rows = [w for w in ws if norm(w[0]).startswith("misi")]
+        pick = None
+        for r_ in rows:
+            line = " ".join(v[0] for v in ws if abs(v[2] - r_[2]) < 8)
+            if key in norm(line):
+                pick = r_
+                break
+        pick = pick or (rows[0] if rows else None)
+        if not pick:
+            self.log(f"📜 {q['npc']} no me ofrece '{q['name']}' ahora.")
+            return False
+        click(pick[1] + 60 * tw / 72, pick[2])
+        time.sleep(1.5)
+        ac = next((w for w in self._q_words(grab()) if norm(w[0]) == "aceptar"), None)
+        if ac:
+            click(ac[1] + 30 * tw / 72, ac[2])
+            time.sleep(1.2)
+            self.log(f"📜 Acepté '{q['name']}'.")
+            self._q_npc = None
+        if any(norm(w[0]) == "activas" for w in self._q_words(grab())):
+            winapi.press("CTRL+Q")
+        return True
+
     def _quest_step(self):
         """Misiones: acepta las que ofrezca un NPC con '!' amarillo y, cuando el cartel marca la misión completa,
         vuelve al NPC (Ctrl+Q dice dónde está) y cobra eligiendo el premio más útil para el guerrero 2H."""
@@ -4580,7 +4742,14 @@ class Bot:
                 return True
             self._quest_turnin(qn, hud)
             return True
-        # 2) NPC con '!' amarillo en pantalla: le hablo y acepto
+        # 2) sin misión activa: voy a buscar la que más conviene (base de la wiki)
+        if not hud:
+            try:
+                if self._quest_go_accept():
+                    return True
+            except Exception as e:
+                self.log(f"📜 Error buscando misión: {e!r}")
+        # 3) NPC con '!' amarillo en pantalla: le hablo y acepto
         if now - getattr(self, "_q_scan_t", 0) < 45:
             return False
         self._q_scan_t = now
@@ -4707,6 +4876,13 @@ class Bot:
             click(bt[1], bt[2])
             time.sleep(1.5)
             self.log(f"📜 Cobré la misión '{hud[0]}'.")
+            try:
+                qa = self._quest_active()
+                self.learner._profile()
+                self.learner.st.setdefault("quests_done", {})[qa[0]["name"] if qa else hud[0]] = time.time()
+                self.learner.save()
+            except Exception:
+                pass
         else:
             self.log("📜 No encuentro el botón para cobrar la misión (dejo la ventana para que la veas).")
             self._q_t = time.time() + 600

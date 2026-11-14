@@ -1,0 +1,1442 @@
+{
+ "source": "https://www.helbreath.net/wiki/Quests/",
+ "npcs": {
+  "Enzu": {
+   "Aresden Farm": [
+    49,
+    97
+   ]
+  },
+  "Kiora": {
+   "Aresden Shop": [
+    57,
+    42
+   ]
+  }
+ },
+ "notes": "Los objetivos de misiones de mapa cuentan solo en ese mapa. Death Valley/Silent Wood: no cuentan Slimes, Giant Ants, Snakes, Rabbits, Cats ni guardianes de cofres.",
+ "quests": [
+  {
+   "name": "Humble Beginning",
+   "npc": "Enzu",
+   "maps": [
+    "Beginner Zone",
+    "Aresden Farm",
+    "Elvine Farm"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Slime",
+     "count": 50,
+     "elite": false
+    }
+   ],
+   "exp": 20000,
+   "gold": 500,
+   "repeat_h": 2,
+   "map_only": false,
+   "kind": "kill",
+   "nation": null,
+   "notes": "Premio a elegir: 500 de oro / daga / varita"
+  },
+  {
+   "name": "A New Challenge",
+   "npc": "Enzu",
+   "maps": [
+    "Beginner Zone",
+    "Aresden Farm",
+    "Elvine Farm"
+   ],
+   "level": 10,
+   "objectives": [
+    {
+     "mob": "Orc",
+     "count": 200,
+     "elite": false
+    },
+    {
+     "mob": "Orc",
+     "count": 2,
+     "elite": true
+    }
+   ],
+   "exp": 125000,
+   "gold": 3000,
+   "repeat_h": null,
+   "map_only": false,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Epidemic",
+   "npc": "Kiora",
+   "maps": [
+    "Aresden Shop",
+    "Elvine Shop"
+   ],
+   "level": 10,
+   "objectives": [
+    {
+     "mob": "Snake",
+     "count": 0,
+     "elite": false
+    }
+   ],
+   "exp": 100000,
+   "gold": 3000,
+   "repeat_h": null,
+   "map_only": false,
+   "kind": "items",
+   "nation": null,
+   "notes": "Entregar 3 Snake Teeth, 3 Snake Skin, 3 Snake Tongue. Una sola vez."
+  },
+  {
+   "name": "Unusual Meal",
+   "npc": "Lagus",
+   "maps": [
+    "Farm Dungeon"
+   ],
+   "level": 15,
+   "objectives": [
+    {
+     "mob": "Giant Scorpion",
+     "count": 200,
+     "elite": false
+    }
+   ],
+   "exp": 200000,
+   "gold": 3000,
+   "repeat_h": null,
+   "map_only": true,
+   "kind": "kill+items",
+   "nation": null,
+   "notes": "Además entregar 5 Scorpion Skin"
+  },
+  {
+   "name": "Daara's Struggle",
+   "npc": "Daara",
+   "maps": [
+    "Farm Dungeon"
+   ],
+   "level": 15,
+   "objectives": [
+    {
+     "mob": "Orc",
+     "count": 300,
+     "elite": false
+    }
+   ],
+   "exp": 150000,
+   "gold": 2000,
+   "repeat_h": null,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Oxyia's Strife",
+   "npc": "Oxyia",
+   "maps": [
+    "Farm Dungeon"
+   ],
+   "level": 15,
+   "objectives": [
+    {
+     "mob": "Orc",
+     "count": 10,
+     "elite": true
+    }
+   ],
+   "exp": 150000,
+   "gold": 3000,
+   "repeat_h": null,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Garden Trolls",
+   "npc": "Sylas",
+   "maps": [
+    "Aresien Garden",
+    "Eldiniel Garden"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Troll",
+     "count": 1000,
+     "elite": false
+    }
+   ],
+   "exp": 800000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Garden Trolls Daily",
+   "npc": "Sylas",
+   "maps": [
+    "Aresien Garden",
+    "Eldiniel Garden"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Troll",
+     "count": 400,
+     "elite": false
+    },
+    {
+     "mob": "Orc",
+     "count": 400,
+     "elite": false
+    }
+   ],
+   "exp": 800000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Garden Unicorns",
+   "npc": "Sylas",
+   "maps": [
+    "Aresien Garden",
+    "Eldiniel Garden"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Unicorn",
+     "count": 140,
+     "elite": false
+    }
+   ],
+   "exp": 1600000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Garden Unicorns Daily",
+   "npc": "Sylas",
+   "maps": [
+    "Aresien Garden",
+    "Eldiniel Garden"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Unicorn",
+     "count": 60,
+     "elite": false
+    }
+   ],
+   "exp": 1700000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Garden Giant Trees",
+   "npc": "Sylas",
+   "maps": [
+    "Aresien Garden",
+    "Eldiniel Garden"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Giant Tree",
+     "count": 480,
+     "elite": false
+    }
+   ],
+   "exp": 800000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Garden Giant Trees Daily",
+   "npc": "Sylas",
+   "maps": [
+    "Aresien Garden",
+    "Eldiniel Garden"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Giant Tree",
+     "count": 190,
+     "elite": false
+    }
+   ],
+   "exp": 790000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Death Valley Cull",
+   "npc": "Borga",
+   "maps": [
+    "Death Valley"
+   ],
+   "level": 50,
+   "objectives": [
+    {
+     "mob": "*",
+     "count": 2100,
+     "elite": false
+    }
+   ],
+   "exp": 790000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Death Valley Cull Daily",
+   "npc": "Borga",
+   "maps": [
+    "Death Valley"
+   ],
+   "level": 50,
+   "objectives": [
+    {
+     "mob": "*",
+     "count": 850,
+     "elite": false
+    }
+   ],
+   "exp": 790000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Silent Wood Hunt",
+   "npc": "Gorm",
+   "maps": [
+    "Silent Wood"
+   ],
+   "level": 60,
+   "objectives": [
+    {
+     "mob": "*",
+     "count": 2100,
+     "elite": false
+    }
+   ],
+   "exp": 790000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Silent Wood Hunt Daily",
+   "npc": "Gorm",
+   "maps": [
+    "Silent Wood"
+   ],
+   "level": 60,
+   "objectives": [
+    {
+     "mob": "*",
+     "count": 850,
+     "elite": false
+    }
+   ],
+   "exp": 790000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "D2 Cyclops",
+   "npc": "Litzy",
+   "maps": [
+    "Dungeon L2"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Cyclops",
+     "count": 700,
+     "elite": false
+    }
+   ],
+   "exp": 950000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "D2 Cyclops Daily",
+   "npc": "Litzy",
+   "maps": [
+    "Dungeon L2"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Cyclops",
+     "count": 270,
+     "elite": false
+    }
+   ],
+   "exp": 920000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "D2 Frogs",
+   "npc": "Litzy",
+   "maps": [
+    "Dungeon L2"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Frog",
+     "count": 950,
+     "elite": false
+    }
+   ],
+   "exp": 570000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "D2 Frogs Daily",
+   "npc": "Litzy",
+   "maps": [
+    "Dungeon L2"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Frog",
+     "count": 390,
+     "elite": false
+    }
+   ],
+   "exp": 580000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "D4 Demons",
+   "npc": "Gorvash",
+   "maps": [
+    "Dungeon L4"
+   ],
+   "level": 90,
+   "objectives": [
+    {
+     "mob": "Demon",
+     "count": 130,
+     "elite": false
+    }
+   ],
+   "exp": 1600000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "D4 Demons Daily",
+   "npc": "Gorvash",
+   "maps": [
+    "Dungeon L4"
+   ],
+   "level": 90,
+   "objectives": [
+    {
+     "mob": "Demon",
+     "count": 50,
+     "elite": false
+    }
+   ],
+   "exp": 1600000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Trolls",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Troll",
+     "count": 1200,
+     "elite": false
+    }
+   ],
+   "exp": 960000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Cyclops",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Cyclops",
+     "count": 800,
+     "elite": false
+    }
+   ],
+   "exp": 1100000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Ogres",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Ogre",
+     "count": 500,
+     "elite": false
+    }
+   ],
+   "exp": 940000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Ogres Daily",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Ogre",
+     "count": 200,
+     "elite": false
+    }
+   ],
+   "exp": 940000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Ettins",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Ettin",
+     "count": 210,
+     "elite": false
+    }
+   ],
+   "exp": 590000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Ettins Daily",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Ettin",
+     "count": 85,
+     "elite": false
+    }
+   ],
+   "exp": 600000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Mountain Giants",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Mountain Giant",
+     "count": 500,
+     "elite": false
+    }
+   ],
+   "exp": 960000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Mountain Giants Daily",
+   "npc": "Corvane",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Mountain Giant",
+     "count": 210,
+     "elite": false
+    }
+   ],
+   "exp": 1000000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Werewolves",
+   "npc": "Ocull",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Werewolf",
+     "count": 400,
+     "elite": false
+    }
+   ],
+   "exp": 900000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Werewolves Daily",
+   "npc": "Ocull",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Werewolf",
+     "count": 160,
+     "elite": false
+    }
+   ],
+   "exp": 900000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Stalkers",
+   "npc": "Ocull",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Stalker",
+     "count": 340,
+     "elite": false
+    }
+   ],
+   "exp": 820000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Stalkers Daily",
+   "npc": "Ocull",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Stalker",
+     "count": 140,
+     "elite": false
+    }
+   ],
+   "exp": 840000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ML Unicorns Daily",
+   "npc": "Ocull",
+   "maps": [
+    "Middleland"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Unicorn",
+     "count": 40,
+     "elite": false
+    }
+   ],
+   "exp": 1200000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Ice Golems",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Ice Golem",
+     "count": 1000,
+     "elite": false
+    }
+   ],
+   "exp": 1500000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Ice Golems Daily",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Ice Golem",
+     "count": 400,
+     "elite": false
+    }
+   ],
+   "exp": 1500000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Beholders",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Beholder",
+     "count": 260,
+     "elite": false
+    }
+   ],
+   "exp": 450000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Beholders Daily",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Beholder",
+     "count": 100,
+     "elite": false
+    }
+   ],
+   "exp": 430000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Frosts",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Frost",
+     "count": 450,
+     "elite": false
+    }
+   ],
+   "exp": 850000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Frosts Daily",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Frost",
+     "count": 180,
+     "elite": false
+    }
+   ],
+   "exp": 850000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Claw Turtles",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Claw Turtle",
+     "count": 50,
+     "elite": false
+    }
+   ],
+   "exp": 900000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "Claw Turtles Daily",
+   "npc": "Fooldya",
+   "maps": [
+    "Ice Map"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Claw Turtle",
+     "count": 20,
+     "elite": false
+    }
+   ],
+   "exp": 900000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH2 Liches",
+   "npc": "Severin",
+   "maps": [
+    "Magic Tower"
+   ],
+   "level": 130,
+   "objectives": [
+    {
+     "mob": "Liche",
+     "count": 1050,
+     "elite": false
+    }
+   ],
+   "exp": 2100000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Demons",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Demon",
+     "count": 130,
+     "elite": false
+    }
+   ],
+   "exp": 1600000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Demons Daily",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Demon",
+     "count": 50,
+     "elite": false
+    }
+   ],
+   "exp": 1600000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Gargoyles",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Gargoyle",
+     "count": 85,
+     "elite": false
+    }
+   ],
+   "exp": 1400000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Gargoyles Daily",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Gargoyle",
+     "count": 70,
+     "elite": false
+    }
+   ],
+   "exp": 3000000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Dark Elves",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Dark Elf",
+     "count": 320,
+     "elite": false
+    }
+   ],
+   "exp": 680000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Dark Elves Daily",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Dark Elf",
+     "count": 130,
+     "elite": false
+    }
+   ],
+   "exp": 690000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Beholders",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Beholder",
+     "count": 260,
+     "elite": false
+    }
+   ],
+   "exp": 450000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Beholders Daily",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Beholder",
+     "count": 100,
+     "elite": false
+    }
+   ],
+   "exp": 430000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Liches",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Liche",
+     "count": 180,
+     "elite": false
+    }
+   ],
+   "exp": 360000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH3 Liches Daily",
+   "npc": "Moeru",
+   "maps": [
+    "Tower of Hell 3"
+   ],
+   "level": 1,
+   "objectives": [
+    {
+     "mob": "Liche",
+     "count": 70,
+     "elite": false
+    }
+   ],
+   "exp": 350000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Demons",
+   "npc": "Morthis",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Demon",
+     "count": 130,
+     "elite": false
+    }
+   ],
+   "exp": 1600000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Minotaurs",
+   "npc": "Morthis",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Minotaurus",
+     "count": 25,
+     "elite": false
+    }
+   ],
+   "exp": 500000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Centaurs",
+   "npc": "Morthis",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Centaurus",
+     "count": 55,
+     "elite": false
+    }
+   ],
+   "exp": 1000000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Guardians Daily",
+   "npc": "Morthis",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Minotaurus",
+     "count": 5,
+     "elite": false
+    },
+    {
+     "mob": "Dragon",
+     "count": 5,
+     "elite": false
+    },
+    {
+     "mob": "Centaurus",
+     "count": 5,
+     "elite": false
+    },
+    {
+     "mob": "Giant Lizard",
+     "count": 5,
+     "elite": false
+    }
+   ],
+   "exp": 950000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Gargoyles",
+   "npc": "Ilvara",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Gargoyle",
+     "count": 85,
+     "elite": false
+    }
+   ],
+   "exp": 1400000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Gargoyles Daily",
+   "npc": "Ilvara",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Gargoyle",
+     "count": 70,
+     "elite": false
+    }
+   ],
+   "exp": 3000000,
+   "gold": 0,
+   "repeat_h": 20,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Master Mage Orcs",
+   "npc": "Ilvara",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Master Mage Orc",
+     "count": 140,
+     "elite": false
+    }
+   ],
+   "exp": 2400000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Dragons",
+   "npc": "Ilvara",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Dragon",
+     "count": 35,
+     "elite": false
+    }
+   ],
+   "exp": 640000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  },
+  {
+   "name": "ToH4 Giant Lizards",
+   "npc": "Ilvara",
+   "maps": [
+    "Tower of Hell 4"
+   ],
+   "level": 140,
+   "objectives": [
+    {
+     "mob": "Giant Lizard",
+     "count": 35,
+     "elite": false
+    }
+   ],
+   "exp": 660000,
+   "gold": 0,
+   "repeat_h": 0,
+   "map_only": true,
+   "kind": "kill",
+   "nation": null,
+   "notes": ""
+  }
+ ]
+}
