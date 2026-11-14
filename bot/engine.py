@@ -2582,9 +2582,14 @@ class Bot:
 
         def find_win(img):
             ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-            st = next((w for w in ws if norm(w[0]) == "str"), None)
             ap = next((w for w in ws if norm(w[0]).startswith("aplicar")), None)
             asg = next((w for w in ws if norm(w[0]).startswith("asignar")), None)
+            sts = [w for w in ws if norm(w[0]) == "str"]
+            if asg:
+                # solo la fila STR de la ventana (debajo de 'Puntos por asignar'), no el 'STR' de un cartelito de ayuda
+                ky = self.rect[3] / 1080.0
+                sts = [w for w in sts if 0 < w[2] - asg[2] < 120 * ky and w[1] < asg[1]]
+            st = min(sts, key=lambda w: w[2]) if sts else None
             if not st and asg:
                 # el chat del juego a veces pasa por encima de la fila STR: la ubico desde 'Puntos por asignar'
                 kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0

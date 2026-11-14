@@ -1,1 +1,1 @@
-{"version": 144, "notes": "Olympia: cuenta los bichos pegados con la memoria (se retira si lo rodean) y prefiere slimes sueltos."}
+{"version": 145, "notes": "Stats en Olympia: ya no confunde la fila STR con el cartelito de peso (por eso no asignaba)."}
