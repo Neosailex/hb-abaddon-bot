@@ -1625,6 +1625,9 @@ class Bot:
             c["exp_bar"] = {"x1": gx1 + 2, "y1": yy, "x2": gx2 - 2, "y2": yy, "green": True}
             found.append("exp_bar")
         tile = max(16, int(round(gw / 20)))
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            # clientes nuevos (Olympia) muestran más mapa: la baldosa sigue midiendo 64 px a 1080 de alto
+            tile = max(16, int(round(64 * (gy2 - gy1) / 1080.0)))
         c["tile"] = {"w": tile, "h": tile}
         c["game_area"] = {"x1": gx1 + 2, "y1": gy1 + 2, "x2": gx2 - 2, "y2": hud_top - 4}
         cx = (gx1 + gx2) // 2
