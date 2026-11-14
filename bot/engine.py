@@ -2719,11 +2719,45 @@ class Bot:
             self._stats_fail = 0
             click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro
             return
-        # si no leí el número, lo calculo con el nivel y los stats de la ventana de personaje
-        # leo los stats actuales en la ventana de personaje (cierro un momento 'Subir nivel')
-        click((st[1] + ap[1]) / 2, st[2] - 60, "right")
-        time.sleep(0.6)
-        vals = stats_f5()
+        def boxes(im):
+            """Los 6 números de las cajitas (STR..LUK) de 'Subir nivel': los pego en una sola fila y la leo de una
+            (el OCR de Windows no lee números sueltos tan chicos)."""
+            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            cx = int(st[1] + 66 * kx)
+            parts = []
+            for i in range(6):
+                cy = int(st[2] + i * rowh)
+                c = im[max(0, cy - int(11 * ky)):cy + int(11 * ky), max(0, cx - int(24 * kx)):cx + int(26 * kx)]
+                if c.size == 0:
+                    return None
+                parts += [c, np.zeros((c.shape[0], int(30 * kx), 3), np.uint8)]
+            h = min(p_.shape[0] for p_ in parts)
+            row = np.hstack([p_[:h] for p_ in parts])
+            for sc, th in ((4, 120), (3, 150), (5, 100)):
+                t = ocr.read_text_fixed(row, scale=sc, thr=th) or ""
+                nums = [int(v) for v in re.findall(r"\d+", t.replace("O", "0").replace("o", "0"))]
+                if len(nums) == 6 and all(1 <= v <= 250 for v in nums):
+                    return dict(zip(names, nums))
+            return None
+
+        bx = boxes(img)
+        if bx:
+            vals = dict(bx)
+            try:
+                wsl = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
+                nv = next((w for w in wsl if norm(w[0]) == "nivel" and abs(w[2] - asg[2]) < 25), None) if asg else None
+                num = next((w for w in wsl if nv and abs(w[2] - nv[2]) < 12 and 0 < w[1] - nv[1] < 90 and norm(w[0]).isdigit()), None)
+                if num:
+                    vals["LEVEL"] = int(norm(num[0]))
+                elif nv and norm(nv[0]) != "nivel" and norm(nv[0])[5:].isdigit():
+                    vals["LEVEL"] = int(norm(nv[0])[5:])
+            except Exception:
+                pass
+        else:
+            # leo los stats actuales en la ventana de personaje (cierro un momento 'Subir nivel')
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")
+            time.sleep(0.6)
+            vals = stats_f5()
         if vals.get("LEVEL"):
             t = self.cfg.setdefault("travel", {})
             if int(t.get("my_level", 0) or 0) != vals["LEVEL"]:

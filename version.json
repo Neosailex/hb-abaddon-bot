@@ -1,1 +1,1 @@
-{"version": 145, "notes": "Stats en Olympia: ya no confunde la fila STR con el cartelito de peso (por eso no asignaba)."}
+{"version": 146, "notes": "Stats en Olympia: lee los números directo de la ventana Subir nivel (sin depender de la ventana de personaje)."}
