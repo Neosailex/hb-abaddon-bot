@@ -1,1 +1,1 @@
-{"version": 112, "notes": "Reconexión: reconoce la pantalla de servidores aunque el OCR lea mal las letras."}
+{"version": 113, "notes": "Leveo: no borra lo medido al desconectarse, el mapa vale lo que rinde su mejor zona y se queda al menos 20 minutos."}

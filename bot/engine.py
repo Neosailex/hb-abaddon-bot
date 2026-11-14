@@ -634,9 +634,10 @@ class Bot:
     # ---------- rendimiento por mapa: experiencia por hora, pociones por minuto ----------
     def _yield_entry(self, mk):
         """Datos de rendimiento del mapa; los viejos pesan menos cuanto más niveles subí desde que los medí."""
-        lvl = self._level_mem() or 1
-        y = self.world.learn.setdefault("yield", {}).setdefault(mk, {"sec": 0.0, "exp": 0.0, "pots": 0.0, "lvl": lvl})
-        if y.get("lvl") != lvl:
+        lvl = self._level_mem()
+        y = self.world.learn.setdefault("yield", {}).setdefault(mk, {"sec": 0.0, "exp": 0.0, "pots": 0.0, "lvl": lvl or 1})
+        # sin nivel leído (desconectado, cargando) no toco nada: antes eso borraba todo lo medido
+        if lvl and lvl >= y.get("lvl", lvl) - 1 and y.get("lvl") != lvl:
             f = 0.8 ** max(1, abs(lvl - y.get("lvl", lvl)))
             for k in ("sec", "exp", "pots"):
                 y[k] = y.get(k, 0.0) * f
@@ -660,14 +661,15 @@ class Bot:
         now = time.time()
         dt = min(2.0, max(0.0, now - getattr(self, "_yt", now)))
         self._yt = now
-        if not self.running or not self._hunting_now():
+        if not self.running or not self._hunting_now() or not self._level_mem():
+            self._yt_pots = None
             return
         mk = (self.pos.get("map") or "").strip().lower()
         y = self._yield_entry(mk)
         y["sec"] += dt
         hp_p = self.stats.get("hp_pots", 0)
         last = getattr(self, "_yt_pots", None)
-        if last is not None and hp_p > last:
+        if last is not None and 0 < hp_p - last <= 2:  # saltos raros (reconexión, teclas sin efecto) no cuentan
             y["pots"] += hp_p - last
         self._yt_pots = hp_p
         x, yy = self.pos.get("x"), self.pos.get("y")
@@ -686,7 +688,13 @@ class Bot:
         if not y or y.get("sec", 0) < 60:
             return None
         rate = y["exp"] / y["sec"] * 3600
+        # en el mapa cazo en la mejor zona: si una zona ya está bien medida, el mapa vale lo que rinde esa zona
+        zb = self._best_zone_rate(mk)
+        if zb:
+            rate = max(rate, 0.85 * zb)
         ppm = y.get("pots", 0) / (y["sec"] / 60.0)
+        if y["sec"] < 120:
+            ppm = min(ppm, 1.5 * float(self.cfg.get("pots_per_min_max", 3.0)))  # muy poco tiempo para juzgar
         lim = float(self.cfg.get("pots_per_min_max", 3.0))
         if y["sec"] < 600 and ppm <= 1.5 * lim:
             return None  # todavía poco tiempo y nada alarmante: sigo midiendo
@@ -695,6 +703,22 @@ class Bot:
             carry = max(10, int(self.cfg.get("pots_target", 20)))
             rate *= 0.1 if carry / ppm < 5 else 0.4
         return rate
+
+    def _yield_burning(self, mk):
+        y = self.world.learn.get("yield", {}).get(mk.strip().lower())
+        if not y or y.get("sec", 0) < 120:
+            return False
+        return y.get("pots", 0) / (y["sec"] / 60.0) > float(self.cfg.get("pots_per_min_max", 3.0))
+
+    def _best_zone_rate(self, mk):
+        """Exp/hora de la mejor zona bien medida de ese mapa (al menos 4 minutos y 8 muertes), o None."""
+        z = self.world.learn.get("xpz", {}).get(mk.strip().lower()) or {}
+        best = None
+        for c in z.values():
+            if c.get("sec", 0) >= 240 and c.get("n", 0) >= 8:
+                r = c.get("tot", 0) / c["sec"] * 3600
+                best = r if best is None or r > best else best
+        return best
 
     def _tab_check(self):
         """Si apreté TAB y en 75 s no maté nada, me equivoqué (estaba en modo ataque): lo vuelvo como estaba."""
@@ -2433,12 +2457,19 @@ class Bot:
         if here and scores[here] is None and untried and untried[0] == here:
             self._yp_v = here
             return here
+        base = here or getattr(self, "_yp_hunt", None)  # en el pueblo comparo con el último mapa de caza
+        if here:
+            self._yp_hunt = here
         if untried:
             self._yp_v = pick = untried[0]  # el más alto de la escalera que todavía no medí
         else:
             pick = max(cands, key=lambda n: scores[n])
-            if here and pick != here and scores[pick] < 1.25 * scores[here]:
-                pick = here  # no vale la pena el viaje por poca diferencia
+            if base in scores and pick != base and scores[pick] < 1.25 * scores[base]:
+                pick = base  # no vale la pena el viaje por poca diferencia
+        # recién llegado: me quedo al menos 20 minutos, salvo que se me vayan las pociones (puntaje castigado)
+        if (here and pick != here and vis and now - vis[1] < 20 * 60 and scores.get(here) is not None
+                and not self._yield_burning(here)):
+            pick = here
         if pick != getattr(self, "_yp_said", None):
             self._yp_said = pick
             txt = ", ".join(f"{n} ~{int(v):,} exp/h".replace(",", ".") for n, v in scores.items() if v is not None)
