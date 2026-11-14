@@ -1147,6 +1147,8 @@ class Bot:
                 dm["t"] = int(time.time())
                 self.world.save()
                 self._avoid_t = 0
+                if cfgmod.server_slug(self.cfg) != "abaddon":
+                    self._oly_died()
                 if dm["n"] >= 2:
                     self.log(f"☠ {dm['n']} muertes seguidas en {self.pos.get('map')}: lo dejo por {dm['n']} hora(s) (o hasta subir 3 niveles) y mientras cazo un escalón más abajo.")
             except Exception:
@@ -3207,9 +3209,31 @@ class Bot:
         if not ok:
             return False
         d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
-        # prefiero bichos sueltos: cada vecino a 2 baldosas del bicho cuenta como 3 baldosas más de distancia
-        crowd = lambda e: sum(1 for o in ents if o is not e and max(abs(o[0] - e[0]), abs(o[1] - e[1])) <= 2)
+        # nidos: un slime ve a 3 baldosas, así que cuento los vecinos a 3 del que voy a pegar. Cuántos acepto lo
+        # voy midiendo: arranco sueltos (0 vecinos) y subo de a uno cuando salgo bien parado varias peleas seguidas.
+        crowd = lambda e: sum(1 for o in ents if o is not e and max(abs(o[0] - e[0]), abs(o[1] - e[1])) <= 3)
+        self._oly_fight_review()
+        allow = self._oly_allow()
+        ok = [e for e in ok if crowd(e) <= allow]
+        if not ok:
+            if now - getattr(self, "_oly_nest_said", 0) > 120:
+                self._oly_nest_said = now
+                self.log(f"🪺 Solo veo slimes en nido (más de {allow} juntos): todavía no me da, busco sueltos.")
+            return False
         e = min(ok, key=lambda e: d(e) + 3 * crowd(e))
+        # élite: el slime común muere en 1-3 golpes; si a los 7 s de pegarle sigue vivo, es élite y lo dejo
+        fe = getattr(self, "_oly_first", {})
+        if e[3] not in fe:
+            if d(e) <= 1:  # cuento desde que lo tengo pegado (no mientras camino hasta él)
+                fe = {k: v for k, v in fe.items() if now - v < 60}
+                fe[e[3]] = now
+                self._oly_first = fe
+        elif now - fe[e[3]] > 7 and d(e) <= 1:
+            bad[e[3]] = now + 600
+            self.log(f"👑 Ese {e[2]['name']} no muere: debe ser élite (100 de vida). Lo dejo y me alejo.")
+            self._release()
+            return False
+        self._oly_cur = {"id": e[3], "crowd": crowd(e), "allow": allow, "t": now}
         vx, vy = self.cfg.get("view_tiles", [9, 6])
         if abs(e[0] - px) <= vx and abs(e[1] - py) <= vy:
             # mismo bicho muchas veces sin morir: lo salteo un rato (puede ser un dato viejo de la memoria)
@@ -3235,6 +3259,41 @@ class Bot:
                 self._walk_to(m, (int(e[0]), int(e[1])), e[2]["name"])
                 return True
         return False
+
+    def _oly_allow(self):
+        lr = self.world.learn.setdefault("oly_nest", {"allow": 0, "ok": 0})
+        return int(lr.get("allow", 0))
+
+    def _oly_fight_review(self):
+        """Terminó la pelea anterior (elijo otro bicho): si salí con buena vida sumo una buena; si quedé muy
+        bajo, bajo el máximo de vecinos aceptado. Con 6 buenas seguidas me animo a un vecino más."""
+        cur = getattr(self, "_oly_cur", None)
+        if not cur or any(e[3] == cur["id"] for e in (getattr(self, "_oly_last", None) or [])):
+            return
+        self._oly_cur = None
+        hp = self.bars.get("hp")
+        if hp is None:
+            return
+        lr = self.world.learn.setdefault("oly_nest", {"allow": 0, "ok": 0})
+        if hp < 35:
+            if lr["allow"] > 0:
+                lr["allow"] -= 1
+                self.log(f"🪺 Quedé con {hp:.0f}% de vida: bajo a {lr['allow']} vecinos máximo por bicho.")
+            lr["ok"] = 0
+        elif hp >= 60 and cur["crowd"] >= lr["allow"]:
+            lr["ok"] = lr.get("ok", 0) + 1
+            if lr["ok"] >= 6 and lr["allow"] < 8:
+                lr["allow"] += 1
+                lr["ok"] = 0
+                self.log(f"🪺 Vengo aguantando bien: me animo a bichos con hasta {lr['allow']} vecinos (nidos más cargados).")
+        self.world.save()
+
+    def _oly_died(self):
+        lr = self.world.learn.setdefault("oly_nest", {"allow": 0, "ok": 0})
+        if lr.get("allow", 0) > 0:
+            lr["allow"] -= 1
+        lr["ok"] = 0
+        self._oly_cur = None
 
     def _goto_step(self):
         """Clic en el mapa del bot: el pj va solo a ese mapa y punto. Si le pegan, pelea primero."""
