@@ -970,6 +970,30 @@ class Bot:
         winapi.click(x, y, double=True)
         return True
 
+    def _adjacent_mobs(self):
+        """Bichos a una baldosa del pj (lista de la memoria). 0 si no se sabe."""
+        try:
+            if not (self.ents.center and self._mem_struct()):
+                return 0
+            c = getattr(self, "_adj_cache", None)
+            if c and time.time() - c[0] < 0.5:
+                return c[1]
+            lst = self.ents.read(self.mem.proc, cols=2) or []
+            me = (self.ents.name or "").lower()
+            n = sum(1 for e in lst if abs(e[0]) <= 1 and abs(e[1]) <= 1 and e[2].lower() != me
+                    and not self._is_player_name(e[2]))
+            self._adj_cache = (time.time(), n)
+            return n
+        except Exception:
+            return 0
+
+    def _is_player_name(self, name):
+        """Nombre de otro jugador (no figura en la base de criaturas)."""
+        names = getattr(self, "_cr_names", None)
+        if names is None:
+            names = self._cr_names = {str(m.get("name", "")).lower() for m in self._creatures_db().values()}
+        return bool(name) and name.lower() not in names
+
     def _fleeing(self):
         return time.time() < getattr(self, "_flee_until", 0)
 
@@ -1062,7 +1086,7 @@ class Bot:
         try:
             H, W = img.shape[:2]
             words = ocr.read_words(img, {"x1": int(W * 0.6), "y1": int(H * 0.7), "x2": W, "y2": int(H * 0.92)}, scale=1.0)
-            w = self._find_word(words, "restart")
+            w = self._find_word(words, "restart") or self._find_word(words, "reiniciar")  # Olympia en castellano
             if w:
                 pt = (w[1], w[2])
         except Exception:
@@ -1103,7 +1127,13 @@ class Bot:
                 self._last_eat = now
                 if self._consume("meat"):
                     self.log("Comí (tenía hambre).")
-            if hp <= max(60, cfg.get("hp_pot_pct", 55)) and now - getattr(self, "_last_pot_t", 0) > min(0.8, cfg.get("pot_cooldown", 1.5)):
+            if hm < getattr(self, "_hm_prev", hm):
+                self._last_dmg_t = now  # me pegaron
+            self._hm_prev = hm
+            # fuera de pelea la vida vuelve sola: no gasto pociones (idea del bot de prueba de Helbreath/server)
+            fighting = now - getattr(self, "_last_dmg_t", 0) < 5 or self._adjacent_mobs() > 0
+            if (hp <= max(60, cfg.get("hp_pot_pct", 55)) and (fighting or hp <= 35)
+                    and now - getattr(self, "_last_pot_t", 0) > min(0.8, cfg.get("pot_cooldown", 1.5))):
                 self._last_pot_t = now
                 if self._consume("pot"):
                     hm2 = self._hp_mem() or hm
@@ -1111,6 +1141,10 @@ class Bot:
                     b = dict(b, hp=hp)
         if hp == 0 and not b.get("mp") and not b.get("sp"):
             hp = None  # todo en 0: la imagen todavía no cargó, no es que me morí
+        if hp is not None:
+            if hp < getattr(self, "_hp_prev_pct", hp) - 0.5:
+                self._last_dmg_t = now
+            self._hp_prev_pct = hp
         # vida baja tiene que durar un ratito (al entrar/salir de edificios la pantalla parpadea)
         if hp is not None and hp <= panic:
             if not getattr(self, "_low_since", 0):
@@ -1123,8 +1157,46 @@ class Bot:
             if hp is not None and hp >= cfg.get("rest_until_pct", 75):
                 self._flee_until = 0
                 self.log(f"Vida {hp:.0f}%: vuelvo a cazar.")
+            elif hp is not None:
+                # tope: si en 45 s la vida no sube (sin comida, algo raro), dejo de huir en vez de dar vueltas para siempre
+                best = getattr(self, "_flee_best", None)
+                if best is None or hp > best[0] + 2:
+                    self._flee_best = (hp, now)
+                elif now - best[1] > 45:
+                    self._flee_until, self._flee_best = 0, None
+                    self._flee_block = now + 20
+                    self.log(f"Vida {hp:.0f}%: no sube huyendo; vuelvo a actuar.")
             return False
-        if hp is not None and hp <= panic and cfg.get("panic_action") == "flee":
+        self._flee_best = None
+        # descanso fuera de pelea: con menos de 50% y nadie pegándome, me quedo quieto hasta 80% (máx. 60 s)
+        if hp is not None and cfg.get("rest_enabled", True):
+            fighting = now - getattr(self, "_last_dmg_t", 0) < 5 or self._adjacent_mobs() > 0
+            rs = getattr(self, "_rest_since", 0)
+            if rs:
+                if hp >= 80 or fighting or now - rs > 60:
+                    self._rest_since = 0
+                    if now - rs > 60 and hp < 80:
+                        self._rest_block = now + 30
+                    self.log(f"Descanso terminado (vida {hp:.0f}%).")
+                else:
+                    self._release()
+                    self.stats["state"] = f"descansando ({hp:.0f}%)"
+                    return True
+            elif hp < 50 and not fighting and now > getattr(self, "_rest_block", 0) and not self._is_travelling():
+                self._rest_since = now
+                self._release()
+                self.state, self.target = "seek", None
+                self.log(f"Vida {hp:.0f}% y nadie me pega: descanso un poco en vez de gastar pociones.")
+                return True
+        # enjambre: con 3+ bichos pegados y menos de 60% de vida, me retiro antes de quedar acorralado
+        if (hp is not None and hp < 60 and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0)
+                and self._adjacent_mobs() >= 3):
+            self._flee_until = now + cfg.get("flee_max_sec", 600)
+            self._release()
+            self.state, self.target = "seek", None
+            self.log(f"¡{self._adjacent_mobs()} bichos encima y vida {hp:.0f}%! Me retiro antes de que me rodeen.")
+            return False
+        if hp is not None and hp <= panic and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0):
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()

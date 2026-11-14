@@ -248,14 +248,21 @@ def motion_blobs(prev, cur, thresh=22, min_area=30, max_area=12000, max_changed=
     _, m = cv2.threshold(d, thresh, 255, cv2.THRESH_BINARY)
     if m.mean() / 255.0 > max_changed:
         return None  # la pantalla se desplazó: no sirve este cuadro
-    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
-    m = cv2.dilate(m, np.ones((5, 5), np.uint8), iterations=2)
-    n, _, stats, cent = cv2.connectedComponentsWithStats(m)
-    out = []
-    for i in range(1, n):
-        x, y, w, h, area = stats[i]
-        if min_area <= area <= max_area:
-            out.append({"x": float(cent[i][0]), "y": float(cent[i][1]), "w": int(w), "h": int(h), "area": int(area)})
+    def blobs(mask, k):
+        mm = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))
+        mm = cv2.dilate(mm, np.ones((5, 5), np.uint8), iterations=2)
+        n, _, stats, cent = cv2.connectedComponentsWithStats(mm)
+        res = []
+        for i in range(1, n):
+            x, y, w, h, area = stats[i]
+            if min_area <= area <= max_area:
+                res.append({"x": float(cent[i][0]), "y": float(cent[i][1]), "w": int(w), "h": int(h), "area": int(area)})
+        return res
+    out = blobs(m, 2)
+    if len(out) > 40:
+        # lluvia/nieve: muchas rayitas finas que "se mueven". Las borro con una apertura más grande
+        # (un bicho es una mancha gruesa y sobrevive)
+        out = blobs(m, 4)
     return out
 
 
