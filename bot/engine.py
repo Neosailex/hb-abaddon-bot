@@ -2574,6 +2574,10 @@ class Bot:
             st = next((w for w in ws if norm(w[0]) == "str"), None)
             ap = next((w for w in ws if norm(w[0]).startswith("aplicar")), None)
             asg = next((w for w in ws if norm(w[0]).startswith("asignar")), None)
+            if not st and asg:
+                # el chat del juego a veces pasa por encima de la fila STR: la ubico desde 'Puntos por asignar'
+                kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+                st = ("STR", asg[1] - 130 * kx, asg[2] + 60 * ky)
             return (st, ap, asg) if st and ap else None
 
         img = grab()
