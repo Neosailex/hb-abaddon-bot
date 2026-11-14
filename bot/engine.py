@@ -4562,9 +4562,9 @@ class Bot:
             # salto los números (cantidades): bajitos y justo debajo de otro objeto
             if st_[i, cv2.CC_STAT_HEIGHT] < 20 * ky and any(abs(bx - o["x"]) < 45 * kx and 0 < by - o["y"] < 45 * ky for o in out):
                 continue
-            px_ = roi[max(0, by - y1 - 6):by - y1 + 6, max(0, bx - x1 - 6):bx - x1 + 6].reshape(-1, 3).astype(int)
-            b_, g_, r_ = px_[:, 0].mean(), px_[:, 1].mean(), px_[:, 2].mean()
-            kind = "gold" if (r_ > 120 and g_ > 110 and b_ < 90) else "item"
+            px_ = roi[max(0, by - y1 - 10):by - y1 + 10, max(0, bx - x1 - 12):bx - x1 + 12].reshape(-1, 3).astype(int)
+            yel = int(((px_[:, 2] > 150) & (px_[:, 1] > 140) & (px_[:, 0] < 110)).sum())
+            kind = "gold" if yel >= 12 else "item"
             out.append({"x": bx, "y": by, "kind": kind, "name": ""})
         for o in out:
             if o["kind"] == "gold":
@@ -4579,11 +4579,19 @@ class Bot:
                 continue
             if not names:
                 continue
+            winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
+            time.sleep(0.3)
+            im1 = self.screen.grab(self.rect)
             winapi.move(*self.abs_pt(o["x"], o["y"]))
-            time.sleep(0.45)
+            time.sleep(0.8)
             im2 = self.screen.grab(self.rect)
-            tw_ = ocr.read_words(im2, {"x1": max(0, o["x"] - int(380 * kx)), "y1": max(0, o["y"] - int(120 * ky)),
-                                        "x2": min(im2.shape[1], o["x"] + int(380 * kx)), "y2": min(im2.shape[0], o["y"] + int(120 * ky))}, scale=1.0)
+            # el cartelito con el nombre es lo que cambió al pasar el mouse
+            dif = (np.abs(im2.astype(int) - im1.astype(int)).max(axis=2) > 40).astype(np.uint8)
+            dif[max(0, o["y"] - int(30 * ky)):o["y"] + int(30 * ky), max(0, o["x"] - int(30 * kx)):o["x"] + int(30 * kx)] = 0
+            ys_, xs_ = np.nonzero(dif)
+            tw_ = []
+            if len(xs_) > 200:
+                tw_ = ocr.read_words(im2, {"x1": int(xs_.min()), "y1": int(ys_.min()), "x2": int(xs_.max()) + 1, "y2": int(ys_.max()) + 1}, scale=1.0)
             tw_ = [w for w in tw_ if not w[0].strip().isdigit()]
             if tw_:
                 top = min(w[2] for w in tw_)
