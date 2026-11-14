@@ -1008,7 +1008,7 @@ class Bot:
         """Ventanas que el bot no usa (ej. 'Resumen de Muerte' de Olympia): las cierro con click derecho
         sobre la ventana. Miro cada ~8 s, solo si no estoy peleando."""
         titles = self.cfg.get("close_windows") or []
-        if not titles or not self.rect or self.state == "attack":
+        if not titles or not self.rect or self.state == "attack" or getattr(self, "_busy_ui", False):
             return False
         now = time.time()
         if now - getattr(self, "_junk_t", 0) < 8:
@@ -1031,6 +1031,13 @@ class Bot:
                     rest = [norm(x) for x in title.split()[1:]]
                     near = " ".join(t2 for t2, w2 in txt if abs(w2[2] - w[2]) < 15 and 0 <= w2[1] - w[1] < 400)
                     if all(r in near for r in rest):
+                        if first == "peso":
+                            # el bolso: con click derecho podría caer sobre un objeto (y el juego pregunta si
+                            # tirarlo). Lo cierro con su tecla.
+                            winapi.press("F6")
+                            self.log("Cierro el bolso (F6).")
+                            time.sleep(0.3)
+                            return True
                         winapi.click(*self.abs_pt(w[1], w[2] + 25), button="right")
                         self.log(f"Cierro la ventana '{title}' (click derecho).")
                         time.sleep(0.3)
@@ -4536,9 +4543,11 @@ class Bot:
         pw = next((w for w in ws if norm(w[0]).startswith("peso")), None)
         if not pw:
             return None
-        x1, y1 = int(pw[1] - 40 * kx), int(pw[2] + 15 * ky)
+        x1, y1 = int(pw[1] - 40 * kx), int(pw[2] + 28 * ky)
         x2, y2 = int(pw[1] + 440 * kx), int(pw[2] + 330 * ky)
         roi = img[y1:y2, x1:x2]
+        self._release()
+        winapi.left_up()  # nunca pasar por el bolso con el botón apretado: arrastraría (y tiraría) cosas
         mask = (roi.max(axis=2) > 90).astype(np.uint8)
         mask = cv2.dilate(mask, np.ones((5, 5), np.uint8))
         n, lab, st_, cen = cv2.connectedComponentsWithStats(mask)
