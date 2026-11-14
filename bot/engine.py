@@ -2611,7 +2611,9 @@ class Bot:
         def points(img):
             if not asg:
                 return None
-            ws = ocr.read_words(img, {"x1": int(asg[1]), "y1": int(asg[2] - 20), "x2": int(asg[1] + 170), "y2": int(asg[2] + 20)}, scale=1.0)
+            # leo la ventana entera (en recortes chicos el OCR no ve un número solo) y tomo lo que sigue a 'asignar'
+            ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
+            ws = [w for w in ws if abs(w[2] - asg[2]) < 14 and 0 < w[1] - asg[1] < 170]
             for w in sorted(ws, key=lambda w: w[1]):
                 if w[1] > asg[1] + 20:
                     v = num(w[0])
