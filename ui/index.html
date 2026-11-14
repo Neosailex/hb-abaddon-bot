@@ -222,6 +222,11 @@ input[type=range]{accent-color:var(--gold);width:100%}
     <section class="page" id="p-calib">
       <h1>Calibración</h1><p class="sub">Le enseñás al bot dónde está cada cosa en tu pantalla. Se hace una vez (repetila si cambiás el tamaño de la ventana).</p>
       <div class="banner" id="calibBanner"></div>
+      <div class="card" style="margin-bottom:14px">
+        <h2>🛠 Puesta a punto</h2>
+        <p class="hint">Para un servidor o cliente nuevo: el bot abre una por una las ventanas del juego (subir de nivel, íconos de la barra, teclas F), saca foto, lee los textos y botones y las cierra con click derecho. No gasta nada ni suma stats. Tarda unos 3 minutos; deja <b>puesta_a_punto.zip</b> en la carpeta de datos del servidor.</p>
+        <div class="row"><button class="btn prim" id="setupBtn">🛠 Puesta a punto</button></div>
+      </div>
       <div class="grid g2">
         <div class="card">
           <h2>Puntos de pantalla</h2>
@@ -514,7 +519,7 @@ let lastSlot=null;
  const tog=()=>{pv.classList.toggle('full');$('#prevFs').textContent=pv.classList.contains('full')?'✕ Salir':'⛶ Pantalla completa'};
  $('#prevFs').onclick=e=>{e.stopPropagation();tog()}; pv.ondblclick=tog;
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pv.classList.contains('full'))tog()});}
-$('#invBtn').onclick=async()=>{const r=await API.investigate();toast(r.msg)};$('#invOpen').onclick=()=>API.open_data();
+$('#invBtn').onclick=async()=>{const r=await API.investigate();toast(r.msg)};$('#setupBtn').onclick=async()=>{const r=await API.setup_scan();toast(r.msg)};$('#invOpen').onclick=()=>API.open_data();
 $('#memDiag').onclick=async()=>{toast('Revisando la memoria del juego…');const r=await API.mem_diag();toast(r.msg+(r.status?' · '+r.status:''))};
 /* vista en vivo: canal aparte, pide el cuadro siguiente apenas termina de dibujar el anterior */
 let frameId=0;

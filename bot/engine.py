@@ -1913,6 +1913,38 @@ class Bot:
             return
         self.pos.update({"x": v[0], "y": v[1], "t": time.time()})
 
+    # ---------- puesta a punto: abre todas las ventanas, las fotografía, lee sus textos y las cierra ----------
+    def setup_scan(self):
+        th = getattr(self, "_setup_th", None)
+        if th is not None and th.is_alive():
+            return {"ok": False, "msg": "Ya estoy haciendo la puesta a punto."}
+        if not self._ensure_window():
+            return {"ok": False, "msg": "Abrí el juego y entrá con el pj."}
+        was = self.running
+        if was:
+            self.stop("puesta a punto")
+
+        def go():
+            from . import setup_scan as ss
+            bg = winapi.BG_HWND
+            if self.cfg.get("background_mode"):
+                winapi.set_background(self.hwnd)
+            try:
+                self.log("🛠 Puesta a punto: abro y cierro todas las ventanas del juego (unos 3 minutos). No toques el juego.")
+                d = os.path.join(getattr(self, "pdir", cfgmod.DATA), "puesta_a_punto")
+                zp = ss.SetupScan(self, d).run(self.log)
+                self.log(f"🛠 Puesta a punto lista: {zp}" if zp else "🛠 Puesta a punto: no pude ver el juego.")
+            except Exception as e:
+                self.log(f"🛠 Puesta a punto: error {e!r}")
+            finally:
+                winapi.set_background(bg)
+                if was:
+                    self.start()
+
+        self._setup_th = threading.Thread(target=go, daemon=True)
+        self._setup_th.start()
+        return {"ok": True, "msg": "Puesta a punto en marcha: unos 3 minutos. No toques el juego."}
+
     # ---------- investigación: el bot recorre y saca fotos para poder programar lo que falta ----------
     def investigate(self):
         th = getattr(self, "_inv_th", None)

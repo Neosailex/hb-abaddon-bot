@@ -40,6 +40,9 @@ class Api:
     def investigate(self):
         return self._bot.investigate()
 
+    def setup_scan(self):
+        return self._bot.setup_scan()
+
     def open_data(self):
         return self.open_folder("data")
 
