@@ -2601,33 +2601,72 @@ class Bot:
         names = ["STR", "VIT", "DEX", "INT", "MAG", "LUK"]
         plus_x = st[1] + 225 * self.rect[2] / 1920.0
 
-        def read_num(img, x1, y1, x2, y2):
-            crop = img[int(y1):int(y2), int(x1):int(x2)]
-            for sc in (4, 3):
-                t = ocr.read_text_fixed(crop, sc, 150) or ""
-                d = "".join(c for c in t if c.isdigit())
-                if d:
-                    return int(d)
+        fix = str.maketrans({"o": "0", "O": "0", "D": "0", "g": "9", "q": "9", "l": "1", "I": "1", "|": "1", "i": "1",
+                             "S": "5", "s": "5", "B": "8", "Z": "2", "z": "2", "A": "4", "b": "6", "G": "6", "T": "7"})
+
+        def num(t):
+            d = "".join(c for c in (t or "").strip().translate(fix) if c.isdigit())
+            return int(d) if d and len(d) <= 3 else None
+
+        def points(img):
+            if not asg:
+                return None
+            ws = ocr.read_words(img, {"x1": int(asg[1]), "y1": int(asg[2] - 20), "x2": int(asg[1] + 170), "y2": int(asg[2] + 20)}, scale=1.0)
+            for w in sorted(ws, key=lambda w: w[1]):
+                if w[1] > asg[1] + 20:
+                    v = num(w[0])
+                    if v is not None:
+                        return v
             return None
 
-        def read_all(img):
-            vals = {}
-            for i, n in enumerate(names):
-                y = st[2] + i * rowh
-                vals[n] = read_num(img, st[1] + 40, y - 16, st[1] + 110, y + 16)
-            pts = read_num(img, asg[1] + 40, asg[2] - 16, asg[1] + 110, asg[2] + 16) if asg else None
-            return vals, pts
+        def stats_f5():
+            """Los números de la ventana de personaje (F5) se leen bien; los de 'Subir nivel' no."""
+            winapi.press("F5")
+            time.sleep(1.0)
+            im = grab()
+            ws = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
+            out = {}
+            for n in names:
+                lab = next((w for w in ws if norm(w[0]) == n.lower() or (n == "LUK" and norm(w[0]) in ("luk", "lux", "lik", "lix"))), None)
+                if lab:
+                    right = sorted([w for w in ws if abs(w[2] - lab[2]) < 10 and 0 < w[1] - lab[1] < 90], key=lambda w: w[1])
+                    out[n] = num(right[0][0]) if right else None
+            winapi.press("F5")  # la cierro (misma tecla)
+            time.sleep(0.6)
+            if find_win_char(grab()):
+                winapi.click(*self.abs_pt(lab[1], lab[2] - 150), button="right") if lab else None
+            return out
 
-        vals, pts = read_all(img)
+        def find_win_char(im):
+            ws = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
+            return any(norm(w[0]).startswith("estad") for w in ws) and any(norm(w[0]).startswith("misiones") for w in ws)
+
+        pts = points(img)
         if not pts:
             click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro
             self._stats_fail = 0
             return
+        # leo los stats actuales en la ventana de personaje (cierro un momento 'Subir nivel')
+        click((st[1] + ap[1]) / 2, st[2] - 60, "right")
+        time.sleep(0.6)
+        vals = stats_f5()
         if any(vals.get(n) is None for n in ("STR", "VIT", "DEX")):
-            self.log(f"Stats: no leo bien los números de la ventana ({vals}); no toco nada.")
-            click((st[1] + ap[1]) / 2, st[2] - 60, "right")
+            self.log(f"Stats: no leo bien mis stats en la ventana de personaje ({vals}); no toco nada.")
             self._stats_fail = getattr(self, "_stats_fail", 0) + 1
             return
+        ob = self.cfg["calib"].get("levelup_btn")
+        img = grab()
+        win = find_win(img)
+        if not win and ob:
+            click(ob["x"], ob["y"])
+            time.sleep(1.2)
+            img = grab()
+            win = find_win(img)
+        if not win:
+            self.log("Stats: no pude volver a abrir 'Subir nivel'.")
+            return
+        st, ap, asg = win
+        plus_x = st[1] + 225 * self.rect[2] / 1920.0
         plan_vals = dict(vals, CHR=vals.get("LUK"))
         added = {}
         for _ in range(int(pts)):
@@ -2640,10 +2679,10 @@ class Bot:
             plan_vals[n] = (plan_vals.get(n) or 0) + 1
             added[n] = added.get(n, 0) + 1
         img2 = grab()
-        vals2, pts2 = read_all(img2)
-        ok = all(vals2.get(n) == vals[n] + added.get(n, 0) for n in added if vals2.get(n) is not None)
+        pts2 = points(img2)
+        ok = pts2 == int(pts) - sum(added.values())
         if not ok:
-            self.log(f"Stats: la ventana no muestra lo que sumé ({vals2} vs {vals} + {added}); no aplico.")
+            self.log(f"Stats: después de sumar {added} quedan {pts2} puntos (esperaba {int(pts) - sum(added.values())}); no aplico.")
             ws = ocr.read_words(img2, {"x1": 0, "y1": 0, "x2": img2.shape[1], "y2": img2.shape[0]}, scale=1.0)
             rb = next((w for w in ws if norm(w[0]).startswith("restablecer")), None)
             if rb:
