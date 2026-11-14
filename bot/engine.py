@@ -1031,6 +1031,8 @@ class Bot:
                     rest = [norm(x) for x in title.split()[1:]]
                     near = " ".join(t2 for t2, w2 in txt if abs(w2[2] - w[2]) < 15 and 0 <= w2[1] - w[1] < 400)
                     if all(r in near for r in rest):
+                        if first == "peso" and not w[0].strip().startswith("Peso:"):
+                            continue  # 'peso' suelto (ej. 'c/u, peso 1' en la tienda): no es el bolso
                         if first == "peso":
                             # el bolso: con click derecho podría caer sobre un objeto (y el juego pregunta si
                             # tirarlo). Lo cierro con su tecla.
@@ -4540,7 +4542,7 @@ class Bot:
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
         img = self.screen.grab(self.rect)
         ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-        pw = next((w for w in ws if norm(w[0]).startswith("peso")), None)
+        pw = next((w for w in ws if w[0].strip().startswith("Peso:")), None)
         if not pw:
             return None
         x1, y1 = int(pw[1] - 40 * kx), int(pw[2] + 28 * ky)
@@ -4599,7 +4601,7 @@ class Bot:
 
         def peso(img):
             ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-            return next((w for w in ws if norm(w[0]).startswith("peso")), None)
+            return next((w for w in ws if w[0].strip().startswith("Peso:")), None)
 
         img = self.screen.grab(self.rect)
         pw = peso(img)
