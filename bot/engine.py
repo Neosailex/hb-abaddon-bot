@@ -4363,10 +4363,19 @@ class Bot:
         """Abre la lista de misiones (Ctrl+Q) y lee dónde está el NPC: 'Enzu (Granja Aresden en 49,97)'."""
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         self._release()
-        winapi.press("CTRL+Q")
-        time.sleep(1.2)
         img = self.screen.grab(self.rect)
         ws = self._q_words(img)
+        if not any(norm(w[0]) == "activas" for w in ws):  # si ya está abierta, Ctrl+Q la cerraría
+            winapi.press("CTRL+Q")
+            time.sleep(1.2)
+            img = self.screen.grab(self.rect)
+            ws = self._q_words(img)
+        ver = next((w for w in ws if norm(w[0]) == "ver"), None)
+        if ver and not any(norm(w[0]) == "en" for w in ws):
+            winapi.click(*self.abs_pt(ver[1], ver[2]))
+            time.sleep(0.8)
+            img = self.screen.grab(self.rect)
+            ws = self._q_words(img)
         out = None
         try:
             line = None
