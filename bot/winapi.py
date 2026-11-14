@@ -184,6 +184,22 @@ def client_rect(hwnd):
     return (pt.x, pt.y, w, h)
 
 
+def window_frame_offset(hwnd):
+    """Dónde empieza el área de cliente dentro de la imagen de la ventana (captura WGC): (dx, dy)."""
+    if not IS_WIN or not hwnd:
+        return (0, 0)
+    try:
+        r = wintypes.RECT()
+        # límites visibles de la ventana (sin la sombra), que es lo que captura WGC
+        if ctypes.windll.dwmapi.DwmGetWindowAttribute(wintypes.HWND(hwnd), 9, ctypes.byref(r), ctypes.sizeof(r)) != 0:
+            user32.GetWindowRect(hwnd, ctypes.byref(r))
+        pt = wintypes.POINT(0, 0)
+        user32.ClientToScreen(hwnd, ctypes.byref(pt))
+        return (max(0, pt.x - r.left), max(0, pt.y - r.top))
+    except Exception:
+        return (0, 0)
+
+
 def is_foreground(hwnd):
     return IS_WIN and user32.GetForegroundWindow() == hwnd
 

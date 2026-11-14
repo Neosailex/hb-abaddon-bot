@@ -1,1 +1,1 @@
-{"version": 122, "notes": "Caza más inteligente: pociones solo peleando, descansa fuera de pelea, se retira si lo rodean 3+ bichos, no huye para siempre, y la lluvia ya no confunde la detección."}
+{"version": 123, "notes": "Captura de ventana (como OBS): el bot ve el juego aunque tengas otra ventana arriba."}

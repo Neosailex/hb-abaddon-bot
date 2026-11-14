@@ -3,6 +3,7 @@ import base64
 import os
 
 import cv2
+import time
 import numpy as np
 
 try:
@@ -18,9 +19,76 @@ class Screen:
     hwnd = None
     use_printwindow = False  # PrintWindow devuelve imágenes viejas con este juego: se usa la pantalla
 
+    use_wgc = True  # captura de ventana de Windows (como OBS): ve el juego aunque haya otra ventana encima
+    _wgc = None
+
+    def _wgc_frame(self, rect):
+        """Último cuadro de la ventana del juego por Windows Graphics Capture, recortado al área de juego."""
+        import threading
+        from . import winapi
+        st = self._wgc
+        if st is None or st.get("hwnd") != self.hwnd:
+            if st and st.get("ctl"):
+                try:
+                    st["ctl"].stop()
+                except Exception:
+                    pass
+            try:
+                from windows_capture import WindowsCapture
+            except Exception:
+                self.use_wgc = False
+                return None
+            st = self._wgc = {"hwnd": self.hwnd, "img": None, "t": 0.0, "lock": threading.Lock()}
+            cap = WindowsCapture(cursor_capture=False, draw_border=False, window_hwnd=int(self.hwnd))
+
+            @cap.event
+            def on_frame_arrived(frame, control):
+                try:
+                    img = frame.convert_to_bgr().frame_buffer
+                    with st["lock"]:
+                        st["img"] = np.ascontiguousarray(img[:, :, :3])
+                        st["t"] = time.time()
+                except Exception:
+                    pass
+
+            @cap.event
+            def on_closed():
+                st["closed"] = True
+
+            try:
+                st["ctl"] = cap.start_free_threaded()
+            except Exception:
+                self.use_wgc = False
+                self._wgc = None
+                return None
+            t0 = time.time()
+            while st["img"] is None and time.time() - t0 < 2.0:
+                time.sleep(0.02)
+        if st.get("closed"):
+            self._wgc = None
+            return None
+        with st["lock"]:
+            img = st["img"]
+            age = time.time() - st["t"]
+        if img is None or age > 3.0:
+            return None
+        if rect:
+            # el cuadro es la ventana entera: recorto al área de cliente (sin bordes ni título)
+            ox, oy = winapi.window_frame_offset(self.hwnd)
+            x, y, w, h = rect
+            crop = img[oy:oy + h, ox:ox + w]
+            if crop.shape[0] == h and crop.shape[1] == w:
+                return crop.copy()
+            return None
+        return img.copy()
+
     def grab(self, rect):
         """rect = (x, y, w, h) en pantalla -> imagen BGR.
         Primero intenta copiar la ventana del juego directo (aunque esté tapada); si no, saca foto de la pantalla."""
+        if self.hwnd and self.use_wgc:
+            img = self._wgc_frame(rect)
+            if img is not None:
+                return img
         if self.hwnd and self.use_printwindow:
             from . import winapi
             img = winapi.capture_window(self.hwnd)

@@ -1551,6 +1551,8 @@ class Bot:
         """True si en el centro y en las cuatro esquinas del área del juego lo que hay en pantalla es la ventana del juego."""
         if not winapi.IS_WIN or not self.hwnd or not getattr(self, "rect", None):
             return True
+        if getattr(self.screen, "_wgc", None) and self.cfg.get("background_mode"):
+            return True  # la imagen viene de la ventana del juego (WGC) y los clicks van directo a ella
         try:
             import ctypes
             import ctypes.wintypes as wt
