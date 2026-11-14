@@ -4206,7 +4206,151 @@ class Bot:
         except Exception:
             return False
 
+    def _oly_pots(self):
+        """Pociones de vida en el bolso (Olympia): abro F6, busco los frascos rojos y leo el número de abajo."""
+        import cv2
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+
+        def peso(img):
+            ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
+            return next((w for w in ws if norm(w[0]).startswith("peso")), None)
+
+        img = self.screen.grab(self.rect)
+        pw = peso(img)
+        opened = False
+        if not pw:
+            self._release()
+            winapi.press("F6")
+            time.sleep(0.9)
+            img = self.screen.grab(self.rect)
+            pw = peso(img)
+            opened = True
+        try:
+            if not pw:
+                return None
+            x1, y1 = int(pw[1] - 40 * kx), int(pw[2] + 15 * ky)
+            x2, y2 = int(pw[1] + 440 * kx), int(pw[2] + 330 * ky)
+            roi = img[y1:y2, x1:x2]
+            b_, g_, r_ = roi[:, :, 0].astype(int), roi[:, :, 1].astype(int), roi[:, :, 2].astype(int)
+            mask = ((r_ > 140) & (g_ < 70) & (b_ < 80)).astype(np.uint8)
+            n, lab, st_, cen = cv2.connectedComponentsWithStats(mask)
+            total = 0
+            for i in range(1, n):
+                if st_[i, cv2.CC_STAT_AREA] < 12:
+                    continue
+                cx, cy = int(cen[i][0]) + x1, int(cen[i][1]) + y1
+                ws = ocr.read_words(img, {"x1": cx - int(30 * kx), "y1": cy + int(4 * ky), "x2": cx + int(40 * kx), "y2": cy + int(40 * ky)}, scale=2.0)
+                d = next((norm(w[0]) for w in ws if norm(w[0]).isdigit()), None)
+                total += int(d) if d else 1
+            return total
+        finally:
+            if opened:
+                winapi.press("F6")
+                time.sleep(0.3)
+
+    def _oly_supplies(self):
+        """Olympia: cuento las pociones abriendo el bolso cada tanto y, si quedan pocas, voy a la tienda."""
+        now = time.time()
+        th = getattr(self, "_shop_th", None)
+        if th is not None and th.is_alive():
+            return
+        if self.state != "seek" or self._under_attack() or self._fleeing():
+            return
+        if now - getattr(self, "_pots_t", 0) > 240:
+            self._pots_t = now
+            try:
+                n = self._oly_pots()
+            except Exception:
+                n = None
+            if n is not None:
+                if n != getattr(self, "_left", {}).get("pot"):
+                    self.log(f"🧪 Me quedan {n} pociones de vida.")
+                self._left = {"pot": n, "meat": 99}
+        n = getattr(self, "_left", {}).get("pot")
+        if n is None or n > int(self.cfg.get("buy_pots_below", 3)) or now - getattr(self, "_shop_last", 0) < 900:
+            return
+        self._shop_last = now
+        self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
+        self._shop_th.start()
+
+    def _oly_shop_trip(self):
+        """Tienda de Aresden (granja) en Olympia: Kiora <Tendera> → Comerciar → Health Potion → Máx. → Comprar."""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        inshop = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("shop", "tienda"))
+        try:
+            self.log(f"🛒 Quedan {getattr(self, '_left', {}).get('pot')} pociones: voy a la tienda de la granja de Aresden.")
+            t0 = time.time()
+            if not self._same(self.pos.get("map") or "", "Aresden Farm") and not inshop():
+                self.goto = {"map": "Aresden Farm", "x": 63, "y": 72, "t": time.time()}
+                while self.goto and time.time() - t0 < 600 and self.alive and self.running:
+                    time.sleep(0.5)
+            if not inshop():
+                self.mission = {"map": "Aresden Farm", "goal": [63, 70], "label": "Tienda (pociones)", "until": time.time() + 300}
+                while not inshop() and time.time() - t0 < 900 and self.alive and self.running:
+                    time.sleep(0.3)
+            if not inshop():
+                self.log("🛒 No llegué a la tienda.")
+                return
+            self._busy_ui = True
+            self._release()
+            time.sleep(1.5)
+            grab = lambda: self.screen.grab(self.rect)
+            words = lambda im: ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
+            click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
+            tw, th = self._tile()
+            cx, cy = self._char()
+            com = None
+            for tx, ty in ((57, 42), (57, 41), (58, 42), (56, 42), (58, 41)):
+                px, py = self.pos.get("x"), self.pos.get("y")
+                click(cx + (tx - px) * tw, cy + (ty - py) * th - th * 0.3)
+                time.sleep(2.2)
+                com = next((w for w in words(grab()) if norm(w[0]).startswith("comerciar")), None)
+                if com:
+                    break
+            if not com:
+                self.log("🛒 No encontré a la tendera.")
+                return
+            click(com[1], com[2])
+            time.sleep(1.8)
+            ws = words(grab())
+            hp = None
+            for w in ws:
+                if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws):
+                    hp = w
+                    break
+            if not hp:
+                self.log("🛒 No veo las Health Potion en la lista.")
+                return
+            click(hp[1], hp[2])
+            time.sleep(1.0)
+            ws = words(grab())
+            mx = next((w for w in ws if norm(w[0]).startswith("max") or norm(w[0]).startswith("máx")), None)
+            if mx:
+                click(mx[1], mx[2])
+                time.sleep(0.8)
+            cp = next((w for w in words(grab()) if norm(w[0]).startswith("comprar")), None)
+            if not cp:
+                self.log("🛒 No veo el botón Comprar.")
+                return
+            click(cp[1], cp[2])
+            time.sleep(1.5)
+            self.log("🛒 Compré pociones de vida con el oro que tenía.")
+            self._pots_t = 0
+            tienda = next((w for w in words(grab()) if norm(w[0]) == "tienda"), None)
+            if tienda:
+                click(tienda[1], tienda[2], "right")
+                time.sleep(0.4)
+        except Exception as e:
+            self.log(f"🛒 Error en la tienda: {e!r}")
+        finally:
+            self.mission = None
+            self._busy_ui = False
+            self._shop_last = time.time()
+
     def _maybe_shop(self):
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            return self._oly_supplies()
         sm = self._supplies_mem()
         if sm:
             self._left = {"pot": sm["pot"], "meat": sm["meat"]}
