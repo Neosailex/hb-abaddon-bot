@@ -3703,6 +3703,8 @@ class Bot:
         st_ = self._stats_mem() or {}
         if st_.get("VIT"):
             hpmax = max(hpmax, st_["VIT"] * 3 + lvl * 2 + st_.get("STR", 0) // 2)
+        if not hpmax:
+            hpmax = 12 * 3 + lvl * 2 + 7  # sin memoria del pj: estimo con los stats iniciales
         return hpmax
 
     def _creatures_db(self):
@@ -3816,12 +3818,16 @@ class Bot:
         crs = self._creatures_db()
         hpmax = self._hpmax_est()
         cand, meas = [], []
+        # tope de daño por golpe: 4% de la vida; con poca vida (pj recién hecho) hasta 10%, si no no podría cazar nada
+        dmg_cap = float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1)
+        if hpmax < 150:
+            dmg_cap = max(dmg_cap, 0.10 * max(hpmax, 1), 3.0)
         # zonas de bichos que todavía no aguanto: no cazo en zonas pegadas a ellas (se mezclan: los slimes de
         # la Farm comparten lugar con los Stone Golem) y si estoy adentro me voy
         bad = []
         for zn in ent["zones"]:
             cr = crs.get(zn.get("type"))
-            if cr and (self._mob_est(cr)[0] > float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl):
+            if cr and (self._mob_est(cr)[0] > dmg_cap or cr["defense"] > 30 + 1.5 * lvl):
                 bad.append(zn["rect"])
         near_bad = lambda px, py, m=4: any(r[0] - m <= px <= r[2] + m and r[1] - m <= py <= r[3] + m for r in bad)
         for zn in ent["zones"]:
@@ -3836,7 +3842,7 @@ class Bot:
             if cr:
                 # ¿lo puedo enfrentar? que no me saque más del 4% de la vida por golpe y que le pueda acertar
                 est_, _m = self._mob_est(cr)
-                if est_ > float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1) or cr["defense"] > 30 + 1.5 * lvl:
+                if est_ > dmg_cap or cr["defense"] > 30 + 1.5 * lvl:
                     continue
                 zn = dict(zn, min_level=cr["exp_dice"], hp=cr["hp"], dmg=round(est_, 1))
             elif zn.get("min_level", 80) > lvl - int(self.cfg.get("mob_level_margin", 4)):

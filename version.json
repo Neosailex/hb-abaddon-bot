@@ -1,1 +1,1 @@
-{"version": 139, "notes": "Sin lista de bichos en memoria: va a la zona de spawn del bicho que le toca y lo busca ahí con el mouse en un radio amplio."}
+{"version": 140, "notes": "Pj de poca vida: acepta bichos que pegan hasta 10% (antes 4% lo dejaba sin zonas)."}
