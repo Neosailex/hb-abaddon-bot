@@ -3336,7 +3336,7 @@ class Bot:
             if th is not None and th.is_alive():
                 return
         # vender va SIEMPRE junto con la recarga: primero vendo todo lo que no sirve, después compro pociones
-        if time.time() - getattr(self, "_sell_last", 0) > 120:
+        if time.time() - getattr(self, "_sell_last", 0) > 120 and time.time() > getattr(self, "_sell_fail_until", 0):
             try:
                 d = self._gear_state()
             except Exception:
@@ -3347,6 +3347,7 @@ class Bot:
             if d and d["sell"] and town_ and hp_ok:
                 self._sell_last = time.time()
                 self._restock_now = True
+                self._sold_trip = 0
                 self.log(f"🛒 Vuelta de recarga: primero vendo {len(d['sell'])} cosa(s) que no sirven, después compro pociones.")
                 self._gear_th = threading.Thread(target=self._gear_trip, args=(dict(d, buy=[], equip=[]), town_, True), daemon=True)
                 self._gear_th.start()
@@ -3904,11 +3905,19 @@ class Bot:
         self._release()
         time.sleep(1.5)
         if kind == "smith":
-            for _ in range(14):
-                if abs((self.pos.get("x") or 0) - 47) <= 1 and abs((self.pos.get("y") or 0) - 35) <= 1:
+            # el herrero tiene dos puertas: camino hasta el mostrador (47,35) con el mapa de adentro
+            t1 = time.time()
+            while time.time() - t1 < 20 and self.alive and self.running:
+                x_, y_ = self.pos.get("x") or 0, self.pos.get("y") or 0
+                if abs(x_ - 47) <= 1 and abs(y_ - 35) <= 1:
                     break
-                winapi.click(*P(1000, 470))
+                mp = self.world.map_for(self.pos.get("map") or "")
+                if mp:
+                    self._walk_to(mp, (47, 35), "mostrador del herrero")
+                else:
+                    winapi.click(*P(1000, 470))
                 time.sleep(0.7)
+            self._release()
             time.sleep(1.0)
         return True
 
@@ -4021,6 +4030,7 @@ class Bot:
         self._inv_cache = None
         n1, g1 = len(self._inv_mem() or []), self._gold_mem() or 0
         sold = max(0, n0 - n1)
+        self._sold_trip = getattr(self, "_sold_trip", 0) + sold
         if sold:
             self.log(f"💰 Vendí {sold} cosa(s) que no uso por {g1 - g0} de oro: " + ", ".join(e["name"] for e in entries[:put]) + ".")
         else:
@@ -4187,6 +4197,10 @@ class Bot:
             self._busy_ui = False
             if getattr(self, "_restock_now", False):
                 self._shop_last = 0  # vendí para la recarga: ahora compro pociones
+                if not getattr(self, "_sold_trip", 0):
+                    # no pude vender nada: no insisto en cada vuelta (así no hago 200 viajes); pruebo en 20 min
+                    self._sell_fail_until = time.time() + 1200
+                    self.log("💰 Esta vez no pude vender: compro las pociones igual y vuelvo a probar en 20 minutos.")
 
     def _shop_trip(self):
         """Va a la Shop de Aresden, compra carne y pociones de vida y vuelve a cazar."""
