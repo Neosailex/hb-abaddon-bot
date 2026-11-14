@@ -114,6 +114,15 @@ def _zstd(data):
 class MapData:
     def __init__(self, path):
         d = open(path, "rb").read()
+        self.name = os.path.splitext(os.path.basename(path))[0]
+        if d[:4] == b"AMD\x02":  # formato nuevo de Olympia: "AMD"+2, ancho, alto, zstd con 9 bytes por baldosa (flags primero)
+            self.w, self.h = int.from_bytes(d[4:6], "little"), int.from_bytes(d[6:8], "little")
+            t = np.frombuffer(_zstd(d[8:])[:self.w * self.h * 9], np.uint8).reshape(self.h, self.w, 9)
+            self.walk = (t[:, :, 0] & 0x80) == 0
+            self.tele = np.zeros((self.h, self.w), bool)  # la marca 0x40 acá no son portales: los tomo del cliente clásico
+            self.teleports = []
+            self._borrow_portals()
+            return
         if d[256:260] == b"\x28\xb5\x2f\xfd":  # cuerpo comprimido con zstd (cliente de Olympia)
             d = d[:256] + _zstd(d[256:])
         h = d[:256].decode("latin1", "ignore")
@@ -139,7 +148,7 @@ class MapData:
                 if not fn:
                     continue
                 d = open(os.path.join(md, fn), "rb").read()
-                if d[256:260] == b"\x28\xb5\x2f\xfd":
+                if d[256:260] == b"\x28\xb5\x2f\xfd" or d[:4] == b"AMD\x02":
                     continue
                 h = d[:256].decode("latin1", "ignore")
                 w = int(re.search(r"MAPSIZEX\s*=\s*(\d+)", h).group(1))
