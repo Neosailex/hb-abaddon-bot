@@ -2583,10 +2583,8 @@ class Bot:
             ws = ocr.read_words(img, {"x1": int(img.shape[1] * 0.6), "y1": int(img.shape[0] * 0.78),
                                       "x2": img.shape[1], "y2": int(img.shape[0] * 0.93)}, scale=1.0)
             sb = next((w for w in ws if norm(w[0]).startswith("subir") or norm(w[0]) == "nivel"), None)
-            ob = self.cfg["calib"].get("levelup_btn")
-            pt = (sb[1] + 40, sb[2]) if sb else ((ob["x"], ob["y"]) if ob else None)
-            if not pt:
-                return
+            ob = self.cfg["calib"].get("levelup_btn") or {"x": int(self.rect[2] * 0.816), "y": int(self.rect[3] * 0.883)}
+            pt = (sb[1] + 40, sb[2]) if sb else (ob["x"], ob["y"])  # el texto gótico casi nunca se lee: uso el lugar conocido
             click(*pt)
             time.sleep(1.2)
             img = grab()
@@ -2595,7 +2593,9 @@ class Bot:
                 self.log("Stats: no encuentro la ventana 'Subir nivel'.")
                 self._stats_fail = getattr(self, "_stats_fail", 0) + 1
                 return
-            self.cfg["calib"]["levelup_btn"] = {"x": int(pt[0]), "y": int(pt[1])}
+            if self.cfg["calib"].get("levelup_btn") != {"x": int(pt[0]), "y": int(pt[1])}:
+                self.cfg["calib"]["levelup_btn"] = {"x": int(pt[0]), "y": int(pt[1])}
+                cfgmod.save(self.cfg)
         st, ap, asg = win
         rowh = 54 * self.rect[3] / 1080.0
         names = ["STR", "VIT", "DEX", "INT", "MAG", "LUK"]
@@ -2656,10 +2656,10 @@ class Bot:
             self.log(f"Stats: no leo bien mis stats en la ventana de personaje ({vals}); no toco nada.")
             self._stats_fail = getattr(self, "_stats_fail", 0) + 1
             return
-        ob = self.cfg["calib"].get("levelup_btn")
+        ob = self.cfg["calib"].get("levelup_btn") or {"x": int(self.rect[2] * 0.816), "y": int(self.rect[3] * 0.883)}
         img = grab()
         win = find_win(img)
-        if not win and ob:
+        if not win:
             click(ob["x"], ob["y"])
             time.sleep(1.2)
             img = grab()
