@@ -2589,10 +2589,26 @@ class Bot:
             sb = next((w for w in ws if norm(w[0]).startswith("subir") or norm(w[0]) == "nivel"), None)
             ob = self.cfg["calib"].get("levelup_btn") or {"x": int(self.rect[2] * 0.816), "y": int(self.rect[3] * 0.883)}
             pt = (sb[1] + 40, sb[2]) if sb else (ob["x"], ob["y"])  # el texto gótico casi nunca se lee: uso el lugar conocido
-            for _try in range(2):
-                winapi.move(*self.abs_pt(*pt))
-                time.sleep(0.4)
-                click(*pt)
+            for _try in range(3):
+                if _try < 2:
+                    # camino seguro: F5 (personaje) -> botón 'Subir nivel'
+                    winapi.press("F5")
+                    time.sleep(1.0)
+                    im5 = grab()
+                    w5 = ocr.read_words(im5, {"x1": 0, "y1": 0, "x2": im5.shape[1], "y2": int(im5.shape[0] * 0.92)}, scale=1.0)
+                    sbt = next((w for w in w5 if norm(w[0]) == "subir" and any(norm(v[0]).startswith("misiones") for v in w5)), None)
+                    if sbt:
+                        click(sbt[1] + 25, sbt[2])
+                    else:
+                        winapi.press("F5")
+                        time.sleep(0.4)
+                        winapi.move(*self.abs_pt(*pt))
+                        time.sleep(0.4)
+                        click(*pt)
+                else:
+                    winapi.move(*self.abs_pt(*pt))
+                    time.sleep(0.4)
+                    click(*pt)
                 time.sleep(1.2)
                 img = grab()
                 win = find_win(img)
@@ -2625,6 +2641,8 @@ class Bot:
             ws = [w for w in ws if abs(w[2] - asg[2]) < 14 and 0 < w[1] - asg[1] < 170]
             for w in sorted(ws, key=lambda w: w[1]):
                 if w[1] > asg[1] + 20:
+                    if w[0].strip() in ("O", "o"):
+                        return None  # el OCR confunde 9 y 0 con 'O': no lo tomo como cero
                     v = num(w[0])
                     if v is not None:
                         return v
@@ -2642,6 +2660,10 @@ class Bot:
                 if lab:
                     right = sorted([w for w in ws if abs(w[2] - lab[2]) < 10 and 0 < w[1] - lab[1] < 90], key=lambda w: w[1])
                     out[n] = num(right[0][0]) if right else None
+            nv = next((w for w in ws if norm(w[0]).startswith("nivel") and not norm(w[0]).startswith("nivelsig")), None)
+            if nv:
+                right = sorted([w for w in ws if abs(w[2] - nv[2]) < 10 and 0 < w[1] - nv[1] < 260], key=lambda w: w[1])
+                out["LEVEL"] = next((num(w[0]) for w in right if num(w[0])), None)
             winapi.press("F5")  # la cierro (misma tecla)
             time.sleep(0.6)
             if find_win_char(grab()):
@@ -2659,14 +2681,11 @@ class Bot:
             time.sleep(0.6)
             img = grab()
             pts = points(img)
-        if not pts:
-            if pts is None:
-                self.log("Stats: no pude leer cuántos puntos hay para asignar; pruebo más tarde.")
-                self._stats_fail = getattr(self, "_stats_fail", 0) + 1
-            else:
-                self._stats_fail = 0
-            click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # cierro
+        if pts == 0:
+            self._stats_fail = 0
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro
             return
+        # si no leí el número, lo calculo con el nivel y los stats de la ventana de personaje
         # leo los stats actuales en la ventana de personaje (cierro un momento 'Subir nivel')
         click((st[1] + ap[1]) / 2, st[2] - 60, "right")
         time.sleep(0.6)
@@ -2679,7 +2698,12 @@ class Bot:
         img = grab()
         win = find_win(img)
         if not win:
-            click(ob["x"], ob["y"])
+            winapi.press("F5")
+            time.sleep(1.0)
+            im5 = grab()
+            w5 = ocr.read_words(im5, {"x1": 0, "y1": 0, "x2": im5.shape[1], "y2": int(im5.shape[0] * 0.92)}, scale=1.0)
+            sbt = next((w for w in w5 if norm(w[0]) == "subir"), None)
+            click(*((sbt[1] + 25, sbt[2]) if sbt else (ob["x"], ob["y"])))
             time.sleep(1.2)
             img = grab()
             win = find_win(img)
@@ -2688,6 +2712,14 @@ class Bot:
             return
         st, ap, asg = win
         plus_x = st[1] + 225 * self.rect[2] / 1920.0
+        # puntos esperados: 3 por nivel desde el 1, menos lo ya repartido (arranque: 70 entre los 6 stats)
+        if vals.get("LEVEL") and all(vals.get(n) is not None for n in names):
+            exp_pts = 3 * (vals["LEVEL"] - 1) - (sum(vals[n] for n in names) - int(self.cfg.get("stats_start_total", 70)))
+            if pts is None or pts != exp_pts:
+                self.log(f"Stats: leí {pts} puntos, la cuenta da {exp_pts}; uso el menor.")
+                pts = min(p_ for p_ in (pts, exp_pts) if p_ is not None)
+        if not pts or pts <= 0:
+            return
         plan_vals = dict(vals, CHR=vals.get("LUK"))
         added = {}
         for _ in range(int(pts)):
@@ -2701,7 +2733,7 @@ class Bot:
             added[n] = added.get(n, 0) + 1
         img2 = grab()
         pts2 = points(img2)
-        ok = pts2 == int(pts) - sum(added.values())
+        ok = pts2 == int(pts) - sum(added.values()) or (pts2 is None and sum(added.values()) == int(pts))
         if not ok:
             self.log(f"Stats: después de sumar {added} quedan {pts2} puntos (esperaba {int(pts) - sum(added.values())}); no aplico.")
             ws = ocr.read_words(img2, {"x1": 0, "y1": 0, "x2": img2.shape[1], "y2": img2.shape[0]}, scale=1.0)
