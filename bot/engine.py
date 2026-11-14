@@ -983,10 +983,32 @@ class Bot:
         r = r or self.cfg.get("danger_radius_tiles", 35)
         return any(max(abs(x - z[1]), abs(y - z[2])) <= r for z in self._dangers(mapname))
 
+    def _mem_struct(self):
+        """¿La estructura del pj alrededor de la posición es la que conozco (Abaddon)? Si el cliente es otro
+        (Olympia) los desplazamientos no valen: no leo vida/nivel/stats de ahí para no tomar basura."""
+        if not (self.mem.learned and self.mem.addr and self.mem.addr[0] == "i16"):
+            return False
+        now = time.time()
+        c = getattr(self, "_mstruct", None)
+        if c and c[0] == self.mem.addr[1] and now - c[1] < 30:
+            return c[2]
+        ok = False
+        try:
+            d = self.mem.proc.read(self.mem.addr[1], 84)
+            if d and len(d) >= 84:
+                i32 = lambda o: int.from_bytes(d[o:o + 4], "little", signed=True)
+                hp, lvl = i32(12), i32(72)
+                stats = [i32(32 + 4 * k) for k in range(6)]
+                ok = 1 <= lvl <= 180 and 1 <= hp <= 20000 and all(1 <= v <= 400 for v in stats)
+        except Exception:
+            ok = False
+        self._mstruct = (self.mem.addr[1], now, ok)
+        return ok
+
     def _hp_mem(self):
         """Vida exacta desde la memoria (al lado de la posición). None si no se sabe."""
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 d = self.mem.proc.read(self.mem.addr[1] + 12, 4)
                 if d:
                     return int.from_bytes(d, "little", signed=True)
@@ -1750,7 +1772,7 @@ class Bot:
                 cfgmod.save(self.cfg)
             except Exception:
                 pass
-        if self.mem.learned and self.mem.addr[0] == "i16" and not self.ents.center and not self.ents.finding \
+        if self._mem_struct() and not self.ents.center and not self.ents.finding \
                 and time.time() - getattr(self, "_ent_try", 0) > 20:
             self._ent_try = time.time()
             threading.Thread(target=self.ents.find, args=(self.mem.proc, self.mem.addr[1]), daemon=True).start()
@@ -2208,7 +2230,7 @@ class Bot:
 
     def _hunger_mem(self):
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 d = self.mem.proc.read(self.mem.addr[1] + 24, 4)
                 v = int.from_bytes(d, "little", signed=True) if d else -1
                 if 0 <= v <= 200:
@@ -2313,7 +2335,7 @@ class Bot:
     def _lu_mem(self):
         """Puntos de nivel sin repartir (memoria). None si no se sabe."""
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 d = self.mem.proc.read(self.mem.addr[1] + 80, 4)
                 v = int.from_bytes(d, "little", signed=True) if d else -1
                 if 0 <= v <= 600:
@@ -2325,7 +2347,7 @@ class Bot:
     def _stats_mem(self):
         """STR/VIT/DEX/INT/MAG/CHR desde la memoria (al lado de la posición)."""
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 d = self.mem.proc.read(self.mem.addr[1] + 32, 24)
                 v = [int.from_bytes(d[i:i + 4], "little", signed=True) for i in range(0, 24, 4)]
                 if all(1 <= x <= 400 for x in v):
@@ -3112,7 +3134,7 @@ class Bot:
 
     def _exp_mem(self):
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 d = self.mem.proc.read(self.mem.addr[1] + 76, 4)
                 if d:
                     return int.from_bytes(d, "little", signed=True)
@@ -3627,7 +3649,7 @@ class Bot:
             return c[1]
         out = None
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 pr = self.mem.proc
                 blk = pr.read(self.mem.addr[1] + self.INV_OFF, self.INV_SLOTS * 8)
                 if blk and len(blk) == self.INV_SLOTS * 8:
@@ -3727,7 +3749,7 @@ class Bot:
     def _equipped_ids(self):
         """Ids de los items que tiene puestos (los guarda el juego al lado de la posición del pj). None si no se sabe."""
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 b = self.mem.proc.read(self.mem.addr[1] + 192, 36)
                 if b and len(b) == 36:
                     ids = [int.from_bytes(b[o - 192:o - 190], "little", signed=True) for o in self.EQ_OFFS]
@@ -4672,7 +4694,7 @@ class Bot:
 
     def _level_mem(self):
         try:
-            if self.mem.learned and self.mem.addr[0] == "i16":
+            if self._mem_struct():
                 d = self.mem.proc.read(self.mem.addr[1] + 72, 4)
                 v = int.from_bytes(d, "little", signed=True) if d else 0
                 if 1 <= v <= 180:
@@ -4947,7 +4969,7 @@ class Bot:
                 self.state, self.target, self._track = "seek", None, None
             return
 
-        if self.cfg.get("memory", {}).get("hunt", True) and self.ents.center and self.mem.learned:
+        if self.cfg.get("memory", {}).get("hunt", True) and self.ents.center and self._mem_struct():
             r = self._auto_mem()
             if r is not None:
                 return
