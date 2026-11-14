@@ -60,7 +60,12 @@ def owned_bonus(inv, idb):
     return out
 
 
-def decide(inv, eq_ids, idb, cat, level, stats, keep_names=(), junk_names=(), max_rare=8):
+# lo único que no se vende: oro, pociones de vida/estamina y comida (todo lo demás que no sirva, se vende)
+KEEP_MISC = {"Gold", "Health Potion", "Big Health Potion", "Revitalizing Potion", "Big Revitalizing Potion",
+             "Meat", "Baguette"}
+
+
+def decide(inv, eq_ids, idb, cat, level, stats, keep_names=(), junk_names=(), max_rare=0):
     """inv: items del bolso (con slot, id, attr). eq_ids: ids de lo que tiene puesto.
     Devuelve {"equip": [...], "sell": [...], "keep": [...]}; cada entrada lleva slot, name y why."""
     wn = set(cat.get("weapon_names", []))
@@ -91,8 +96,9 @@ def decide(inv, eq_ids, idb, cat, level, stats, keep_names=(), junk_names=(), ma
         name = label(it["name"], i.get("attr"))
         e = {"slot": i["slot"], "id": i["id"], "name": name}
         if it.get("type") != 2 or it.get("pos") not in KNOWN_POS:
-            if it["name"] in junk_names:
-                out["sell"].append(dict(e, why="no lo uso"))
+            if it["name"] in keep_names or it["name"] in KEEP_MISC:
+                continue
+            out["sell"].append(dict(e, why="no lo uso", kind="shop"))
             continue
         pos = it["pos"]
         g = "arma" if pos in WEAPON_POS else pos
@@ -123,7 +129,7 @@ def decide(inv, eq_ids, idb, cat, level, stats, keep_names=(), junk_names=(), ma
         elif is_special(attr_of.get(e["slot"])):
             rare.append((it.get("price", 0), e))
         else:
-            out["sell"].append(dict(e, why="no sirve para la build o es peor que lo puesto"))
+            out["sell"].append(dict(e, why="no sirve para la build o es peor que lo puesto", kind="smith"))
     # los raros que no uso los guardo (venderlos no tiene vuelta), salvo que ya junte demasiados
     room = max(0, max_rare - len(out["keep"]))
     rare.sort(key=lambda t: -t[0])
@@ -131,5 +137,5 @@ def decide(inv, eq_ids, idb, cat, level, stats, keep_names=(), junk_names=(), ma
         if n < room:
             out["keep"].append(dict(e, why="raro: lo guardo aunque no sea para la build"))
         else:
-            out["sell"].append(dict(e, why="raro que no uso y ya no tengo lugar para guardar"))
+            out["sell"].append(dict(e, why="raro que no uso", kind="smith"))
     return out

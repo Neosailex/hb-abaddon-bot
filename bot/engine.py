@@ -786,7 +786,7 @@ class Bot:
         if mem_ok and not in_building and not focused and self._zone_step():
             return
         if mem_ok and not in_building and not focused:
-            if self.state in ("attack", "loot") or self._mem_near():
+            if self.state in ("attack", "loot", "lootq") or self._mem_near():
                 self._auto()
                 return
             if not self._fleeing() and self._goto_spot():
@@ -2533,7 +2533,7 @@ class Bot:
             return True
         if force_dest:
             pass
-        elif (self.state in ("attack", "loot") or time.time() - getattr(self, "_last_enemy", 0) < 6) and not self._is_travelling():
+        elif (self.state in ("attack", "loot", "lootq") or time.time() - getattr(self, "_last_enemy", 0) < 6) and not self._is_travelling():
             return False  # ya estoy en mi mapa de caza: si está peleando o acaba de ver un monstruo, que siga cazando
         elif self._under_attack():
             self._defend_until = time.time() + 8
@@ -3326,20 +3326,34 @@ class Bot:
         few = lf.get("pot", 99) < int(self.cfg.get("pots_to_leave_town", 10))
         if few and str(getattr(self, "_err_v", None) or "").startswith(("tengo pocas", "me quedé sin")):
             need = True
-        if not need or getattr(self, "mission", None):
+        full = bool(sm and self.INV_SLOTS - sm["items"] < 4)
+        if getattr(self, "_restock_now", False):
+            need, self._restock_now = True, False  # recién vendí: completo pociones en la misma vuelta
+        if not (need or full) or getattr(self, "mission", None):
             return
-        # si hay cosas para vender y poco lugar, primero va la vuelta de equipo (libera lugar para las pociones)
-        if sm and self.INV_SLOTS - sm["items"] < 12 and time.time() - getattr(self, "_gear_last", 0) > self.cfg.get("gear_trip_every_min", 20) * 60:
-            try:
-                d = self._gear_state()
-                if d and d["sell"]:
-                    return
-            except Exception:
-                pass
         for a_ in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
             th = getattr(self, a_, None)
             if th is not None and th.is_alive():
                 return
+        # vender va SIEMPRE junto con la recarga: primero vendo todo lo que no sirve, después compro pociones
+        if time.time() - getattr(self, "_sell_last", 0) > 120:
+            try:
+                d = self._gear_state()
+            except Exception:
+                d = None
+            cur_ = self.pos.get("map") or ""
+            town_ = next((n for n in ("Aresden Farm", "Aresden City") if self._same(cur_, n)), None)
+            hp_ok = (self._hp_mem() or 0) >= 0.5 * max(1, self._hpmax_est())
+            if d and d["sell"] and town_ and hp_ok:
+                self._sell_last = time.time()
+                self._restock_now = True
+                self.log(f"🛒 Vuelta de recarga: primero vendo {len(d['sell'])} cosa(s) que no sirven, después compro pociones.")
+                self._busy_ui = True
+                self._gear_th = threading.Thread(target=self._gear_trip, args=(dict(d, buy=[], equip=[]), town_, True), daemon=True)
+                self._gear_th.start()
+                return
+        if not need:
+            return
         if time.time() - getattr(self, "_shop_last", 0) < (300 if few else 900):
             return
         if not self._same(self.pos.get("map") or "", "Aresden Farm"):
@@ -3759,8 +3773,7 @@ class Bot:
         cat = self._load_json("tiendas.json")
         lvl = self._level_mem() or 1
         d = gear.decide(inv, eq, idb, cat, lvl, self._stats_mem(),
-                        self.cfg.get("keep_items", ["Magic Wand (MS0)", "Main Gauche", "Tomahoc"]),
-                        self.cfg.get("junk_items", ["Mana Potion"]), int(self.cfg.get("max_rare", 8)))
+                        self.cfg.get("keep_items") or [], self.cfg.get("junk_items") or [], int(self.cfg.get("max_rare") or 0))
         buys = []
         for it in (getattr(self, "plan", None) or {}).get("buy_now", []):
             kind = {"Blacksmith": "smith", "Shop": "shop"}.get(it.get("shop"))
@@ -3778,7 +3791,7 @@ class Bot:
         meats = [i for i in inv if i["id"] == self.ID_MEAT]
         keep_m = int(self.cfg.get("meat_keep", 6))
         if len(meats) > keep_m + 3:
-            d["sell"] += [{"slot": i["slot"], "id": i["id"], "name": "Meat", "why": "comida de más"} for i in meats[keep_m:]]
+            d["sell"] += [{"slot": i["slot"], "id": i["id"], "name": "Meat", "why": "comida de más", "kind": "shop"} for i in meats[keep_m:]]
         return d
 
     def _maybe_gear(self):
@@ -3803,15 +3816,17 @@ class Bot:
         if now < getattr(self, "_equip_block", 0):
             d["equip"] = []
         trip_ok = now - getattr(self, "_gear_last", 0) > self.cfg.get("gear_trip_every_min", 20) * 60
-        sell_now = d["sell"] and (d["free"] < 6 or len(d["sell"]) >= 4 or d["buy"])
+        sell_now = False  # vender va siempre junto con la recarga de pociones (ver _maybe_shop)
         # vender y comprar mejoras no es urgente: solo si no me pasé del 10% de tiempo en el pueblo
         # (urgente = bolso casi lleno, o poco lugar y pocas pociones: hay que vender para poder comprarlas)
         sm_ = self._supplies_mem() or {}
         urgent = d["sell"] and (d["free"] < 3 or (d["free"] < 12 and sm_.get("pot", 99) < int(self.cfg.get("pots_to_leave_town", 10))))
         if trip_ok and not urgent and self._town_budget_left() < 150:
             trip_ok = False
-        if not d["equip"] and not (trip_ok and (sell_now or d["buy"])):
+        if not d["equip"] and not (trip_ok and d["buy"]):
             return
+        if not (trip_ok and d["buy"]):
+            d = dict(d, sell=[])
         if not d["equip"]:
             self._gear_last = now
         self._gear_th = threading.Thread(target=self._gear_trip, args=(d, town, bool(trip_ok and (sell_now or d["buy"]))), daemon=True)
@@ -4071,8 +4086,13 @@ class Bot:
             if not trip:
                 return
             d = self._gear_state() or d
+            if not d["buy"] and not d["equip"]:
+                d = dict(d, buy=[], equip=[])  # vuelta de venta: no compro mejoras acá
             smith_buys = [b for b in d["buy"] if b["kind"] == "smith"]
             shop_buys = [b for b in d["buy"] if b["kind"] == "shop"]
+            smith_sell = [e for e in d["sell"] if e.get("kind", "smith") == "smith"]
+            shop_sell = [e for e in d["sell"] if e.get("kind") == "shop"]
+            d = dict(d, sell=smith_sell)
             bought = 0
             if d["sell"] or smith_buys:
                 self.log("🛡 Voy al herrero: " + ", ".join(([f"vendo {len(d['sell'])} cosa(s)"] if d["sell"] else []) +
@@ -4090,18 +4110,25 @@ class Bot:
                                 bought += bool(self._buy_item(b))
                 finally:
                     self._leave_store("smith")
-            if shop_buys and self.alive and self.running:
+            if (shop_buys or shop_sell) and self.alive and self.running:
                 cur = self.pos.get("map") or ""
                 town = next((n for n in ("Aresden Farm", "Aresden City") if self._same(cur, n)), None)
                 if town:
-                    self.log("🛡 Voy a la Shop: " + ", ".join(f"compro {b['name']}" for b in shop_buys) + ".")
+                    self.log("🛡 Voy a la Shop: " + ", ".join(([f"vendo {len(shop_sell)} cosa(s)"] if shop_sell else []) +
+                                                            [f"compro {b['name']}" for b in shop_buys]) + ".")
                     inside = self._enter_store("shop", town)
                     try:
                         if not inside:
                             self.log("🛡 No llegué a la Shop.")
-                        elif self._open_trade("shop"):
-                            for b in shop_buys:
-                                bought += bool(self._buy_item(b))
+                        else:
+                            if shop_sell:
+                                # el bolso cambió al vender en el herrero: vuelvo a leer dónde está cada cosa
+                                d3 = self._gear_state() or {}
+                                shop_sell = [e for e in d3.get("sell", []) if e.get("kind") == "shop"] or shop_sell
+                                self._sell_items(shop_sell, "shop")
+                            if shop_buys and self._open_trade("shop"):
+                                for b in shop_buys:
+                                    bought += bool(self._buy_item(b))
                     finally:
                         self._leave_store("shop")
             if bought and self.alive and self.running:
@@ -4113,6 +4140,8 @@ class Bot:
             self.log(f"🛡 Error en la vuelta de equipo: {ex!r}")
         finally:
             self._busy_ui = False
+            if getattr(self, "_restock_now", False):
+                self._shop_last = 0  # vendí para la recarga: ahora compro pociones
 
     def _shop_trip(self):
         """Va a la Shop de Aresden, compra carne y pociones de vida y vuelve a cazar."""
@@ -4421,6 +4450,25 @@ class Bot:
                 self._spot_kill(1)
                 self._zone_kill()
                 self._fight_kill(now - (self.target_since or now))
+                # power hunting: si hay más bichos cerca sigo matando y levanto todo junto después.
+                # Levanto igual si junté 8, si el primero cayó hace más de 60 s (el respawn no me encierra) o si
+                # tengo que ir a recargar.
+                q = self.__dict__.setdefault("_loot_q", [])
+                if t.get("mx") is not None:
+                    q.append((t["mx"], t["my"], now))
+                others = [o for o in mons if o[2] != t["ename"] and o[2] not in self._ent_bl and max(abs(o[0]), abs(o[1])) <= 7]
+                sm_ = self._supplies_mem() or {}
+                urgent = (sm_.get("pot", 99) <= int(self.cfg.get("buy_pots_below", 3)) or getattr(self, "_err_v", None)
+                          or (sm_ and self.INV_SLOTS - sm_.get("items", 0) < 2))
+                if (self.cfg.get("power_hunt", True) and others and q and len(q) < 8 and now - q[0][2] < 60 and not urgent):
+                    self.state, self.target = "seek", None
+                    self.stats["state"], self.stats["target"] = f"power hunting ({len(q)} para levantar)", ""
+                    return True
+                if q:
+                    self.state = "lootq"
+                    self.stats["state"], self.stats["target"] = f"levantando todo ({len(q)})", ""
+                    self._lootq_t = now
+                    return True
                 self.loot_pos, self.loot_at = (t["x"], t["y"]), now + self.cfg.get("loot_delay", 2.0)
                 self.state = "loot"
                 self.stats["state"], self.stats["target"] = "levantando", ""
@@ -4433,6 +4481,8 @@ class Bot:
                 self._nokill = [t for t in getattr(self, "_nokill", []) if time.time() - t < 240] + [time.time()]
                 return True
             t["x"], t["y"] = int(cx + e[0] * tw), int(cy + e[1] * th - th * 0.3)
+            if self.pos.get("x") is not None:
+                t["mx"], t["my"] = self.pos["x"] + e[0], self.pos["y"] + e[1]
             self._last_enemy = now
             rch = self._reach(e)
             if rch is None:
@@ -4522,9 +4572,44 @@ class Bot:
         self.stats["state"], self.stats["target"] = "buscando", ""
         return True
 
+    def _loot_queue_step(self):
+        """Pasada de levantar: voy por cada lugar donde murió un bicho (el más cercano primero) y clickeo ahí.
+        Si me atacan, primero me defiendo. Máximo 30 s por pasada."""
+        now = time.time()
+        q = self.__dict__.setdefault("_loot_q", [])
+        px, py = self.pos.get("x"), self.pos.get("y")
+        if not q or px is None or now - getattr(self, "_lootq_t", now) > 30 or not self.cfg.get("loot_enabled", True):
+            self._loot_q = []
+            self.state, self.target, self._track = "seek", None, None
+            return
+        if self._under_attack():
+            # me pegan mientras levanto: vuelvo a pelear y sigo levantando después
+            self.state, self.target = "seek", None
+            return
+        tw, th = self._tile()
+        cx, cy = self._char()
+        q.sort(key=lambda a: max(abs(a[0] - px), abs(a[1] - py)))
+        mx, my, _ = q.pop(0)
+        dx, dy = mx - px, my - py
+        if max(abs(dx), abs(dy)) > 8:
+            mp = self.world.map_for(self.pos["map"]) if self.pos.get("map") else None
+            if mp:
+                q.insert(0, (mx, my, _))
+                self._walk_to(mp, (mx, my), "a levantar lo que cayó")
+            return
+        winapi.click(*self.abs_pt(cx + dx * tw, cy + dy * th))
+        self.stats["loot_clicks"] += 1
+        self._last_move = now
+        time.sleep(0.35 + 0.12 * max(abs(dx), abs(dy)))
+        if not q:
+            self.state, self.target, self._track = "seek", None, None
+
     def _auto(self):
         now = time.time()
         tw, th = self._tile()
+        if self.state == "lootq":
+            self._loot_queue_step()
+            return
         if self.state == "loot":
             if now >= self.loot_at:
                 if self.cfg.get("loot_enabled") and self.templates.items["items"]:
