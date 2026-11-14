@@ -754,6 +754,16 @@ class Bot:
         if not (stuck_pos or no_exp):
             return False
         self._wd_pos_t = self._wd_exp_t = now
+        try:
+            _w, txt = self._screen_words()
+            nt = "".join(c for c in txt if c.isalnum())
+            if any(k in nt for k in ("newaccount", "selectserver", "characterlist", "connectionlost", "createnewcharacter")):
+                self._force_relog = now + 180
+                self.pos["t"] = 0
+                self.log("⚠ Alerta: el juego se desconectó (estoy en el menú). Reconecto.")
+                return False
+        except Exception:
+            pass
         n = [t for t in getattr(self, "_wd_hits", []) if now - t < 600] + [now]
         self._wd_hits = n
         t = self.target or {}
@@ -1383,6 +1393,10 @@ class Bot:
             return False
         now = time.time()
         in_game = (not self.cfg["calib"].get("pos_box")) or (self.pos.get("t") and now - self.pos["t"] < 20)
+        # la memoria puede seguir dando la última posición aunque el juego se haya desconectado: si el vigilante
+        # vio una pantalla de menú, mando a reconectar igual
+        if now < getattr(self, "_force_relog", 0):
+            in_game = False
         if self.img is not None and not self.cfg["calib"].get("pos_box"):
             return False
         if self.img is not None and in_game:
@@ -1413,6 +1427,17 @@ class Bot:
         #     "Change Password": en esta pantalla NUNCA se escribe la contraseña, solo se aprieta Start.
         sc_ = self.rect[2] / 1280.0
         ntxt = norm(txt)
+        # 0) menú principal (Log In / New Account / Exit): aprieto "Log In"
+        if "newaccount" in ntxt and "exit" in ntxt and "password" not in ntxt:
+            self._release()
+            self.stats["state"] = "reconectando: menú"
+            if now - getattr(self, "_al_menu_try", 0) < 12:
+                return True
+            self._al_menu_try = now
+            w_ = next((w for w in words if norm(w[0]) in ("login", "log")), None)
+            winapi.click(*(self.abs_pt(w_[1] + (w_[3] if norm(w_[0]) == "log" else 0), w_[2]) if w_ else self.abs_pt(872 * sc_, 397 * sc_)))
+            self.log("Auto-login: estoy en el menú principal, aprieto Log In.")
+            return True
         # 1a) elegir servidor (primera pantalla del juego)
         if any(k in ntxt for k in ("selectserver", "abaddonserver", "apocalypseserver", "whichyouwantlogin")):
             self._release()
@@ -1509,6 +1534,7 @@ class Bot:
             return True
         if self.stats["state"].startswith("reconectando"):
             self.stats["state"] = "buscando"
+        self._force_relog = 0  # no es ninguna pantalla de menú: estoy en el juego
         return False  # no es pantalla de login: sigo normal
 
 
