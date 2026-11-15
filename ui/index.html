@@ -393,13 +393,14 @@ input[type=range]{accent-color:var(--gold);width:100%}
 
     <!-- EVENTOS -->
     <section class="page" id="p-world">
-      <h1>Mapa del mundo</h1><p class="sub">Rueda o + / − para acercar, arrastrá para mover. Clic en cualquier punto: el pj va solo ahí (clic derecho cancela). Cuadros de color: zonas de spawn de cada bicho. Líneas doradas: portales que el pj ya cruzó. Grises: del mapa base, a confirmar.</p>
+      <h1>Mapa del mundo</h1><p class="sub">Rueda o + / − para acercar, arrastrá para mover. Clic en cualquier punto: el pj va solo ahí (clic derecho cancela). Cuadros de color: zonas de spawn (llenos = vistos en este server, punteados = dato de Abaddon). Líneas doradas: portales que el pj ya cruzó. Grises: del mapa base, a confirmar.</p>
       <div class="card" style="padding:8px;position:relative">
         <canvas id="wCanvas" style="width:100%;height:calc(100vh - 190px);min-height:380px;display:block;border-radius:10px;background:#0d0b0a;cursor:grab"></canvas>
         <div style="position:absolute;right:18px;top:18px;display:flex;flex-direction:column;gap:6px">
           <button class="btn sm" id="wIn" title="Acercar">+</button><button class="btn sm" id="wOut" title="Alejar">−</button>
           <button class="btn sm" id="wMe" title="Centrar en el pj">📍</button><button class="btn sm" id="wAll" title="Ver todo">⤢</button>
-          <label class="hint" style="background:#0008;padding:4px 6px;border-radius:6px"><input type="checkbox" id="wSp" checked onchange="drawWorld()"> bichos</label></div>
+          <label class="hint" style="background:#0008;padding:4px 6px;border-radius:6px"><input type="checkbox" id="wSp" checked onchange="drawWorld()"> bichos</label>
+          <button class="btn sm" id="wExp" title="Recorrer este mapa entero y anotar dónde sale cada bicho">🧭 Relevar</button></div>
         <div class="hint" id="wInfo" style="position:absolute;left:18px;bottom:14px"></div>
       </div>
     </section>
@@ -468,7 +469,8 @@ function drawWorld(){
   // zonas de spawn de los bichos (color por bicho; el nombre se ve al acercarse)
   if($('#wSp')?.checked!==false)for(const z of (WORLD.spawns||[])){const m=wMap(z.map);if(!m)continue;
     const [x1,y1]=wPt(m,z.rect[0],z.rect[1]),[x2,y2]=wPt(m,z.rect[2]+1,z.rect[3]+1);let h=0;for(const ch of z.mob)h=(h*31+ch.charCodeAt(0))%360;
-    g.fillStyle=`hsla(${h},70%,55%,.22)`;g.strokeStyle=`hsla(${h},80%,60%,.9)`;g.lineWidth=1/WV.z;g.fillRect(x1,y1,x2-x1,y2-y1);g.strokeRect(x1,y1,x2-x1,y2-y1);
+    g.fillStyle=`hsla(${h},70%,55%,${z.survey?.28:.10})`;g.strokeStyle=`hsla(${h},80%,60%,.9)`;g.lineWidth=(z.survey?1.5:1)/WV.z;
+    g.setLineDash(z.survey?[]:[4/WV.z,3/WV.z]);g.fillRect(x1,y1,x2-x1,y2-y1);g.strokeRect(x1,y1,x2-x1,y2-y1);g.setLineDash([]);
     if(WV.z>1.1){g.fillStyle=`hsl(${h},90%,75%)`;g.font=`${Math.max(4,11/WV.z)}px system-ui`;g.textAlign='left';g.fillText(z.mob,x1+2/WV.z,y1+10/WV.z)}}
   for(const l of WORLD.links){const a=wMap(l.from),b=wMap(l.to);if(!a)continue;const [x1,y1]=wPt(a,l.x,l.y);
     g.fillStyle=l.seen?'#e9c46a':'#8d8178';g.beginPath();g.arc(x1,y1,3/Math.max(WV.z,0.6),0,7);g.fill();
@@ -496,7 +498,8 @@ function drawWorld(){
     for(const m of WORLD.maps){const s=BOX/Math.max(m.w,m.h),x0=m.gx*CELL+(BOX-m.w*s)/2,y0=m.gy*CELL+(BOX-m.h*s)/2;
       if(wx>=x0&&wy>=y0&&wx<x0+m.w*s&&wy<y0+m.h*s){const tx=Math.floor((wx-x0)/s),ty=Math.floor((wy-y0)/s);
         const zs=(WORLD.spawns||[]).filter(z=>z.map===m.key&&tx>=z.rect[0]&&tx<=z.rect[2]&&ty>=z.rect[1]&&ty<=z.rect[3]);
-        $('#wInfo').textContent=`${m.name} (${tx},${ty})`+(zs.length?' — '+zs.map(z=>`${z.mob} (vida ${z.hp}, pega ~${z.dmg}, exp ~${z.exp})`).join(' · '):'');return}}});
+        $('#wInfo').textContent=`${m.name} (${tx},${ty})`+(zs.length?' — '+zs.map(z=>`${z.mob} (vida ${z.hp}, pega ~${z.dmg}, exp ~${z.exp})`+(z.survey?` [visto ${z.seen} veces en este server]`:' [dato de Abaddon]')).join(' · '):'');return}}});
+  $('#wExp').onclick=async()=>{const r=await API.explore_map();toast(r.msg);WORLD=null;setTimeout(loadWorld,1500)};
   $('#wIn').onclick=()=>wZoom(1.4);$('#wOut').onclick=()=>wZoom(1/1.4);$('#wMe').onclick=wCenterMe;$('#wAll').onclick=wFit;
   window.addEventListener('resize',drawWorld);setInterval(()=>{if(curPage==='world')drawWorld()},120)})();
 

@@ -40,6 +40,9 @@ class Api:
     def investigate(self):
         return self._bot.investigate()
 
+    def explore_map(self):
+        return self._bot.explore_map()
+
     def setup_scan(self):
         return self._bot.setup_scan()
 
@@ -130,14 +133,15 @@ class Api:
             files = {m["key"].lower(): m["key"] for m in v["maps"]}
             crs = {c["type"]: c for c in self._bot._creatures_db().values()}
             sp = []
-            for mname, md in (self._bot._load_json("spawns.json").get("maps") or {}).items():
+            for mname, md in (self._bot._spawns_all() or {}).items():
                 mk = files.get(str(md.get("file", "")).lower()) or names.get(mname.lower())
                 if not mk:
                     continue
                 for z in md.get("zones", []):
                     cr = crs.get(z.get("type"), {})
                     sp.append({"map": mk, "mob": z.get("mob") or cr.get("name", "?"), "rect": z["rect"], "hp": cr.get("hp"),
-                               "dmg": cr.get("dmg_avg"), "exp": cr.get("exp_dice"), "max": z.get("max"), "lvl": z.get("min_level")})
+                               "dmg": cr.get("dmg_avg"), "exp": cr.get("exp_dice"), "max": z.get("max"), "lvl": z.get("min_level"),
+                               "seen": z.get("seen"), "survey": bool(z.get("survey"))})
             v["spawns"] = sp
         except Exception as e:
             v["spawns"], v["spawn_error"] = [], repr(e)

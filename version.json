@@ -1,1 +1,1 @@
-{"version": 174, "notes": "Olympia: venta automática apagada hasta probarla bien (y reparar en herrero ya estaba apagado)."}
+{"version": 175, "notes": "Olympia: spawns relevados por el bot (se olvidan los de Abaddon). En cada mapa nuevo lo recorre entero anotando dónde sale cada bicho; si lo matan 2 veces corta y caza en los nidos que aguanta. Botón Relevar en el mapa (Investigar hace lo mismo en Olympia)."}

@@ -958,6 +958,10 @@ class Bot:
                 return
             if not self._fleeing() and self._goto_spot():
                 return
+        # Olympia: mapa sin relevar → lo recorro entero (solo peleo si me atacan)
+        if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
+                and not focused and self._explore_step()):
+            return
         # Olympia: lista de bichos leída de la memoria (objetos del heap)
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
                 and (not focused or self._under_attack()) and self._oly_step()):
@@ -1201,6 +1205,9 @@ class Bot:
                 self._avoid_t = 0
                 if cfgmod.server_slug(self.cfg) != "abaddon":
                     self._oly_died()
+                    pl = getattr(self, "_exp_plan", None)
+                    if pl and self._same(pl.get("map", ""), self.pos.get("map") or ""):
+                        pl["deaths"] = pl.get("deaths", 0) + 1
                 try:
                     self.learner.on_death()
                 except Exception:
@@ -2048,6 +2055,10 @@ class Bot:
 
     # ---------- investigación: el bot recorre y saca fotos para poder programar lo que falta ----------
     def investigate(self):
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            # en Olympia la investigación de Abaddon (herrero/tienda con clicks de Abaddon) es peligrosa:
+            # acá "investigar" = relevar el mapa (dónde sale cada bicho)
+            return self.explore_map()
         th = getattr(self, "_inv_th", None)
         if th is not None and th.is_alive():
             return {"ok": False, "msg": "Ya estoy investigando."}
@@ -3325,6 +3336,172 @@ class Bot:
             self._oly_said = True
             self.log(f"🧠 Memoria (Olympia): ya veo la lista de bichos ({len(out)} cerca). Cazo con ella.")
         self._oly_last = out
+        try:
+            self._spawn_record(out)
+        except Exception:
+            pass
+        return out
+
+    # ---- relevamiento de spawns del server (lo que el bot ve en la memoria)
+    def _survey_path(self):
+        return os.path.join(cfgmod.profile_dir(self.cfg), "spawns_vistos.json")
+
+    def _survey(self):
+        sv = getattr(self, "_svy", None)
+        if sv is None or getattr(self, "_svy_dir", None) != self._survey_path():
+            self._svy_dir = self._survey_path()
+            try:
+                with open(self._svy_dir, encoding="utf-8") as f:
+                    sv = json.load(f)
+            except Exception:
+                sv = {"maps": {}}
+            self._svy = sv
+        return sv
+
+    def _spawn_record(self, ents):
+        """Cada 5 s anoto qué bicho veo y en qué baldosa (de a celdas de 4x4), por mapa."""
+        now = time.time()
+        if now - getattr(self, "_svy_t", 0) < 5 or not ents or not self.pos.get("map"):
+            return
+        self._svy_t = now
+        sv = self._survey()
+        mk = self.pos["map"]
+        m = sv["maps"].setdefault(mk, {})
+        for x, y, cr, _k in ents:
+            if cr.get("type", -1) == -1 or not cr.get("name"):
+                continue
+            cell = f"{x // 4},{y // 4}"
+            d = m.setdefault(cr["name"], {"type": cr.get("type"), "cells": {}})
+            c = d["cells"].setdefault(cell, [0, int(now)])
+            c[0] += 1
+            c[1] = int(now)
+        if now - getattr(self, "_svy_save", 0) > 120:
+            self._svy_save = now
+            self._spawn_zones_rebuild()
+
+    def _spawn_zones_rebuild(self):
+        """Junto las celdas vistas de cada bicho en rectángulos (zonas) y lo guardo."""
+        sv = self._survey()
+        zones = {}
+        for mk, mobs in sv["maps"].items():
+            zl = []
+            for name, d in mobs.items():
+                cells = {tuple(map(int, k.split(","))): v[0] for k, v in d["cells"].items() if v[0] >= 2}
+                left = set(cells)
+                while left:
+                    st = [left.pop()]
+                    grp = set(st)
+                    while st:
+                        cx_, cy_ = st.pop()
+                        for nx in (cx_ - 1, cx_, cx_ + 1):
+                            for ny in (cy_ - 1, cy_, cy_ + 1):
+                                if (nx, ny) in left:
+                                    left.discard((nx, ny))
+                                    grp.add((nx, ny))
+                                    st.append((nx, ny))
+                    n = sum(cells[c] for c in grp)
+                    if n < 4:
+                        continue
+                    xs = [c[0] for c in grp]
+                    ys = [c[1] for c in grp]
+                    zl.append({"mob": name, "type": d.get("type"), "rect": [min(xs) * 4, min(ys) * 4, max(xs) * 4 + 3, max(ys) * 4 + 3],
+                               "seen": n, "survey": True})
+            if zl:
+                zones[mk] = {"zones": zl}
+        sv["zones"] = zones
+        try:
+            with open(self._survey_path(), "w", encoding="utf-8") as f:
+                json.dump(sv, f, ensure_ascii=False)
+        except Exception:
+            pass
+        self._spawns = None  # que se recalcule con lo nuevo
+
+    TOWNS = ("shop", "blacksmith", "cityhall", "city hall", "warehouse", "guild", "church", "magic tower", "barrack",
+             "jail", "command hall", "tienda", "herrer")
+
+    def _explore_step(self):
+        """Mapa nuevo (o pedido desde el botón): lo recorro entero en zigzag anotando qué bicho sale dónde.
+        Solo peleo si me atacan. Si me matan 2 veces mientras exploro, corto y cazo en lo que ya vi."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.cfg.get("explore_maps", True):
+            return False
+        mk = self.pos.get("map") or ""
+        if not mk or any(k in mk.lower() for k in self.TOWNS) or self.pos.get("x") is None:
+            return False
+        sv = self._survey()
+        ex = sv.setdefault("explored", {})
+        st_ = ex.get(mk)
+        if st_ and st_.get("done"):
+            self._exploring = False
+            return False
+        m = self.world.map_for(mk)
+        if not m:
+            return False
+        now = time.time()
+        plan = getattr(self, "_exp_plan", None)
+        if not plan or plan.get("map") != mk:
+            # puntos caminables cada 10 baldosas, recorridos de cerca en cerca
+            pts = []
+            for yy in range(5, m.h - 5, 10):
+                for xx in range(5, m.w - 5, 10):
+                    c = m.nearest_walkable(xx, yy, r=4)
+                    if c and m.ok(c[0], c[1]):
+                        pts.append(tuple(c))
+            px, py = self.pos["x"], self.pos["y"]
+            order = []
+            while pts:
+                nxt = min(pts, key=lambda t: abs(t[0] - px) + abs(t[1] - py))
+                pts.remove(nxt)
+                order.append(nxt)
+                px, py = nxt
+            plan = self._exp_plan = {"map": mk, "pts": order, "t0": now, "n0": len(order), "deaths": (st_ or {}).get("deaths", 0),
+                                     "tp": now, "last": None}
+            ex[mk] = {"done": False, "deaths": plan["deaths"], "t": int(now)}
+            self.log(f"🗺 Mapa sin relevar: {mk}. Lo recorro ({len(order)} puntos) para ver dónde sale cada bicho.")
+        if plan["deaths"] >= 2 or now - plan["t0"] > 40 * 60 or not plan["pts"]:
+            why = "me mataron 2 veces" if plan["deaths"] >= 2 else ("terminé" if not plan["pts"] else "pasaron 40 minutos")
+            ex[mk] = {"done": True, "deaths": plan["deaths"], "t": int(now), "why": why}
+            self._exp_plan = None
+            self._exploring = False
+            self._spawn_zones_rebuild()
+            zs = self._survey().get("zones", {}).get(mk, {}).get("zones", [])
+            self.log(f"🗺 Relevamiento de {mk} listo ({why}): {len(zs)} zona/s de bichos. "
+                     + ", ".join(sorted({z['mob'] for z in zs})[:8]))
+            return False
+        if self._under_attack() or self._adjacent_mobs() > 0:
+            return False  # primero me defiendo (lo hace la caza normal)
+        self._exploring = True
+        px, py = self.pos["x"], self.pos["y"]
+        g = plan["pts"][0]
+        if max(abs(g[0] - px), abs(g[1] - py)) <= 2 or (plan["last"] == g and now - plan["tp"] > 45):
+            plan["pts"].pop(0)  # llegué (o no hay forma de llegar en 45 s): al siguiente
+            plan["tp"], plan["last"] = now, None
+            if len(plan["pts"]) % 10 == 0 and plan["pts"]:
+                self.log(f"🗺 Relevando {mk}: faltan {len(plan['pts'])} de {plan['n0']} puntos.")
+            return True
+        if plan["last"] != g:
+            plan["last"], plan["tp"] = g, now
+        self.stats["state"] = f"relevando {mk} ({plan['n0'] - len(plan['pts'])}/{plan['n0']})"
+        self._walk_to(m, g, "relevamiento")
+        return True
+
+    def explore_map(self):
+        """Botón: vuelvo a relevar el mapa donde estoy."""
+        mk = self.pos.get("map") or ""
+        sv = self._survey()
+        sv.setdefault("explored", {}).pop(mk, None)
+        self._exp_plan = None
+        return {"ok": True, "msg": f"Voy a relevar {mk or 'este mapa'}: recorro todo y anoto dónde sale cada bicho."}
+
+    def _spawns_all(self):
+        """Spawns de la base (Abaddon); en los mapas que ya relevé en este server, uso lo relevado."""
+        base = dict(self._load_json("spawns.json").get("maps") or {})
+        if cfgmod.server_slug(self.cfg) == "abaddon":
+            return base
+        # server nuevo: los spawns de Abaddon no sirven (Olympia los movió); solo lo que relevé acá
+        out = {}
+        for mk, v in self._survey().get("zones", {}).items():
+            key = next((k for k in base if self._same(k, mk)), mk)
+            out[key] = dict(base.get(key, {}), zones=v["zones"], surveyed=True)
         return out
 
     def _oly_discover(self):
@@ -3387,6 +3564,8 @@ class Bot:
         self._oly_fight_review()
         allow = self._oly_allow()
         ok = [e for e in ok if crowd(e) <= allow]
+        if getattr(self, "_exp_plan", None) and getattr(self, "_exploring", False):
+            ok = [e for e in ok if d(e) <= 1]  # relevando: solo me defiendo
         qm = self._quest_mob_names()
         if qm:
             qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 30]
@@ -4256,7 +4435,7 @@ class Bot:
         enfrentar (las que todavía no medí valen como "prometedoras": voy y las pruebo). None = no hay tabla."""
         sp = getattr(self, "_spawns", None)
         if sp is None:
-            sp = self._spawns = (self._load_json("spawns.json").get("maps") or {})
+            sp = self._spawns = self._spawns_all()
         ent = next((v for k, v in sp.items() if self._same(k, self.pos.get("map") or "")), None)
         if not ent:
             return None
@@ -4637,7 +4816,7 @@ class Bot:
         mobs = self._quest_mob_names()
         sp = getattr(self, "_spawns", None)
         if sp is None:
-            sp = self._spawns = (self._load_json("spawns.json").get("maps") or {})
+            sp = self._spawns = self._spawns_all()
         here = next((v for k, v in sp.items() if self._same(k, cur)), None)
         if here and any(z.get("mob") in mobs for z in here.get("zones", [])):
             return cur
