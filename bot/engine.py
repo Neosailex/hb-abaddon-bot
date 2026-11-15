@@ -4143,9 +4143,18 @@ class Bot:
                 fe = {k: v for k, v in fe.items() if now - v < 60}
                 fe[e[3]] = now
                 self._oly_first = fe
-        elif now - fe[e[3]] > 7 and d(e) <= 1:
+        elif now - fe[e[3]] > self._oly_ttk(e[2]["name"]) and d(e) <= 1:
             bad[e[3]] = now + 600
-            self.log(f"👑 Ese {e[2]['name']} no muere: debe ser élite (100 de vida). Lo dejo y me alejo.")
+            # si me pasa seguido con el mismo bicho no son élites: es que tardo más en matarlo → le doy más tiempo
+            el = self.__dict__.setdefault("_oly_elite", {}).setdefault(e[2]["name"], [])
+            el[:] = [t for t in el if now - t < 900] + [now]
+            if len(el) >= 3:
+                tk = self.world.learn.setdefault("oly_ttk", {})
+                tk[e[2]["name"]] = min(40.0, self._oly_ttk(e[2]["name"]) * 1.6)
+                el.clear()
+                self.log(f"🧠 Los {e[2]['name']} me llevan más de lo que pensaba: les doy hasta {int(tk[e[2]['name']])} s antes de dejarlos.")
+            else:
+                self.log(f"👑 Ese {e[2]['name']} no muere: debe ser élite. Lo dejo y me alejo.")
             self._release()
             return False
         self._oly_cur = {"id": e[3], "crowd": crowd(e), "allow": allow, "t": now, "x": e[0], "y": e[1]}
@@ -4187,15 +4196,32 @@ class Bot:
             elif d(e) < ow["best"]:
                 ow["best"], ow["t"] = d(e), now
             elif now - ow["t"] > 25:
-                self._oly_badzone = [z for z in getattr(self, "_oly_badzone", []) if z[2] > now] + [(e[0], e[1], now + 300)]
+                # cada vez que fallo en el mismo lugar lo dejo más tiempo: 5 min, 20 min, 1 hora
+                uk = (e[0] // 4, e[1] // 4)
+                un = self.__dict__.setdefault("_oly_unreach", {})
+                un[uk] = un.get(uk, 0) + 1
+                mins = (5, 20, 60)[min(un[uk], 3) - 1]
+                self._oly_badzone = [z for z in getattr(self, "_oly_badzone", []) if z[2] > now] + [(e[0], e[1], now + mins * 60)]
                 self._oly_walk = None
-                self.log(f"🚧 No llego al {e[2]['name']} de ({e[0]},{e[1]}): lo salteo 5 min.")
+                self.log(f"🚧 No llego al {e[2]['name']} de ({e[0]},{e[1]}): lo salteo {mins} min.")
                 return False
             if m:
                 self.stats["state"] = f"voy a un {e[2]['name']} ({e[0]},{e[1]})"
                 self._walk_to(m, (int(e[0]), int(e[1])), e[2]["name"])
                 return True
         return False
+
+    def _oly_ttk(self, name):
+        """Segundos que le doy a un bicho pegado antes de pensar que es élite: según su vida, y lo que fui aprendiendo."""
+        lr = (self.world.learn.get("oly_ttk") or {}).get(name)
+        if lr:
+            return float(lr)
+        try:
+            cr = next((c for c in self._creatures_db().values() if str(c.get("name", "")).lower() == str(name).lower()), None)
+            hp = float(cr["hp"]) if cr else 0.0
+        except Exception:
+            hp = 0.0
+        return min(30.0, max(7.0, 4.0 + hp / 5.0))
 
     def _oly_allow(self):
         mob = getattr(self, "_hunt_mob", None) or "Slime"
@@ -5811,52 +5837,31 @@ class Bot:
         pw = next((w for w in ws if w[0].strip().startswith("Peso:")), None)
         if not pw:
             return None
-        x1, y1 = int(pw[1] - 40 * kx), int(pw[2] + 28 * ky)
-        x2, y2 = int(pw[1] + 440 * kx), int(pw[2] + 330 * ky)
-        roi = img[y1:y2, x1:x2]
         self._release()
         winapi.left_up()  # nunca pasar por el bolso con el botón apretado: arrastraría (y tiraría) cosas
-        mask = (roi.max(axis=2) > 90).astype(np.uint8)
-        mask = cv2.dilate(mask, np.ones((5, 5), np.uint8))
-        n, lab, st_, cen = cv2.connectedComponentsWithStats(mask)
-        comps = sorted(range(1, n), key=lambda i: -st_[i, cv2.CC_STAT_AREA])
+        from . import bagscan
+        sc = bagscan.scan(img, (pw[1], pw[2]), ws, self._read_small_num)
+        self._bag_scan = sc
         out = []
-        for i in comps:
-            if st_[i, cv2.CC_STAT_AREA] < 60 * kx * ky or st_[i, cv2.CC_STAT_HEIGHT] < 10 * ky:
-                continue
-            bx, by = int(cen[i][0]) + x1, int(cen[i][1]) + y1
-            # salto los números (cantidades): bajitos y justo debajo de otro objeto
-            if st_[i, cv2.CC_STAT_HEIGHT] < 20 * ky and any(abs(bx - o["x"]) < 45 * kx and 0 < by - o["y"] < 45 * ky for o in out):
-                continue
-            px_ = roi[max(0, by - y1 - 10):by - y1 + 10, max(0, bx - x1 - 12):bx - x1 + 12].reshape(-1, 3).astype(int)
-            yel = int(((px_[:, 2] > 150) & (px_[:, 1] > 140) & (px_[:, 0] < 110)).sum())
-            kind = "gold" if yel >= 12 else "item"
-            out.append({"x": bx, "y": by, "kind": kind, "name": ""})
+        d, approx = sc["gold"], sc["gold_approx"]
+        gp = sc.get("gold_pile")
+        if d is None and gp:
+            # el OCR de la ventana no vio el número: lo leo recortado; si da menos cifras que la última lectura, no le creo
+            gbox = (gp[0] + int(2 * kx), gp[1] + int(10 * ky), gp[0] + int(80 * kx), gp[1] + int(38 * ky))
+            d = self._read_small_num(img, *gbox)
+            last = getattr(self, "_gold", None)
+            if d is not None and last and len(str(d)) < len(str(last)) and str(last).endswith(str(d)):
+                d = None  # se comió la primera cifra (283 -> 83)
+        if d is not None:
+            self._gold = d
+            self._eco_note(d, approx)
+        if gp or d is not None:
+            g_ = gp or sc.get("gold_xy")
+            out.append({"x": g_[0], "y": g_[1], "kind": "gold", "name": "Gold"})
+        for it in sc["items"]:
+            out.append({"x": it["x"], "y": it["y"], "kind": "item", "name": "", "area": it["area"]})
         for o in out:
             if o["kind"] == "gold":
-                o["name"] = "Gold"
-                gbox = (o["x"] + int(2 * kx), o["y"] + int(10 * ky), o["x"] + int(80 * kx), o["y"] + int(38 * ky))
-                d, approx = None, False
-                try:
-                    # el juego abrevia: '774', '2.6k', '1.2m'. Lo busco entre las palabras de la ventana (se lee mejor entera)
-                    for w in ws:
-                        if abs(w[1] - (o["x"] + 22 * kx)) < 40 * kx and 0 <= w[2] - o["y"] < 34 * ky:
-                            t = w[0].strip().lower().replace(",", ".")
-                            mm = re.fullmatch(r"(\d+(?:\.\d+)?)([km]?)", t)
-                            if mm:
-                                d = int(round(float(mm.group(1)) * {"": 1, "k": 1000, "m": 1000000}[mm.group(2)]))
-                                approx = bool(mm.group(2))
-                                break
-                    if d is None:
-                        d = next((int(norm(w[0])) for w in ocr.read_words(img, {"x1": gbox[0], "y1": gbox[1], "x2": gbox[2], "y2": gbox[3]}, scale=2.0) if norm(w[0]).isdigit()), None)
-                except Exception:
-                    d = None
-                if d is not None and d >= 10 and not approx:
-                    self._glyph_learn(img, gbox, d)
-                if d is None:
-                    d = self._read_small_num(img, *gbox)
-                self._gold = d
-                self._eco_note(d, approx)
                 continue
             if not names:
                 continue
@@ -5991,52 +5996,17 @@ class Bot:
         try:
             if not pw:
                 return None
-            x1, y1 = int(pw[1] - 40 * kx), int(pw[2] + 15 * ky)
-            x2, y2 = int(pw[1] + 440 * kx), int(pw[2] + 330 * ky)
-            roi = img[y1:y2, x1:x2]
-            b_, g_, r_ = roi[:, :, 0].astype(int), roi[:, :, 1].astype(int), roi[:, :, 2].astype(int)
-            mask = ((r_ > 140) & (g_ < 70) & (b_ < 80)).astype(np.uint8)
-            n, lab, st_, cen = cv2.connectedComponentsWithStats(mask)
-            total, seen, unknown = 0, [], False
-            for i in range(1, n):
-                if st_[i, cv2.CC_STAT_AREA] < 12:
-                    continue
-                cx, cy = int(cen[i][0]) + x1, int(cen[i][1]) + y1
-                if any(abs(cx - q[0]) < 20 * kx and abs(cy - q[1]) < 20 * ky for q in seen):
-                    continue  # el mismo frasco partido en dos manchas (tapa y cuerpo)
-                seen.append((cx, cy))
-                d = self._read_small_num(img, cx + int(2 * kx), cy + int(13 * ky), cx + int(42 * kx), cy + int(36 * ky))
-                if d is None:
-                    unknown = True
-                total += d if d else 1
-            self._pots_unknown = unknown
-            try:
-                bag = self._oly_bag(names=False) or []
-                # clasifico cada cosa del bolso por el color del ícono: frascos azules (maná) y verdes (energía)
-                pc = {"vida": total, "maná": 0, "energía": 0}
-                others = 0
-                for o in bag:
-                    if o["kind"] != "item":
-                        continue
-                    p_ = img[max(0, o["y"] - 12):o["y"] + 12, max(0, o["x"] - 10):o["x"] + 10].reshape(-1, 3).astype(int)
-                    blue = int(((p_[:, 0] > 140) & (p_[:, 2] < 110) & (p_[:, 1] < 110)).sum())
-                    green = int(((p_[:, 1] > 140) & (p_[:, 2] < 110) & (p_[:, 0] < 110)).sum())
-                    red = int(((p_[:, 2] > 140) & (p_[:, 1] < 70) & (p_[:, 0] < 80)).sum())
-                    if red >= 12:
-                        o["kind"] = "pot"
-                        continue
-                    if blue >= 12 or green >= 12:
-                        o["kind"] = "pot"
-                        n_ = self._read_small_num(img, o["x"] - int(9 * kx), o["y"] + int(13 * ky), o["x"] + int(13 * kx), o["y"] + int(36 * ky)) or 1
-                        pc["maná" if blue >= green else "energía"] += n_
-                    else:
-                        others += 1
-                self._pot_counts = pc
-                self._bag_items = others
-                self._bag_list = [{"name": "", "kind": "item"} for _ in range(others)]
-                self._bag_t = time.time()
-            except Exception:
-                pass
+            self._bag_scan = None
+            self._oly_bag(names=False)
+            sc = getattr(self, "_bag_scan", None)
+            if not sc:
+                return None
+            total = sc["pots"]["vida"]
+            self._pots_unknown = bool(sc["unknown"])
+            self._pot_counts = dict(sc["pots"])
+            self._bag_items = len(sc["items"])
+            self._bag_list = [{"name": "", "kind": "item"} for _ in sc["items"]]
+            self._bag_t = time.time()
             return total
         finally:
             if opened:
@@ -6689,24 +6659,21 @@ class Bot:
             for _ in range(max_n):
                 img = self.screen.grab(self.rect)
                 bag = self._oly_bag(names=False) or []
-                cand = []
-                for o in bag:
-                    if o["kind"] != "item" or any(abs(o["x"] - p[0]) < 18 and abs(o["y"] - p[1]) < 18 for p in done):
-                        continue
-                    p_ = img[max(0, o["y"] - 12):o["y"] + 12, max(0, o["x"] - 10):o["x"] + 10].reshape(-1, 3).astype(int)
-                    if ((p_.max(axis=1) - p_.min(axis=1)) > 90).sum() >= 12:
-                        continue  # ícono de color fuerte: poción u otro consumible; no lo toco
-                    cand.append(o)
+                cand = [o for o in bag if o["kind"] == "item" and not any(abs(o["x"] - p[0]) < 14 and abs(o["y"] - p[1]) < 14 for p in done)]
                 if not cand:
                     break
                 o = cand[0]
                 done.append((o["x"], o["y"]))
+                before = sum(i_.get("area", 0) for i_ in bag if i_["kind"] == "item")
                 x, y = self.abs_pt(o["x"], o["y"])
                 winapi.click(x, y)
                 time.sleep(0.09)
                 winapi.click(x, y)
                 time.sleep(1.1)
-                n += 1
+                bag2 = self._oly_bag(names=False) or []
+                after = sum(i_.get("area", 0) for i_ in bag2 if i_["kind"] == "item")
+                if abs(after - before) > 60:  # cambió lo que hay suelto: el objeto salió del bolso (o entró el que tenía puesto)
+                    n += 1
             if n:
                 self.log(f"🛡 Me puse {n} objeto/s que estaban sueltos en el bolso.")
             try:

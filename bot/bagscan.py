@@ -1,0 +1,112 @@
+"""Lectura del bolso (Olympia): cantidades en verde debajo de cada frasco, oro en blanco, y los objetos sueltos
+aunque estén encimados (un frasco arriba de un escudo). Trabaja solo con la imagen: se puede probar sin el juego."""
+import re
+
+import cv2
+import numpy as np
+
+NUM_RE = re.compile(r"(\d+(?:\.\d+)?)([km]?)")
+
+
+def _groups(mask, kx, ky):
+    n, lab, st, cen = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
+    cs = [[int(st[i, 0]), int(st[i, 1]), int(st[i, 0] + st[i, 2]), int(st[i, 1] + st[i, 3])] for i in range(1, n)
+          if st[i, 4] >= 12 and 9 * ky <= st[i, 3] <= 20 * ky and 3 * kx <= st[i, 2] <= 60 * kx]
+    cs.sort()
+    gs = []
+    for c in cs:
+        for o in gs:
+            if -2 <= c[0] - o[2] <= 5 * kx and abs(c[1] - o[1]) <= 3 and abs(c[3] - o[3]) <= 3:
+                o[2], o[1], o[3] = max(o[2], c[2]), min(o[1], c[1]), max(o[3], c[3])
+                break
+        else:
+            gs.append(c)
+    return gs
+
+
+def _colors(px):
+    """Cuántos píxeles de cada color de frasco (y de oro) hay en un recorte."""
+    b, g, r = px[:, 0], px[:, 1], px[:, 2]
+    return {"vida": int(((r > 140) & (g < 70) & (b < 80)).sum()),
+            "maná": int(((b > 120) & (r < 110) & (g < 110)).sum()),
+            "energía": int(((g > 110) & (r < 90) & (b < 90)).sum()),
+            "oro": int(((r > 150) & (g > 140) & (b < 130)).sum())}
+
+
+def scan(img, pw, words=(), readnum=None):
+    """img: captura del juego; pw: (x, y) de la palabra 'Peso:' del bolso; words: palabras del OCR de la ventana
+    [(texto, x, y)]; readnum(img, x1, y1, x2, y2) -> número o None.
+    Devuelve {'gold', 'gold_approx', 'pots': {vida, maná, energía}, 'unknown', 'items': [{x, y, area, w, h}]}."""
+    H, W = img.shape[:2]
+    kx, ky = W / 1920.0, H / 1080.0
+    x1, y1 = max(0, int(pw[0] - 40 * kx)), int(pw[1] + 15 * ky)
+    x2, y2 = min(W, int(pw[0] + 440 * kx)), min(H, int(pw[1] + 330 * ky))
+    roi = img[y1:y2, x1:x2]
+    b, g, r = [roi[:, :, i].astype(int) for i in range(3)]
+    mx = np.maximum(np.maximum(r, g), b)
+    green = (g > 115) & (g - r > 40) & (g - b > 40)
+    out = {"gold": None, "gold_approx": False, "pots": {"vida": 0, "maná": 0, "energía": 0}, "unknown": False,
+           "items": [], "box": (x1, y1, x2, y2)}
+    taken = np.zeros(roi.shape[:2], np.uint8)  # lo que ya sé qué es (frascos, números, oro): no es un objeto suelto
+    centers = []
+    # 1) cantidades en verde: cada una pertenece al frasco que tiene arriba a la izquierda
+    for o in _groups(green, kx, ky):
+        bb = roi[max(0, o[1] - int(36 * ky)):max(0, o[1] - int(4 * ky)), max(0, o[0] - int(30 * kx)):o[0] + int(4 * kx)]
+        col = _colors(bb.reshape(-1, 3).astype(int))
+        kind = max(("vida", "maná", "energía"), key=lambda k: col[k])
+        if col[kind] < 25:
+            continue  # verde que no es una cantidad (el brillo de un frasco verde)
+        n = readnum(img, x1 + o[0] - 3, y1 + o[1] - 3, x1 + o[2] + 3, y1 + o[3] + 3) if readnum else None
+        if n is None:
+            out["unknown"] = True
+            n = 2  # con número a la vista hay al menos dos
+        out["pots"][kind] += n
+        c = (o[0] - int(10 * kx), o[1] - int(20 * ky))
+        centers.append(c)
+        cv2.circle(taken, c, int(15 * kx), 1, -1)
+        cv2.rectangle(taken, (o[0] - 2, o[1] - 2), (o[2] + 2, o[3] + 2), 1, -1)
+    # 2) oro: el número en blanco (el juego abrevia: '774', '2.6k', '1.2m')
+    for w in words:
+        t = w[0].strip().lower().replace(",", ".")
+        m = NUM_RE.fullmatch(t)
+        if not m or not (x1 <= w[1] <= x2 and y1 <= w[2] <= y2):
+            continue
+        px = img[max(0, int(w[2] - 9 * ky)):int(w[2] + 9 * ky), max(0, int(w[1] - 20 * kx)):int(w[1] + 20 * kx)].reshape(-1, 3).astype(int)
+        br = px[px.max(axis=1) > 110]
+        if len(br) < 10 or ((br[:, 1] - br[:, 2]) > 40).mean() > 0.3:
+            continue  # verde: es una cantidad de frascos, no el oro
+        out["gold"] = int(round(float(m.group(1)) * {"": 1, "k": 1000, "m": 1000000}[m.group(2)]))
+        out["gold_approx"] = bool(m.group(2))
+        out["gold_xy"] = (int(w[1]), int(w[2]))
+        cv2.rectangle(taken, (int(w[1] - x1 - 26 * kx), int(w[2] - y1 - 10 * ky)), (int(w[1] - x1 + 26 * kx), int(w[2] - y1 + 10 * ky)), 1, -1)
+        break
+    # 3) lo demás: montón de oro, frascos sueltos sin número (hay uno solo) y objetos
+    solid = ((mx > 90) & (taken == 0)).astype(np.uint8)
+    solid = cv2.morphologyEx(solid, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
+    n, lab, st, cen = cv2.connectedComponentsWithStats(solid, connectivity=8)
+    for i in sorted(range(1, n), key=lambda i: -st[i, 4]):
+        a, w_, h_ = int(st[i, 4]), int(st[i, 2]), int(st[i, 3])
+        if a < 70 * kx * ky or h_ < 10 * ky:
+            continue
+        comp = lab == i
+        col = _colors(roi[comp].astype(int))
+        gxy = out.get("gold_xy")
+        by_num = gxy and -60 * kx < (x1 + cen[i][0]) - gxy[0] < 8 * kx and -50 * ky < (y1 + cen[i][1]) - gxy[1] < 4 * ky and w_ <= 40 * kx
+        if col["oro"] > 0.25 * a or by_num:
+            out["gold_pile"] = (x1 + int(cen[i][0]), y1 + int(cen[i][1]))
+            continue
+        kind = max(("vida", "maná", "energía"), key=lambda k: col[k])
+        if col[kind] > 0.3 * a and w_ <= 30 * kx and h_ <= 34 * ky:
+            if any(abs(cen[i][0] - c[0]) < 16 * kx and abs(cen[i][1] - c[1]) < 18 * ky for c in centers):
+                continue  # resto de un frasco ya contado
+            out["pots"][kind] += 1
+            centers.append((int(cen[i][0]), int(cen[i][1])))
+            continue
+        if any(abs(cen[i][0] - c[0]) < 12 * kx and abs(cen[i][1] - c[1]) < 12 * ky for c in centers) and a < 220 * kx * ky:
+            continue
+        # punto para hacerle click: el más metido adentro del objeto (lejos de frascos encimados y de los bordes)
+        dt = cv2.distanceTransform(comp.astype(np.uint8), cv2.DIST_L2, 3)
+        py, px_ = np.unravel_index(int(dt.argmax()), dt.shape)
+        out["items"].append({"x": x1 + int(px_), "y": y1 + int(py), "area": a, "w": w_, "h": h_,
+                             "cx": x1 + int(cen[i][0]), "cy": y1 + int(cen[i][1])})
+    return out
