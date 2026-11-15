@@ -167,6 +167,12 @@ class Api:
             pass
         return True
 
+    def sheet_image(self):
+        try:
+            return self._bot.sheet_image()
+        except Exception as e:
+            return {"img": None, "error": repr(e)}
+
     def economy(self):
         try:
             return self._bot.economy()

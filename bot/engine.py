@@ -2878,6 +2878,7 @@ class Bot:
                 else:
                     opened = True
                 ky = self.rect[3] / 1080.0
+                self._sheet_extras(im, ws)
                 pure = lambda t: t.strip().isdigit() and len(t.strip()) <= 3
                 # columna de los valores de arriba (Nivel/Exp/Peso): la saco de la fila 'Peso: 23/115'
                 col = next((v[1] for v in ws if "/" in v[0] and any(norm(w[0]) == "peso" and abs(w[2] - v[2]) < 10
@@ -2991,6 +2992,42 @@ class Bot:
             t["my_level"] = lvl
             cfgmod.save(self.cfg)
         return sh
+
+    def _sheet_extras(self, im, ws):
+        """Con la ventana del personaje abierta: guardo la imagen (la muestra la pestaña Economía) y leo el hambre."""
+        try:
+            import cv2
+            norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            es = next((w for w in ws if norm(w[0]).startswith("estad")), None)
+            if es:
+                x1, y1 = max(0, int(es[1] - 335 * kx)), max(0, int(es[2] - 530 * ky))
+                crop = im[y1:int(es[2] + 150 * ky), x1:int(es[1] + 340 * kx)]
+                if crop.size:
+                    cv2.imwrite(os.path.join(cfgmod.DATA, "ficha.jpg"), crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                    self._sheet_img_t = time.time()
+            hb = next((w for w in ws if norm(w[0]).startswith("hambre")), None)
+            if hb:
+                v = next((w for w in ws if abs(w[2] - hb[2]) < 10 * ky and w[1] > hb[1] and "%" in w[0]), None)
+                d = "".join(c for c in (v[0] if v else "") if c.isdigit())
+                if d and int(d) <= 100:
+                    self._hunger = int(d)
+                    if self._hunger >= 70 and time.time() - getattr(self, "_hunger_said", 0) > 1800:
+                        self._hunger_said = time.time()
+                        self.log(f"🍖 Hambre {self._hunger}%: hay que comer pronto (todavía no sé comprar comida solo).")
+        except Exception:
+            pass
+
+    def sheet_image(self):
+        """Última captura de la ventana del personaje, para la pestaña Economía."""
+        import base64
+        p = os.path.join(cfgmod.DATA, "ficha.jpg")
+        try:
+            with open(p, "rb") as f:
+                b = base64.b64encode(f.read()).decode()
+            return {"img": "data:image/jpeg;base64," + b, "age": int(time.time() - os.path.getmtime(p)), "hunger": getattr(self, "_hunger", None)}
+        except Exception:
+            return {"img": None, "age": None, "hunger": getattr(self, "_hunger", None)}
 
     def _census(self):
         """Cada tanto, con el pj tranquilo, releo la ficha: es de donde salen nivel, exp por hora y puntos por repartir
@@ -5431,20 +5468,75 @@ class Bot:
         box = box or {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}
         return ocr.read_words(img, box, scale=1.0)
 
-    def _quest_hud(self, img):
-        """Cartel de la misión activa arriba a la derecha: ('Humble Beginning', hechos, total) o None."""
+    def _quest_list(self, img):
+        """Cartel de misiones (arriba a la derecha): puede haber varias. Cada una: título, y abajo '¡Completado!' o
+        sus objetivos 'Snake Teeth: 0/3'. Devuelve [{'name', 'done', 'a', 'b', 'objs': [(texto, a, b)]}]."""
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
-        ws = self._q_words(img, {"x1": int(1670 * kx), "y1": int(225 * ky), "x2": img.shape[1], "y2": int(420 * ky)})
-        prog = next((w for w in ws if re.fullmatch(r"\d+/\d+", w[0].strip())), None)
-        if not prog:
-            done = next((w for w in ws if "mplet" in w[0].lower() or "mpiet" in w[0].lower()), None)
-            if done:  # '¡Completado!': lista para cobrar
-                name = " ".join(w[0] for w in ws if w[2] < done[2] - 12 * ky)
-                return name.strip(), 1, 1
+        ws = self._q_words(img, {"x1": int(1640 * kx), "y1": int(225 * ky), "x2": img.shape[1], "y2": int(620 * ky)})
+        lines = []
+        for w in sorted(ws, key=lambda w: (w[2], w[1])):
+            if lines and abs(w[2] - lines[-1][0]) < 9 * ky:
+                lines[-1][1].append(w)
+            else:
+                lines.append([w[2], [w]])
+        out = []
+        for _y, lw in lines:
+            txt = " ".join(w[0] for w in sorted(lw, key=lambda w: w[1])).strip()
+            low = txt.lower()
+            m = re.search(r"(\d+)\s*/\s*(\d+)\s*$", txt)
+            if "mplet" in low or "mpiet" in low:
+                if out:
+                    out[-1]["done"] = True
+            elif m:
+                if out:
+                    out[-1]["objs"].append((txt[:m.start()].strip(" :"), int(m.group(1)), int(m.group(2))))
+            elif len(txt) >= 4 and any(c.isalpha() for c in txt):
+                out.append({"name": txt, "done": False, "objs": []})
+        for q in out:
+            q["a"] = sum(min(o[1], o[2]) for o in q["objs"])
+            q["b"] = sum(o[2] for o in q["objs"])
+            if q["objs"] and q["a"] >= q["b"]:
+                q["done"] = True
+        return [q for q in out if q["done"] or q["objs"]]
+
+    def _can_face(self, mob):
+        """¿Ese bicho está a mi alcance hoy? (mismo criterio que para elegir zona de caza)"""
+        try:
+            cr = next((c for c in self._creatures_db().values() if str(c.get("name", "")).lower() == str(mob).lower()), None)
+            if not cr:
+                return True
+            lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+            hpmax = self._hpmax_est()
+            cap = float(self.cfg.get("mob_dmg_share", 0.04)) * max(hpmax, 1)
+            if hpmax < 150:
+                cap = max(cap, 0.10 * max(hpmax, 1), 3.0)
+            return self._mob_est(cr)[0] <= cap and cr["defense"] <= 30 + 1.5 * lvl
+        except Exception:
+            return True
+
+    def _quest_hud(self, img):
+        """De todas las misiones del cartel, la que toca ahora: primero una '¡Completado!' (hay que cobrarla);
+        si no, la primera cuyos bichos ya puedo enfrentar. Devuelve (nombre, hechos, total) o None."""
+        qs = self._quest_list(img)
+        if qs != getattr(self, "quests", None):
+            self.quests = qs
+            if qs:
+                self.log("📜 Misiones: " + " · ".join(q["name"] + (" (lista para cobrar)" if q["done"] else f" {q['a']}/{q['b']}") for q in qs) + ".")
+        if not qs:
             return None
-        a_, b_ = map(int, prog[0].strip().split("/"))
-        name = " ".join(w[0] for w in ws if w[2] < prog[2] - 12 * ky)
-        return name.strip(), a_, b_
+        done = next((q for q in qs if q["done"]), None)
+        if done:
+            return done["name"], 1, 1
+        db = self._quest_db().get("quests", [])
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+
+        def doable(q):
+            e = max(db, key=lambda d: difflib.SequenceMatcher(None, norm(q["name"]), norm(d["name"])).ratio(), default=None)
+            if not e or difflib.SequenceMatcher(None, norm(q["name"]), norm(e["name"])).ratio() < 0.75:
+                return True
+            return all(self._can_face(o["mob"]) for o in e["objectives"] if o["mob"] != "*" and not o.get("elite"))
+        q = next((q for q in qs if doable(q)), qs[0])
+        return q["name"], q["a"], q["b"]
 
     def _reward_pick(self, opts):
         """Premio a elegir: lo más cómodo para un guerrero de espada a dos manos. opts = [(texto, x, y)]."""
@@ -6660,6 +6752,40 @@ class Bot:
             self._busy_ui = False
             self._rep_last = time.time()
 
+    def _bag_tidy(self, force=False):
+        """Separo lo que quedó encimado en el bolso (un frasco arriba del escudo recién comprado): arrastro el objeto
+        a un lugar vacío, siempre bien adentro del bolso. Devuelve cuántos moví."""
+        from . import bagscan
+        moved = 0
+        try:
+            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            if not any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
+                winapi.press("F6")
+                time.sleep(0.9)
+            for _ in range(3):
+                self._bag_scan = None
+                self._oly_bag(names=False)
+                sc = getattr(self, "_bag_scan", None)
+                if not sc:
+                    break
+                todo = bagscan.crowded(sc, kx, ky) or (sc["items"][:1] if force else [])
+                force = False
+                spot = bagscan.free_spot(sc, kx, ky)
+                if not todo or not spot:
+                    break
+                it = todo[0]
+                bx1, by1, bx2, by2 = sc["box"]
+                if not (bx1 + 40 < spot[0] < bx2 - 40 and by1 + 40 < spot[1] < by2 - 40):
+                    break
+                self._release()
+                self._drag_bg(it["x"], it["y"], spot[0], spot[1])
+                moved += 1
+            if moved:
+                self.log(f"🎒 Acomodé el bolso: separé {moved} objeto/s que estaban encimados.")
+        except Exception as e:
+            self.log(f"🎒 No pude acomodar el bolso: {e!r}")
+        return moved
+
     def _reequip_loose(self, max_n=3):
         """Lo que quedó suelto en el bolso y no es poción ni oro (un arma que se desequipó al romperse, o lo recién
         comprado): doble click para ponérmelo. En este cliente, equipar desde el bolso manda al bolso lo que estaba
@@ -6668,6 +6794,7 @@ class Bot:
             if not any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.9)
+            self._bag_tidy()
             done, n = [], 0
             for _ in range(max_n):
                 img = self.screen.grab(self.rect)

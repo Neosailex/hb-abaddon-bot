@@ -108,5 +108,35 @@ def scan(img, pw, words=(), readnum=None):
         dt = cv2.distanceTransform(comp.astype(np.uint8), cv2.DIST_L2, 3)
         py, px_ = np.unravel_index(int(dt.argmax()), dt.shape)
         out["items"].append({"x": x1 + int(px_), "y": y1 + int(py), "area": a, "w": w_, "h": h_,
+                             "x0": x1 + int(st[i, 0]), "y0": y1 + int(st[i, 1]),
                              "cx": x1 + int(cen[i][0]), "cy": y1 + int(cen[i][1])})
+    out["pot_xy"] = [(x1 + c[0], y1 + c[1]) for c in centers]
     return out
+
+
+def crowded(sc, kx=1.0, ky=1.0):
+    """Objetos encimados con otra cosa (un frasco o el oro arriba, o dos objetos pegados): hay que separarlos
+    para poder hacerles doble click. Devuelve la lista de objetos a mover."""
+    out = []
+    things = list(sc.get("pot_xy") or []) + ([sc["gold_pile"]] if sc.get("gold_pile") else [])
+    for it in sc["items"]:
+        m = 8 * kx
+        hit = any(it["x0"] - m <= t[0] <= it["x0"] + it["w"] + m and it["y0"] - m <= t[1] <= it["y0"] + it["h"] + m for t in things)
+        if hit or it["w"] > 56 * kx or it["h"] > 60 * ky:
+            out.append(it)
+    return out
+
+
+def free_spot(sc, kx=1.0, ky=1.0):
+    """Un lugar vacío del bolso, bien adentro (nunca cerca del borde: soltar afuera sería tirar el objeto)."""
+    bx1, by1, bx2, by2 = sc["box"]
+    occ = list(sc.get("pot_xy") or []) + ([sc["gold_pile"]] if sc.get("gold_pile") else [])
+    for it in sc["items"]:
+        occ += [(it["cx"], it["cy"]), (it["x0"], it["y0"]), (it["x0"] + it["w"], it["y0"] + it["h"])]
+    ys = range(int(by2 - 70 * ky), int(by1 + 110 * ky), -int(70 * ky))
+    xs = range(int(bx1 + 90 * kx), int(bx2 - 90 * kx), int(75 * kx))
+    for y in ys:
+        for x in xs:
+            if all(abs(x - o[0]) > 60 * kx or abs(y - o[1]) > 60 * ky for o in occ):
+                return x, y
+    return None

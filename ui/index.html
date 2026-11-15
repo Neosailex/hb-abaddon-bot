@@ -412,6 +412,11 @@ input[type=range]{accent-color:var(--gold);width:100%}
     <!-- ECONOMIA -->
     <section class="page" id="p-eco">
       <h1>Economía</h1><p class="sub">Cuánto oro hay, cuánto se junta por hora, qué lleva puesto y para qué está ahorrando.</p>
+      <div class="card" style="margin-bottom:14px">
+        <h2>Personaje</h2>
+        <img id="ecoFicha" alt="" style="max-width:100%;border-radius:8px;display:none">
+        <p class="hint" id="ecoFichaHint">Todavía no saqué la captura de la ventana del personaje.</p>
+      </div>
       <div class="grid g2">
         <div class="card">
           <h2>Oro</h2>
@@ -520,7 +525,14 @@ setInterval(()=>{if(curPage==='server')loadServer()},6000);
 /* ---------- economía ---------- */
 const fmtN=n=>n==null?'—':Number(n).toLocaleString('es-AR');
 const ago=s=>s==null?'':(s<90?'hace instantes':s<3600?`hace ${Math.round(s/60)} min`:`hace ${(s/3600).toFixed(1)} h`);
+async function loadFicha(){
+  if(!API||!API.sheet_image)return;
+  let f; try{f=await API.sheet_image()}catch(_){return}
+  if(f&&f.img){const im=$('#ecoFicha');im.src=f.img;im.style.display='block';
+    $('#ecoFichaHint').textContent='Captura del juego '+ago(f.age)+' (la renuevo cada 4 minutos, cuando no hay bichos cerca).'+(f.hunger!=null?' Hambre: '+f.hunger+'%.':'');}
+}
 async function loadEco(){
+  loadFicha();
   if(!API||!API.economy)return;
   let e; try{e=await API.economy()}catch(_){return}
   if(!e||e.error){$('#ecoGoldHint').textContent=e&&e.error?('No pude armar el resumen: '+e.error):'';return}
