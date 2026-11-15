@@ -1512,6 +1512,7 @@ class Bot:
         # enjambre: con 3+ bichos pegados y menos de 60% de vida, me retiro antes de quedar acorralado
         if (hp is not None and hp < 60 and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0)
                 and not (cfgmod.server_slug(cfg) != "abaddon" and "beginner" in (self.pos.get("map") or "").lower())
+                and now > getattr(self, "_kite_block", 0)
                 and self._adjacent_mobs() >= 3):
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()
@@ -3975,6 +3976,9 @@ class Bot:
             elif now - k.get("lpt", now) > 2.5:
                 self._kite = None
                 self._kite_block = now + 20
+                # decidido: peleo 20 s seguidos. Ir y venir cada 3 s es regalar golpes sin pegar ninguno.
+                self._flee_block = max(getattr(self, "_flee_block", 0), now + 20)
+                self._flee_until = 0
                 self.log(f"🗡 No puedo salir ({len(adj)} encima): peleo en vez de huir.")
                 return False
         if k is None and now < getattr(self, "_kite_block", 0) and not force:
@@ -4236,6 +4240,8 @@ class Bot:
         lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
         cap = self.learner.crowd_cap(mob, lvl)
         allow = min(allow, 1 + lvl // 6)  # nivel bajo: pocos vecinos aunque venga bien (los nidos matan de golpe)
+        if (getattr(self, "_left", {}) or {}).get("pot") == 0 and not getattr(self, "_pots_unknown", False):
+            allow = min(allow, 1)  # sin pociones no me meto en nidos
         if time.time() < getattr(self, "_careful_until", 0) or self._chill():
             return 0  # vengo muriendo seguido: solo bichos sueltos por un rato
         return allow if cap is None else min(allow, cap)
@@ -4883,6 +4889,9 @@ class Bot:
                     self._zk_exp = e1
                 return
             if now - zk[-1][0] < 1.2:
+                return
+            if e1 == e0 and not self._mem_struct():
+                del zk[:-600]  # leo la exp de la ficha cada tanto: guardo las muertes hasta la próxima lectura
                 return
             ready, self._zk = list(zk), []
             self._zk_exp = e1
@@ -6028,6 +6037,10 @@ class Bot:
             except Exception:
                 n = None
             if n is not None:
+                pu = self.__dict__.setdefault("_pot_use", {"t0": now, "used": 0})
+                prev = getattr(self, "_left", {}).get("pot")
+                if prev is not None and 0 < prev - n <= 10 and not getattr(self, "_pots_unknown", False):
+                    pu["used"] += prev - n
                 if n != getattr(self, "_left", {}).get("pot"):
                     self.log(f"🧪 Me quedan {n}{'+' if getattr(self, '_pots_unknown', False) else ''} pociones de vida.")
                 self._left = {"pot": n, "meat": 99}
@@ -6738,7 +6751,8 @@ class Bot:
         gold_h = e["earned"] / hrs if e and hrs > 0.25 else None
         mk = (self.pos.get("map") or "").strip().lower()
         y = (self.world.learn.get("yield", {}) or {}).get(mk) or {}
-        pots_h = y.get("pots", 0) / y["sec"] * 3600 if y.get("sec", 0) >= 600 else None
+        pu = getattr(self, "_pot_use", None)
+        pots_h = pu["used"] / ((now - pu["t0"]) / 3600.0) if pu and now - pu["t0"] > 1800 else None
         rep_h = float(self.cfg.get("repair_cost_h", 100))  # arreglos: ~250 cada dos horas y media
         cost_h = (pots_h * price + rep_h) if pots_h is not None else None
         net_h = (gold_h - cost_h) if gold_h is not None and cost_h is not None else None
