@@ -2953,6 +2953,7 @@ class Bot:
         st, ap, asg = win
         plus_x = st[1] + 225 * self.rect[2] / 1920.0
         # puntos esperados: 3 por nivel desde el 1, menos lo ya repartido (arranque: 70 entre los 6 stats)
+        pts_ocr = pts
         if vals.get("LEVEL") and all(vals.get(n) is not None for n in names):
             exp_pts = 3 * (vals["LEVEL"] - 1) - (sum(vals[n] for n in names) - int(self.cfg.get("stats_start_total", 70)))
             if pts is None or pts != exp_pts:
@@ -2973,7 +2974,8 @@ class Bot:
             added[n] = added.get(n, 0) + 1
         img2 = grab()
         pts2 = points(img2)
-        ok = pts2 == int(pts) - sum(added.values()) or (pts2 is None and sum(added.values()) == int(pts))
+        ok = pts2 == int(pts) - sum(added.values()) or (pts2 is None and sum(added.values()) == int(pts)) \
+            or (pts_ocr is not None and pts2 is not None and pts2 == int(pts_ocr) - sum(added.values()))
         if not ok:
             self.log(f"Stats: después de sumar {added} quedan {pts2} puntos (esperaba {int(pts) - sum(added.values())}); no aplico.")
             ws = ocr.read_words(img2, {"x1": 0, "y1": 0, "x2": img2.shape[1], "y2": img2.shape[0]}, scale=1.0)
