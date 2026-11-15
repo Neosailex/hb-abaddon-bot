@@ -278,6 +278,9 @@ class MapData:
                     if dx and dy and not (passable(cx + dx, cy) or passable(cx, cy + dy)):
                         continue  # no cortar esquinas
                     nc = cost + (1.414 if dx and dy else 1.0)
+                    ex = getattr(self, "extra", None)
+                    if ex:
+                        nc += ex.get((nx, ny), 0.0)  # baldosas caras: cerca de bichos (rodeo los nidos si hay otro camino)
                     if nc < g.get((nx, ny), 1e18):
                         g[(nx, ny)] = nc
                         came[(nx, ny)] = cur

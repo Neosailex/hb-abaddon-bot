@@ -4332,9 +4332,35 @@ class Bot:
                         m.walk[y + dy, x + dx] = False
         m._no_pisar = mk
 
+    def _mob_costs(self, m, goal):
+        """Costo extra de las baldosas cerca de bichos (lista en vivo de la memoria), para que el camino rodee los
+        nidos en vez de cruzarlos. Cerca del destino y de donde estoy parado no cobro (si voy a pegarle a uno, llego)."""
+        now = time.time()
+        c = getattr(self, "_mc", None)
+        if c and c[0] == id(m) and c[1] == tuple(goal) and now - c[2] < 2.0:
+            return c[3]
+        ex = {}
+        try:
+            px, py = self.pos["x"], self.pos["y"]
+            for e in (self._oly_ents() or []):
+                x, y = e[0], e[1]
+                if max(abs(x - goal[0]), abs(y - goal[1])) <= 3 or max(abs(x - px), abs(y - py)) <= 1:
+                    continue
+                for dy in range(-3, 4):
+                    for dx in range(-3, 4):
+                        d_ = max(abs(dx), abs(dy))
+                        k = (x + dx, y + dy)
+                        ex[k] = ex.get(k, 0.0) + (5.0, 4.0, 2.5, 1.2)[d_]
+        except Exception:
+            ex = {}
+        self._mc = (id(m), tuple(goal), now, ex)
+        return ex
+
     def _walk_to(self, m, goal, label):
         if getattr(m, "_no_pisar", None) is None and cfgmod.server_slug(self.cfg) != "abaddon":
             self._apply_no_pisar(m)
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            m.extra = self._mob_costs(m, goal)
         now = time.time()
         px, py = self.pos["x"], self.pos["y"]
         if (px, py) != self.nav.get("last_pos"):
@@ -4365,6 +4391,13 @@ class Bot:
             # el juego camina derecho hacia el mouse: apunto solo hasta donde hay línea libre (pozos, paredes, pasillos)
             if not m.los((px, py), p):
                 break
+            ex_ = getattr(m, "extra", None)
+            if ex_ and wp != path[min(1, len(path) - 1)] or ex_ and p != path[1]:
+                # el camino rodea un nido: no lo corto en línea recta por el medio
+                n_s = max(abs(p[0] - px), abs(p[1] - py))
+                if any(ex_.get((int(round(px + (p[0] - px) * t / n_s)), int(round(py + (p[1] - py) * t / n_s))), 0.0) >= 4.0
+                       for t in range(1, n_s + 1)):
+                    break
             wp = p
         stuck = now - self.nav["still_since"] > 4
         if stuck:
@@ -6577,7 +6610,9 @@ class Bot:
             self.log("🔧 Voy al herrero a reparar el equipo" + (f" ({why})" if why else "") + ".")
             t0 = time.time()
             d = pl["door"]
-            if not inside() and not self._same(self.pos.get("map") or "", pl["map"]):
+            far = self.pos.get("x") is None or max(abs(self.pos["x"] - d[0]), abs(self.pos["y"] - d[1] - 2)) > 4
+            if not inside() and (far or not self._same(self.pos.get("map") or "", pl["map"])):
+                # primero hasta el frente de la puerta por el camino normal (el encargo va en línea más directa)
                 self.goto = {"map": pl["map"], "x": d[0], "y": d[1] + 2, "t": time.time()}
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
@@ -6600,8 +6635,15 @@ class Bot:
             winapi.click(*self.abs_pt(todo[1], todo[2]))
             time.sleep(1.8)
             ws = self._q_words(self.screen.grab(self.rect))
-            q = next((w for w in ws if norm(w[0]).startswith("reparar") and w[2] < self.rect[3] * 0.3), None)
-            yes = next((w for w in ws if norm(w[0]) in ("sí", "si") and q and 0 < w[2] - q[2] < 200), None)
+            q = next((w for w in ws if "reparar" in norm(w[0]) and w[2] < self.rect[3] * 0.3), None)
+            if not q:  # a veces tarda en aparecer el cartel
+                time.sleep(1.5)
+                ws = self._q_words(self.screen.grab(self.rect))
+                q = next((w for w in ws if "reparar" in norm(w[0]) and w[2] < self.rect[3] * 0.3), None)
+            yes = next((w for w in ws if norm(w[0]) in ("sí", "si", "sl", "s1") and q and 0 < w[2] - q[2] < 200 and w[1] < self.rect[2] * 0.36), None)
+            if q and not yes:
+                # el cartel está pero no leo el botón: 'Sí' queda siempre abajo a la izquierda del texto
+                yes = ("Sí", q[1] + 60 * self.rect[2] / 1920.0, q[2] + 130 * self.rect[3] / 1080.0)
             cost = next((int(norm(w[0])) for w in ws if q and norm(w[0]).isdigit() and abs(w[2] - q[2]) < 30), None)
             gold = getattr(self, "_gold", None)
             if yes and (cost is None or gold is None or cost <= gold):
@@ -6616,7 +6658,10 @@ class Bot:
                 return
             else:
                 self.log("🔧 No hay nada para reparar.")
-            self._reequip_loose()
+            # solo me vuelvo a poner cosas si algo se había roto (lo roto se desequipa solo); un repuesto guardado no se toca
+            lo = int(self.cfg.get("loose_ok", 0))
+            if time.time() - getattr(self, "_worn_seen", 0) < 3600 or (getattr(self, "_bag_items", 0) or 0) > lo:
+                self._reequip_loose(max_n=max(1, (getattr(self, "_bag_items", 0) or 0) - lo))
             self._worn_seen = 0
         except Exception as e:
             self.log(f"🔧 Error en el herrero: {e!r}")
@@ -6660,6 +6705,9 @@ class Bot:
             try:
                 self._oly_pots()
                 self._loose_ok = getattr(self, "_bag_items", 0) or 0  # lo que queda suelto es repuesto: no es señal de rotura
+                if int(self.cfg.get("loose_ok", -1)) != self._loose_ok:
+                    self.cfg["loose_ok"] = self._loose_ok
+                    cfgmod.save(self.cfg)
             except Exception:
                 pass
             if any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
@@ -6763,7 +6811,7 @@ class Bot:
                 self._rep_last = now
             worn = self._worn_check() or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
             if not hasattr(self, "_loose_ok"):
-                self._loose_ok = int(self.cfg.get("loose_ok", 1))
+                self._loose_ok = int(self.cfg.get("loose_ok", 0))
             loose = (getattr(self, "_bag_items", 0) or 0) > self._loose_ok and now - self._rep_last > 1800
             due = now - self._rep_last > float(self.cfg.get("repair_every_min", 150)) * 60
             if not (worn or loose or due) or now - self._rep_last < 300:
@@ -7008,7 +7056,9 @@ class Bot:
             self.log("🛍 Voy al herrero a comprar: " + ", ".join(f"{i['name']} ({i['price']})" for i in items) + ".")
             t0 = time.time()
             d = pl["door"]
-            if not inside() and not self._same(self.pos.get("map") or "", pl["map"]):
+            far = self.pos.get("x") is None or max(abs(self.pos["x"] - d[0]), abs(self.pos["y"] - d[1] - 2)) > 4
+            if not inside() and (far or not self._same(self.pos.get("map") or "", pl["map"])):
+                # primero hasta el frente de la puerta por el camino normal (el encargo va en línea más directa)
                 self.goto = {"map": pl["map"], "x": d[0], "y": d[1] + 2, "t": time.time()}
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
