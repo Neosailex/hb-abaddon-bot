@@ -1066,7 +1066,7 @@ class Bot:
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         txt = [(norm(w[0]), w) for w in words]
         # carteles peligrosos: '¿tirar este objeto?' / '¿cuánto oro tirar?' y elegir talento → siempre No/Cancelar
-        for key in ("tirar", "talento"):
+        for key in ("tirar", "talento", "unirte"):
             hit = next((w for t, w in txt if key in t), None)
             if hit:
                 btn = next((w for t, w in txt if t in ("no", "cancelar") and 0 < w[2] - hit[2] < 200 and abs(w[1] - hit[1]) < 400), None)
@@ -3118,6 +3118,9 @@ class Bot:
         d = t.get("dest") or "auto"
         if d != "auto":
             return d
+        sm = t.get("stay_map")
+        if sm and self._same(self.pos.get("map") or "", sm):
+            return sm  # me pidieron quedarme en este mapa (ej. Beginner Zone, sin hacerme ciudadano)
         try:
             qd = self._quest_dest()
         except Exception:
