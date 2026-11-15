@@ -5595,6 +5595,8 @@ class Bot:
         """¿La misión activa justifica cazar SOLO su bicho? Sí cuando es de matar N y viene avanzando. No cuando
         es de juntar objetos (salen cada tanto) o cuando llevo 15 minutos sin avanzar: ahí se caza normal y el
         bicho de la misión solo tiene prioridad cuando aparece."""
+        if not self.cfg.get("quest_strict", False):
+            return False  # la regla es subir de nivel: la misión da prioridad a su bicho cuando aparece, nada más
         qa = self._quest_active()
         if not qa:
             return False
