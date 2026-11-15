@@ -4280,7 +4280,7 @@ class Bot:
         if (getattr(self, "_left", {}) or {}).get("pot") == 0 and not getattr(self, "_pots_unknown", False):
             allow = min(allow, 1)  # sin pociones no me meto en nidos
         if time.time() < getattr(self, "_careful_until", 0) or self._chill():
-            return 0  # vengo muriendo seguido: solo bichos sueltos por un rato
+            return min(allow, 1) if self.cfg.get("careful_pairs", True) else 0  # vengo muriendo seguido: solo bichos sueltos por un rato
         return allow if cap is None else min(allow, cap)
 
     def _oly_fight_review(self):
@@ -6125,6 +6125,9 @@ class Bot:
             if not sc:
                 return None
             total = sc["pots"]["vida"]
+            prev = (getattr(self, "_left", {}) or {}).get("pot")
+            if sc["unknown"] and prev is not None and prev >= 2 and total >= 1:
+                total, sc["unknown"] = prev, False  # hay frascos pero no leí el número: vale lo último que sabía
             self._pots_unknown = bool(sc["unknown"])
             self._pot_counts = dict(sc["pots"])
             self._bag_items = len(sc["items"])
@@ -6281,6 +6284,8 @@ class Bot:
             click(cp[1], cp[2])
             time.sleep(1.5)
             self.log(f"🛒 Compré {n} pociones de vida (tenía {gold} de oro).")
+            self._left = {"pot": (have or 0) + n, "meat": 99}
+            self._pots_unknown = False
             self._pots_t = 0
             tienda = next((w for w in words(grab()) if norm(w[0]) == "tienda"), None)
             if tienda:
@@ -6912,8 +6917,8 @@ class Bot:
         if mode == "exp":
             if pots == 0 and gold is not None and gold < 5 * price:
                 why = f"sin pociones y con {gold} de oro no llego ni a 5"
-            elif d30 >= 3:
-                why = f"me mataron {d30} veces en media hora"
+            elif d30 >= 3 and (pots is None or pots < 3) and (gold is None or gold < kit):
+                why = f"me mataron {d30} veces en media hora y no tengo pociones ni oro para reponer"
             elif net_h is not None and net_h < 0 and gold is not None and gold < kit and pots is not None and pots < 3:
                 why = f"esta zona me cuesta ~{int(cost_h)} de oro por hora y junto ~{int(gold_h)}"
             if why:
@@ -6924,7 +6929,9 @@ class Bot:
         else:
             mins = (now - st["since"]) / 60.0
             back = None
-            if gold is not None and gold >= kit and mins >= 10:
+            if pots is not None and pots >= 5:
+                back = f"ya tengo {pots} pociones: vuelvo a la zona que más experiencia da"
+            elif gold is not None and gold >= kit and mins >= 10:
                 back = f"ya junté {gold} de oro: compro pociones y vuelvo a la zona que más experiencia da"
                 self._shop_last = 0
             elif mins >= 45 and gold is not None and gold - (st.get("g0") or 0) < price and d30 == 0:
