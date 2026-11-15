@@ -920,7 +920,11 @@ class Bot:
         if self._fleeing() and self.ents.center and self.mem.learned and self._flee_mem():
             return
         if self._fleeing():
-            if not self._travel(force_dest=cfg.get("travel", {}).get("home", "aresden")):
+            home = cfg.get("travel", {}).get("home", "aresden")
+            cur_ = self.pos.get("map") or ""
+            if self._same(cur_, "Beginner Zone") or "principiantes" in cur_.lower():
+                home = cur_  # en la Beginner Zone no salgo por el portal: me alejo y descanso ahí mismo
+            if not self._travel(force_dest=home):
                 self._release()
                 self.stats["state"] = "descansando"
             return
