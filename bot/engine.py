@@ -1079,7 +1079,8 @@ class Bot:
                             mk = (self.pos.get("map") or "").strip().lower()
                             bl = self.world.learn.setdefault("no_pisar", {}).setdefault(mk, [])
                             pt_ = [int(self.pos["x"]), int(self.pos["y"])]
-                            if pt_ not in bl:
+                            near_ok = not bl or any(max(abs(b[0] - pt_[0]), abs(b[1] - pt_[1])) <= 6 for b in bl)
+                            if pt_ not in bl and near_ok:
                                 bl.append(pt_)
                                 self.world.save()
                                 self.log(f"🚫 Anoto ({pt_[0]},{pt_[1]}) como portal de ciudad: no lo vuelvo a pisar.")
