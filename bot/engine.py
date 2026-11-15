@@ -664,7 +664,12 @@ class Bot:
         for k in ("hp", "mp", "sp"):
             self.bars[k] = vision.bar_percent(self.img, c.get(f"{k}_bar"), tol) if self.img is not None else None
         eb = c.get("exp_bar")
-        if eb and self.img is not None:
+        if self.img is not None and cfgmod.server_slug(self.cfg) != "abaddon" and c.get("hp_bar"):
+            try:
+                self._expbar_thin(c)
+            except Exception:
+                pass
+        elif eb and self.img is not None:
             import cv2
             y = int(eb["y1"])
             if 0 <= y < self.img.shape[0]:
@@ -679,6 +684,42 @@ class Bot:
             h = getattr(self, "_hp_hist", [])
             h.append((time.time(), hp))
             self._hp_hist = [x for x in h if time.time() - x[0] < 4]
+
+    def _expbar_thin(self, c):
+        """Barrita de experiencia de Olympia: una línea verde finita que cruza la pantalla justo arriba del tablero
+        (arranca bien a la izquierda; la barra de energía también es verde pero arranca en el medio). Busco la fila
+        cada minuto y mido el largo de lo verde en cada vuelta."""
+        import cv2
+        now = time.time()
+        H, W = self.img.shape[:2]
+        hy = int(c["hp_bar"]["y1"])
+        row = getattr(self, "_xb_row", None)
+
+        def run(y):
+            r = cv2.cvtColor(self.img[y:y + 1, 0:W], cv2.COLOR_BGR2HSV)[0]
+            g = (r[:, 0] > 28) & (r[:, 0] < 88) & (r[:, 1] > 90) & (r[:, 2] > 90)
+            ix = np.where(g)[0]
+            if len(ix) < 12 or ix[0] > 0.16 * W:
+                return 0, 0
+            # tramo verde continuo desde el arranque (tolero cortes de hasta 6 px: el texto del chat puede taparla)
+            end = ix[0]
+            for v in ix:
+                if v - end > 6:
+                    break
+                end = v
+            return int(end - ix[0] + 1), int(ix[0])
+        if not row or now - row[1] > 60:
+            best = (0, None)
+            for y in range(max(0, hy - 70), max(0, hy - 14)):
+                ln, _x0 = run(y)
+                if ln > best[0]:
+                    best = (ln, y)
+            row = self._xb_row = (best[1], now)
+        if row[0] is None:
+            return
+        ln, _x0 = run(row[0])
+        if ln >= 12:
+            self._expbar = (ln, now)
 
     def _exp_update(self, pct):
         """Sigue la barra de experiencia: % actual, ritmo por hora, cuándo sube y detecta los level up."""
@@ -3016,7 +3057,8 @@ class Bot:
                     self._hunger = int(d)
                     if self._hunger >= 70 and time.time() - getattr(self, "_hunger_said", 0) > 1800:
                         self._hunger_said = time.time()
-                        self.log(f"🍖 Hambre {self._hunger}%: hay que comer pronto (todavía no sé comprar comida solo).")
+                        self.log(f"🍖 Hambre {self._hunger}%: paso por la tienda a comprar comida.")
+                        self._shop_last = 0
         except Exception:
             pass
 
@@ -5628,7 +5670,23 @@ class Bot:
     def _quest_db(self):
         db = getattr(self, "_qdb", None)
         if db is None:
-            db = self._qdb = self._load_json("misiones_olympia.json") or {"quests": [], "npcs": {}}
+            db = None
+            try:
+                # primero lo que trae el propio juego (contents/quests.json): no hace falta que nadie pase la wiki
+                from . import gamedata, world as _w
+                crs = [c["name"] for c in self._creatures_db().values()]
+                nz = lambda t: "".join(ch for ch in str(t).lower() if ch.isalnum())
+
+                def mob(n):
+                    k = nz(n)
+                    return (next((c for c in crs if nz(c) == k), None) or next((c for c in crs if k in nz(c) or nz(c) in k), None)
+                            or str(n).title())
+                db = gamedata.quest_db(self.world.game_dir, self.cfg.get("nation", "aresden"), lambda f: _w.file_display(f).title(), mob)
+                if db:
+                    self.log(f"📜 Misiones del juego: {len(db['quests'])} leídas de la instalación ({len(db['npcs'])} personajes).")
+            except Exception:
+                db = None
+            self._qdb = db = db or self._load_json("misiones_olympia.json") or {"quests": [], "npcs": {}}
         return db
 
     def _quest_active(self):
@@ -6244,7 +6302,8 @@ class Bot:
         many = (getattr(self, "_bag_items", 0) or 0) >= int(self.cfg.get("sell_when_items", 12))
         if now - getattr(self, "_shop_last", 0) < 900:
             return
-        if not many and (n is None or n > lim or not afford):
+        hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and (gold or 0) >= 30
+        if not many and not hungry and (n is None or n > lim or not afford):
             return
         self._shop_last = now
         self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
@@ -6309,6 +6368,13 @@ class Bot:
                 click(tabp[1], tabp[2])
                 time.sleep(1.0)
             self._oly_bag(names=False)  # leo el oro
+            # 1b) comida: con hambre alta compro pan (o carne) y me lo como al salir
+            try:
+                hun = getattr(self, "_hunger", None)
+                if hun is not None and hun >= int(self.cfg.get("eat_above", 50)) and (getattr(self, "_gold", 0) or 0) >= 30:
+                    self._oly_buy_food(words, grab, click, tabp, hun)
+            except Exception as e:
+                self.log(f"🍖 No pude comprar comida: {e!r}")
             # 2) pociones: solo con el oro que sobra después de la reserva para equipo, y hasta 4
             gold = getattr(self, "_gold", None)
             have = getattr(self, "_left", {}).get("pot") or 0
@@ -6317,7 +6383,8 @@ class Bot:
             want_n = int(self.cfg.get("pots_target", 15))
             n = self._pot_budget(gold, have)
             if n <= 0:
-                self.log(f"🛒 No compro pociones: tengo {gold} de oro y guardo {reserve} para equipo.")
+                if not getattr(self, "_food_pending", None):
+                    self.log(f"🛒 No compro pociones: tengo {gold} de oro y guardo {reserve} para equipo.")
                 return
             ws = words(grab())
             try:
@@ -6375,9 +6442,83 @@ class Bot:
                 self._close_shop_window()
             except Exception:
                 pass
+            try:
+                self._eat_food()
+            except Exception as e:
+                self.log(f"🍖 No pude comer: {e!r}")
             self.mission = None
             self._busy_ui = False
             self._shop_last = time.time()
+
+    def _oly_buy_food(self, words, grab, click, tabp, hun):
+        """En la tienda abierta: compro pan (Baguette) o carne según el hambre. Me la como después, con la tienda
+        cerrada (_eat_food), para no tocar el bolso con la lista de venta a mano."""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        ws = words(grab())
+        row = next((w for w in ws if norm(w[0]).startswith("baguet")), None)
+        per = 20
+        if not row:
+            row = next((w for w in ws if norm(w[0]) == "meat"), None)
+            per = 30
+        if not row:
+            self.log("🍖 No veo pan ni carne en la lista de la tienda.")
+            return
+        n = max(1, min(8, -(-int(hun) // per)))
+        sc = getattr(self, "_bag_scan", None) or {}
+        before = [(i["cx"], i["cy"]) for i in sc.get("items", [])]
+        click(row[1], row[2])
+        time.sleep(1.0)
+        ws = words(grab())
+        plus = next((w for w in ws if w[0].strip() == "+" and w[2] > row[2] + 300 * ky), None)
+        if not plus and tabp:
+            plus = ("+", tabp[1] + 81 * kx, tabp[2] + 640 * ky)
+        for _ in range(n - 1):
+            if plus:
+                click(plus[1], plus[2])
+                time.sleep(0.3)
+        cp = next((w for w in words(grab()) if norm(w[0]).startswith("comprar")), None)
+        if not cp and tabp:
+            cp = ("Comprar", tabp[1] + 355 * kx, tabp[2] + 640 * ky)
+        if not cp:
+            self.log("🍖 No veo el botón Comprar.")
+            return
+        click(cp[1], cp[2])
+        time.sleep(1.5)
+        self._food_pending = {"n": n, "before": before, "what": "pan" if per == 20 else "carne"}
+        self.log(f"🍖 Hambre {hun}%: compré {n} de {self._food_pending['what']}.")
+        self._oly_bag(names=False)
+
+    def _eat_food(self):
+        """Me como lo que acabo de comprar: es el objeto nuevo del bolso (doble click por cada unidad)."""
+        fp = getattr(self, "_food_pending", None)
+        if not fp:
+            return
+        self._food_pending = None
+        if not any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
+            winapi.press("F6")
+            time.sleep(0.9)
+        self._bag_scan = None
+        self._oly_bag(names=False)
+        sc = getattr(self, "_bag_scan", None) or {}
+        kx = self.rect[2] / 1920.0
+        new = [i for i in sc.get("items", []) if not any(abs(i["cx"] - b[0]) < 22 * kx and abs(i["cy"] - b[1]) < 22 * kx for b in fp["before"])]
+        if not new:
+            self.log("🍖 Compré comida pero no la encuentro en el bolso: la busco en la próxima pasada.")
+        else:
+            it = min(new, key=lambda i: i["area"])  # la comida es chica; si hay dos cosas nuevas, la más chica
+            x, y = self.abs_pt(it["x"], it["y"])
+            for _ in range(fp["n"]):
+                winapi.click(x, y)
+                time.sleep(0.09)
+                winapi.click(x, y)
+                time.sleep(0.8)
+            self.log(f"🍖 Comí {fp['n']} de {fp['what']}.")
+            self._hunger = None
+            self._census_t = 0  # releo la ficha para ver cómo quedó el hambre
+        if any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
+            winapi.press("F6")
+            time.sleep(0.4)
 
     def _maybe_shop(self):
         if cfgmod.server_slug(self.cfg) != "abaddon":
