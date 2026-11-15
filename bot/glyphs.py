@@ -87,12 +87,12 @@ class GlyphReader:
     def known(self):
         return sorted(self.samples)
 
-    def read(self, mask, max_dist=0.30, margin=1.4):
+    def read(self, mask, max_dist=0.30, margin=1.4, max_segs=4):
         """Número leído con las plantillas, o None si alguna cifra no se parece lo suficiente a nada."""
         if not self.samples:
             return None
         segs = _segments(mask)
-        if not segs or len(segs) > 4:
+        if not segs or len(segs) > max_segs:
             return None
         out = ""
         for g in segs:

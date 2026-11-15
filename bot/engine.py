@@ -591,7 +591,8 @@ class Bot:
         if last is not None and pct + 40 < last:  # la barra se vació: subió de nivel
             t = self.cfg.setdefault("travel", {})
             lm = self._level_mem()
-            t["my_level"] = lm if lm else int(t.get("my_level", 1)) + 1
+            t["my_level"] = max(lm or 0, int(t.get("my_level", 1)) + 1) if not self._mem_struct() else (lm or int(t.get("my_level", 1)) + 1)
+            self._census_t = 0  # releer la ficha ya (nivel exacto y puntos)
             cfgmod.save(self.cfg)
             self.log(f"⬆ ¡Subiste a nivel {t['my_level']}!")
             p["hist"] = []
@@ -892,10 +893,12 @@ class Bot:
             self.stats["state"] = "buscando"
         if self._survival():
             # descansando: buen momento para revisar los stats (sin bichos cerca, quieto)
-            if (getattr(self, "_rest_since", 0) and cfg.get("stats_auto", {}).get("enabled")
-                    and cfgmod.server_slug(cfg) != "abaddon" and time.time() - getattr(self, "_stats_done", 0) > 180):
-                self._stats_done = self._last_stats = time.time()
-                self._do_stats()
+            if getattr(self, "_rest_since", 0):
+                self._census()
+                if (cfg.get("stats_auto", {}).get("enabled") and getattr(self, "_last_stats", 1) == 0
+                        and cfgmod.server_slug(cfg) != "abaddon"):
+                    self._stats_done = self._last_stats = time.time()
+                    self._do_stats()
             return
         self._timers()
         sa = cfg.get("stats_auto", {})
@@ -908,10 +911,9 @@ class Bot:
             if (not indoors and not getattr(self, "mission", None) and (lu_pts or vision.find_level_up(self.img))
                     and time.time() - getattr(self, "_stats_done", 0) > wait_):
                 self._last_stats = 0
-            # Olympia: no hay cartel de Level Up legible ni memoria del pj: miro la ventana cada 3 minutos
-            if (cfgmod.server_slug(cfg) != "abaddon" and not indoors
-                    and time.time() - getattr(self, "_stats_done", 0) > 60 * float(sa.get("every_min_ui", 3))):
-                self._last_stats = 0
+            # servers sin memoria del pj: la ficha (F5) dice el nivel, la exp y si hay puntos por repartir
+            if not indoors and not getattr(self, "mission", None) and self._census():
+                return
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0:
             self._last_stats = time.time()
             self._stats_done = time.time()
@@ -934,6 +936,7 @@ class Bot:
                 self._release()
                 self.stats["state"] = "descansando"
             return
+        self._join_step()
         if self._goto_step():
             return
         if self._quest_step():
@@ -1068,6 +1071,30 @@ class Bot:
         # carteles peligrosos: '¿tirar este objeto?' / '¿cuánto oro tirar?' y elegir talento → siempre No/Cancelar
         for key in ("tirar", "talento", "unirte"):
             hit = next((w for t, w in txt if key in t), None)
+            jc = norm((self.cfg.get("travel", {}) or {}).get("join_city") or "")
+            if hit and key == "unirte" and jc and self._join_active() and any(jc in t for t, _ in txt):
+                yes = next((w for t, w in txt if t in ("si", "sí", "aceptar", "yes", "ok", "unirme", "unirse")
+                            and 0 < w[2] - hit[2] < 200 and abs(w[1] - hit[1]) < 400), None)
+                try:
+                    import cv2
+                    cv2.imwrite(os.path.join(cfgmod.DATA, "join.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                except Exception:
+                    pass
+                if yes:
+                    winapi.left_up()
+                    winapi.click(*self.abs_pt(yes[1], yes[2]))
+                    t_ = self.cfg["travel"]
+                    self.log(f"🏛 Me uní a {t_['join_city'].title()} (lo pediste vos). Sigo con la guía fuera de la zona de principiantes.")
+                    t_["join_city"] = None
+                    t_.pop("stay_map", None)
+                    cfgmod.save(self.cfg)
+                    self.goto = None
+                    time.sleep(1.5)
+                    return True
+                if now - getattr(self, "_join_warn", 0) > 60:
+                    self._join_warn = now
+                    self.log("🏛 Veo el cartel para unirme pero no encuentro el botón de aceptar: " + " | ".join(w[0] for _, w in txt if 0 < w[2] - hit[2] < 200)[:120])
+                return False
             if hit:
                 btn = next((w for t, w in txt if t in ("no", "cancelar") and 0 < w[2] - hit[2] < 200 and abs(w[1] - hit[1]) < 400), None)
                 if btn:
@@ -2650,7 +2677,8 @@ class Bot:
                     return v
         except Exception:
             pass
-        return None
+        sh = self._sheet(1800)
+        return sh["pending"] if sh else None
 
     def _stats_mem(self):
         """STR/VIT/DEX/INT/MAG/CHR desde la memoria (al lado de la posición)."""
@@ -2662,7 +2690,197 @@ class Bot:
                     return dict(zip(("STR", "VIT", "DEX", "INT", "MAG", "CHR"), v))
         except Exception:
             pass
+        sh = self._sheet(6 * 3600)
+        if sh:
+            st = dict(sh["stats"])
+            st["CHR"] = st.get("LUK")
+            return st
         return {}
+
+    # ---------- ficha del pj leída de la pantalla (servers sin estructura de memoria conocida) ----------
+    def _sheet(self, max_age=1800):
+        """Última ficha leída (nivel, exp, stats) si no es muy vieja."""
+        sh = getattr(self, "sheet", None)
+        return sh if sh and time.time() - sh.get("t", 0) < max_age else None
+
+    def _ficha_glyphs(self):
+        """Cifras de la letra de la ficha del personaje, aprendidas de números que el OCR leyó enteros."""
+        from . import glyphs as glmod
+        path = os.path.join(cfgmod.profile_dir(self.cfg), "glifos_ficha.json")
+        g = getattr(self, "_fglyphs", None)
+        if g is None or g.path != path:
+            g = self._fglyphs = glmod.GlyphReader(path)
+        return g
+
+    def _ficha_mask(self, im, box):
+        x1, y1, x2, y2 = [int(v) for v in box]
+        roi = im[max(0, y1):y2, max(0, x1):x2]
+        if roi.size == 0:
+            return None
+        m = self._text_mask(roi)
+        ys, xs = np.nonzero(m)
+        if len(xs) < 4:
+            return None
+        return m[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+
+    def _ficha_num(self, im, box, max_segs=3):
+        m = self._ficha_mask(im, box)
+        return self._ficha_glyphs().read(m, max_segs=max_segs) if m is not None else None
+
+    def _sheet_read(self):
+        """Abre la ventana del personaje (F5), lee nivel, experiencia y stats, y la cierra. Sirve en cualquier
+        cliente que muestre 'Nivel/Exp/STR/VIT/DEX/INT/MAG/LUK' con el número a la derecha. None si no pude."""
+        if not self.rect:
+            return None
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        fix = str.maketrans({"o": "0", "O": "0", "D": "0", "g": "9", "q": "9", "l": "1", "I": "1", "|": "1", "i": "1",
+                             "S": "5", "s": "5", "B": "8", "Z": "2", "z": "2", "A": "4", "b": "6", "G": "6", "T": "7"})
+
+        def num(t, big=False):
+            d = "".join(c for c in (t or "").strip().translate(fix) if c.isdigit())
+            return int(d) if d and (big or len(d) <= 3) else None
+
+        kx = self.rect[2] / 1920.0
+        labels = {"STR": ("str", "slr", "sir"), "VIT": ("vit", "v1t"), "DEX": ("dex", "oex", "0ex"), "INT": ("int", "lnt", "1nt"),
+                  "MAG": ("mag",), "LUK": ("luk", "lux", "lik", "lix", "luc"), "LEVEL": ("nivel", "level"), "EXP": ("exp",)}
+        reach = {"LEVEL": 300, "EXP": 300}
+        self._release()
+        best = {}
+        opened = False
+        try:
+            for attempt in range(3):
+                im = self.screen.grab(self.rect)
+                ws = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)},
+                                    scale=(1.0, 1.5, 2.0)[attempt])
+                is_open = any(norm(w[0]).startswith("estad") for w in ws) and any(norm(w[0]).startswith("misiones") for w in ws) \
+                    or sum(1 for w in ws if norm(w[0])[:3] in ("str", "vit", "dex", "mag")) >= 3
+                if not is_open:
+                    if opened:
+                        continue
+                    winapi.press("F5")
+                    opened = True
+                    time.sleep(1.1)
+                    im = self.screen.grab(self.rect)
+                    ws = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
+                else:
+                    opened = True
+                ky = self.rect[3] / 1080.0
+                pure = lambda t: t.strip().isdigit() and len(t.strip()) <= 3
+                # columna de los valores de arriba (Nivel/Exp/Peso): la saco de la fila 'Peso: 23/115'
+                col = next((v[1] for v in ws if "/" in v[0] and any(norm(w[0]) == "peso" and abs(w[2] - v[2]) < 10
+                                                                    and 0 < v[1] - w[1] < 300 * kx for w in ws)), None)
+                for key, keys in labels.items():
+                    if best.get(key) is not None:
+                        continue
+                    lab = None
+                    for w in sorted(ws, key=lambda w: w[2]):
+                        t = norm(w[0])
+                        if not any(t.startswith(k) for k in keys):
+                            continue
+                        if key == "LEVEL" and w[0].strip()[:1] not in ("N", "L"):
+                            continue  # 'A sig. nivel', 'Subir nivel'
+                        if key == "EXP" and (t != "exp" or any(norm(v[0]).startswith("desc") and abs(v[2] - w[2]) < 10 for v in ws)):
+                            continue  # 'Exp Desc.'
+                        lab = w
+                        break
+                    if not lab:
+                        continue
+                    if key in ("LEVEL", "EXP"):
+                        cxv = col if col else lab[1] + 195 * kx
+                        box = (int(cxv - 75 * kx), int(lab[2] - 13 * ky), int(cxv + 75 * kx), int(lab[2] + 13 * ky))
+                    else:
+                        x0 = int(lab[1] + lab[3] / 2 + 5 * kx)
+                        box = (x0, int(lab[2] - 13 * ky), int(x0 + 58 * kx), int(lab[2] + 13 * ky))
+                    inbox = [v for v in ws if box[0] <= v[1] <= box[2] and abs(v[2] - lab[2]) < 10]
+                    if key == "EXP":
+                        cands = ["".join(v[0] for v in sorted(inbox, key=lambda v: v[1]))]
+                        try:
+                            crop = im[max(0, box[1] - 4):box[3] + 4, max(0, box[0]):box[2]]
+                            for sc in (3.0, 4.0):
+                                cands.append("".join(v[0] for v in sorted(
+                                    ocr.read_words(crop, {"x1": 0, "y1": 0, "x2": crop.shape[1], "y2": crop.shape[0]}, scale=sc),
+                                    key=lambda v: v[1])))
+                        except Exception:
+                            pass
+                        v = self._ficha_num(im, box, max_segs=10)
+                        if v is not None:
+                            best[key] = v
+                            continue
+                        good = [int(re.sub(r"[.,\s]", "", c)) for c in cands if re.fullmatch(r"\d{1,3}([.,]\d{3})+", c.strip())]
+                        if good:
+                            best[key] = max(set(good), key=good.count)
+                        continue
+                    v = self._ficha_num(im, box)
+                    if len(inbox) == 1 and pure(inbox[0][0]) and len(inbox[0][0].strip()) >= 2:
+                        o = int(inbox[0][0])
+                        if v is None or v == o:
+                            m_ = self._ficha_mask(im, box)
+                            if m_ is not None:
+                                self._ficha_glyphs().learn(m_, str(o))  # el OCR leyó el número entero: aprendo sus cifras
+                            v = o
+                    if v is not None:
+                        best[key] = v
+                dbg = getattr(self, "_sheet_dbg", None)
+                if dbg is not None:
+                    dbg.append(dict(best))
+                if all(best.get(k) is not None for k in labels):
+                    break
+        except Exception:
+            pass
+        finally:
+            if opened:
+                try:
+                    winapi.press("F5")
+                    time.sleep(0.5)
+                    self._junk_t = 0
+                except Exception:
+                    pass
+        names = ("STR", "VIT", "DEX", "INT", "MAG", "LUK")
+        if not best.get("LEVEL") or any(best.get(n) is None for n in names) or not all(5 <= best[n] <= 400 for n in names):
+            self._sheet_fail = getattr(self, "_sheet_fail", 0) + 1
+            return None
+        lvl = best["LEVEL"]
+        start = int(self.cfg.get("stats_start_total", 70))
+        per = int(self.cfg.get("stats_per_level", 3))
+        pend = per * (lvl - 1) - (sum(best[n] for n in names) - start)
+        prev = getattr(self, "sheet", None)
+        if not (1 <= lvl <= 250) or not (0 <= pend <= per * 60) or (prev and not (0 <= lvl - prev["level"] <= 5)):
+            self._sheet_fail = getattr(self, "_sheet_fail", 0) + 1
+            return None  # lectura que no cierra (un dígito mal leído): no la uso
+        sh = {"t": time.time(), "level": lvl, "exp": best.get("EXP"), "pending": max(0, pend),
+              "stats": {n: best[n] for n in names}}
+        self.sheet = sh
+        self._sheet_fail = 0
+        self._stats_vals = dict(sh["stats"])
+        t = self.cfg.setdefault("travel", {})
+        if int(t.get("my_level", 0) or 0) != lvl:
+            if int(t.get("my_level", 0) or 0) < lvl:
+                self.log(f"⬆ Nivel {lvl} (leído en la ficha).")
+            t["my_level"] = lvl
+            cfgmod.save(self.cfg)
+        return sh
+
+    def _census(self):
+        """Cada tanto, con el pj tranquilo, releo la ficha: es de donde salen nivel, exp por hora y puntos por repartir
+        en los servers donde no leo eso de la memoria. True = usé el turno."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or self._mem_struct() or not self.rect:
+            return False
+        now = time.time()
+        every = 240 if getattr(self, "_sheet_fail", 0) < 3 else 900
+        if now - getattr(self, "_census_t", 0) < every or self.state == "attack" or getattr(self, "_busy_ui", False):
+            return False
+        try:
+            ents = self._oly_ents() if self.pos.get("x") is not None else []
+            px, py = self.pos.get("x"), self.pos.get("y")
+            if any(max(abs(e[0] - px), abs(e[1] - py)) <= 4 for e in ents or []):
+                return False  # con bichos cerca no abro ventanas
+        except Exception:
+            pass
+        self._census_t = now
+        sh = self._sheet_read()
+        if sh and sh["pending"] > 0 and self.cfg.get("stats_auto", {}).get("enabled"):
+            self._last_stats = 0
+        return True
 
     def _drag_real(self, x1, y1, x2, y2):
         """Arrastra con el mouse de verdad (las ventanas del juego no se mueven con clicks en segundo plano)."""
@@ -2873,7 +3091,7 @@ class Bot:
             time.sleep(0.6)
             img = grab()
             pts = points(img)
-        if pts == 0:
+        if pts == 0 and not getattr(self, "_stats_force", None):
             self._stats_fail = 0
             click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro
             return
@@ -2933,6 +3151,8 @@ class Bot:
             if int(t.get("my_level", 0) or 0) != vals["LEVEL"]:
                 t["my_level"] = vals["LEVEL"]  # el nivel real, leído de la ventana de personaje
                 cfgmod.save(self.cfg)
+        if getattr(self, "_stats_force", None) and self._sheet():
+            vals = dict(self._sheet()["stats"], LEVEL=self._sheet()["level"])
         if any(vals.get(n) is None for n in ("STR", "VIT", "DEX")):
             self.log(f"Stats: no leo bien mis stats en la ventana de personaje ({vals}); no toco nada.")
             self._stats_fail = getattr(self, "_stats_fail", 0) + 1
@@ -2957,7 +3177,13 @@ class Bot:
         plus_x = st[1] + 225 * self.rect[2] / 1920.0
         # puntos esperados: 3 por nivel desde el 1, menos lo ya repartido (arranque: 70 entre los 6 stats)
         pts_ocr = pts
-        if vals.get("LEVEL") and all(vals.get(n) is not None for n in names):
+        force = getattr(self, "_stats_force", None)
+        if force:
+            pts = force  # la ficha (F5) manda: es la cuenta exacta
+            sh_ = self._sheet()
+            if sh_:
+                vals = dict(sh_["stats"], LEVEL=sh_["level"])
+        elif vals.get("LEVEL") and all(vals.get(n) is not None for n in names):
             exp_pts = 3 * (vals["LEVEL"] - 1) - (sum(vals[n] for n in names) - int(self.cfg.get("stats_start_total", 70)))
             if pts is None or pts != exp_pts:
                 self.log(f"Stats: leí {pts} puntos, la cuenta da {exp_pts}; uso el menor.")
@@ -2978,7 +3204,8 @@ class Bot:
         img2 = grab()
         pts2 = points(img2)
         ok = pts2 == int(pts) - sum(added.values()) or (pts2 is None and sum(added.values()) == int(pts)) \
-            or (pts_ocr is not None and pts2 is not None and pts2 == int(pts_ocr) - sum(added.values()))
+            or (pts_ocr is not None and pts2 is not None and pts2 == int(pts_ocr) - sum(added.values())) \
+            or (force and sum(added.values()) == int(force))
         if not ok:
             self.log(f"Stats: después de sumar {added} quedan {pts2} puntos (esperaba {int(pts) - sum(added.values())}); no aplico.")
             ws = ocr.read_words(img2, {"x1": 0, "y1": 0, "x2": img2.shape[1], "y2": img2.shape[0]}, scale=1.0)
@@ -3000,9 +3227,27 @@ class Bot:
 
     def _do_stats(self):
         if cfgmod.server_slug(self.cfg) != "abaddon":
+            sh0 = self._sheet_read()
+            if not sh0:
+                self.log("Stats: no pude leer la ficha del personaje; pruebo más tarde.")
+                return
+            if sh0["pending"] <= 0:
+                self._stats_fail = 0
+                return  # no hay nada para repartir: ni abro la ventana
+            self._stats_force = sh0["pending"]
             try:
-                return self._do_stats_ui()
+                self._do_stats_ui()
+                sh1 = self._sheet_read()
+                if sh1:
+                    dif = {n: sh1["stats"][n] - sh0["stats"][n] for n in sh0["stats"] if sh1["stats"][n] != sh0["stats"][n]}
+                    if dif:
+                        self.log("📈 Stats confirmados en la ficha: " + ", ".join(f"+{v} {k}" for k, v in dif.items())
+                                 + (f" (quedan {sh1['pending']})" if sh1["pending"] else "") + ".")
+                    elif sh1["pending"]:
+                        self.log(f"Stats: siguen {sh1['pending']} puntos sin repartir; pruebo más tarde.")
+                return
             finally:
+                self._stats_force = None
                 # nunca dejar 'Subir nivel' abierta (tapa el juego): si sigue ahí, click derecho adentro
                 try:
                     im_ = self.screen.grab(self.rect)
@@ -3902,16 +4147,48 @@ class Bot:
         self._walk_to(m, (int(g["x"]), int(g["y"])), label)
         return True
 
+    def _join_active(self):
+        """¿Me pidieron hacerme ciudadano y ya tengo el nivel? (decisión del dueño, guardada en la config)."""
+        t = self.cfg.get("travel", {}) or {}
+        jp = t.get("join_portal") or {}
+        return bool(t.get("join_city") and jp.get("map") and int(t.get("my_level", 1) or 1) >= int(t.get("join_level", 10))
+                    and self._same(self.pos.get("map") or "", jp["map"]))
+
+    def _join_step(self):
+        """Camino al portal de la ciudad elegida; el cartel '¿unirte?' se responde en _close_junk_windows."""
+        if not self._join_active() or getattr(self, "goto", None):
+            return
+        now = time.time()
+        if now - getattr(self, "_join_t", 0) < 15:
+            return
+        self._join_t = now
+        m = self.world.map_for(self.pos.get("map") or "")
+        if m is not None and getattr(m, "_no_pisar", None):
+            for (x, y), v in (getattr(m, "_np_orig", None) or {}).items():
+                m.walk[y, x] = v
+            m._np_orig = {}
+            m._no_pisar = "off"
+        jp = self.cfg["travel"]["join_portal"]
+        if not getattr(self, "_join_said", False):
+            self._join_said = True
+            self.log(f"🏛 Ya soy nivel {self.cfg['travel'].get('my_level')}: voy al portal para unirme a {self.cfg['travel']['join_city'].title()}.")
+        self.goto = {"map": jp["map"], "x": int(jp["x"]), "y": int(jp["y"]), "t": now}
+
     def _apply_no_pisar(self, m=None):
         """Baldosas que no hay que pisar (portales que preguntan si me uno a una ciudad): las bloqueo con margen."""
         mk = (self.pos.get("map") or "").strip().lower()
         m = m or self.world.map_for(self.pos.get("map") or "")
         if not m:
             return
+        if self._join_active():
+            m._no_pisar = "off"
+            return
+        orig = m.__dict__.setdefault("_np_orig", {})
         for x, y in self.world.learn.get("no_pisar", {}).get(mk, []):
             for dy in (-1, 0, 1):
                 for dx in (-1, 0, 1):
                     if 0 <= x + dx < m.w and 0 <= y + dy < m.h:
+                        orig.setdefault((x + dx, y + dy), bool(m.walk[y + dy, x + dx]))
                         m.walk[y + dy, x + dx] = False
         m._no_pisar = mk
 
@@ -4376,9 +4653,11 @@ class Bot:
                 d = self.mem.proc.read(self.mem.addr[1] + 76, 4)
                 if d:
                     return int.from_bytes(d, "little", signed=True)
+                return None
         except Exception:
             pass
-        return None
+        sh = self._sheet(3600)
+        return sh.get("exp") if sh else None
 
     def _zone_kill(self):
         """Al matar anoto dónde fue; la experiencia llega un instante después, así que la cuento en _zone_flush."""
@@ -6765,7 +7044,8 @@ class Bot:
                     return v
         except Exception:
             pass
-        return None
+        sh = self._sheet(6 * 3600)
+        return sh["level"] if sh else None
 
     def _mon_ok(self, e):
         """¿Le puedo pegar a este bicho? (el dato que leo de la memoria es su animación, no su especie: no sirve para vetar)"""

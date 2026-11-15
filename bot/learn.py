@@ -75,6 +75,13 @@ class Learner:
         p = self.bot.progress
         return p.get("levelups", 0) * 100.0 + (p.get("exp") or 0.0)
 
+    def _exp_abs(self):
+        """Experiencia total (número), si el bot la sabe (memoria o ficha)."""
+        try:
+            return self.bot._exp_mem()
+        except Exception:
+            return None
+
     def tick(self):
         """Llamado en cada vuelta. Mide la ventana de prueba actual y, al cerrarla, elige la siguiente."""
         b = self.bot
@@ -111,28 +118,52 @@ class Learner:
         else:
             v = random.choice(vals)
         self._win = {"knob": name, "val": v, "t0": now, "t_last": now, "hunt": 0.0,
-                     "p0": self._progress(), "deaths": 0, "prev": self.knob(name, vals[0])}
+                     "p0": self._progress(), "e0": self._exp_abs(), "deaths": 0, "prev": self.knob(name, vals[0])}
         st["knobs"][name] = v
 
     def _close_window(self, now):
         w = self._win
+        e1 = self._exp_abs()
+        if w.get("e0") is not None and e1 is not None and e1 == w["e0"] and w["hunt"] < WINDOW_SEC * 1.6:
+            return  # la exp se lee de a ratos (ficha): espero a la próxima lectura para medir bien
         self._win = None
-        gained = self._progress() - w["p0"]
-        score = gained - DEATH_PENALTY * w["deaths"]
-        per_h = score / (w["hunt"] / 3600.0)
+        hours = w["hunt"] / 3600.0
+        if w.get("e0") is not None and e1 is not None and e1 >= w["e0"]:
+            # mido en experiencia real por hora; cada muerte descuenta el rato que cuesta (volver, o la exp perdida)
+            gained = float(e1 - w["e0"])
+            lost_sec = min(w["hunt"] * 0.9, w["deaths"] * self.death_cost() * 24.0)   # 2% -> 48 s, 25% -> 10 min
+            per_h = gained / hours * (1.0 - lost_sec / max(1.0, w["hunt"]))
+            unit = "exp por hora"
+            arms = self.st["arms"].setdefault(w["knob"], {})
+            if arms and not self.st.get("arms_unit") == "exp":
+                self.st["arms"] = {}  # las mediciones viejas estaban en otra unidad: empiezo de cero
+            self.st["arms_unit"] = "exp"
+        else:
+            gained = self._progress() - w["p0"]
+            per_h = (gained - self.death_cost() * w["deaths"]) / hours
+            unit = "% de nivel por hora"
         arms = self.st["arms"].setdefault(w["knob"], {})
         a = arms.setdefault(str(w["val"]), {"n": 0, "score": 0.0})
+        if a["n"] >= 4:  # lo viejo pesa menos (cambio de nivel, de zona, de equipo)
+            a["score"], a["n"] = a["score"] / a["n"] * 3, 3
         a["n"] += 1
         a["score"] += per_h
         # dejo puesto el mejor valor medido (el próximo experimento puede cambiarlo un rato)
         best = max(arms, key=lambda k: arms[k]["score"] / max(1, arms[k]["n"]))
         self.st["knobs"][w["knob"]] = int(best)
         self.brain.setdefault("knobs", {})[w["knob"]] = int(best)
-        msg = (f"🧪 Prueba {w['knob']}={w['val']}: {per_h:+.1f}% de nivel por hora"
-               f" ({w['deaths']} muerte/s). Mejor hasta ahora: {best}.")
+        msg = (f"🧪 Prueba {w['knob']}={w['val']}: {per_h:,.0f} {unit}".replace(",", ".")
+               + f" ({w['deaths']} muerte/s). Mejor hasta ahora: {best}.")
         self.bot.log(msg)
         self._note(msg)
         self.save()
+
+    def death_cost(self):
+        """Cuánto cuesta morir acá, en % de nivel: en una zona de principiantes no se pierde exp (solo el rato
+        de volver); en el resto, exp perdida + tiempo."""
+        mp = (self.bot.pos.get("map") or "").lower()
+        safe = [x.lower() for x in (self.bot.cfg.get("free_death_maps") or ["beginner"])]
+        return 2.0 if any(k in mp for k in safe) else DEATH_PENALTY
 
     # ------------------------------------------------------------ muertes
     def on_death(self):
@@ -224,7 +255,7 @@ class Learner:
         lines.append("## Forma de jugar (lo mejor medido)")
         for k, arms in st.get("arms", {}).items():
             rows = sorted(arms.items(), key=lambda kv: -kv[1]["score"] / max(1, kv[1]["n"]))
-            lines.append(f"- **{k}**: " + ", ".join(f"{v} → {a['score'] / max(1, a['n']):+.1f}%/h ({a['n']} prueba/s)" for v, a in rows))
+            lines.append(f"- **{k}**: " + ", ".join(f"{v} → {a['score'] / max(1, a['n']):,.0f}/h ({a['n']} prueba/s)" for v, a in rows))
         lines += ["", "## Reglas aprendidas de las muertes"]
         lines += [f"- No más de {r['max']} {r['mob']} encima hasta nivel {r['until_lvl']}." for r in st.get("rules", [])] or ["- (ninguna todavía)"]
         dd = st.get("deaths", [])[-20:]
