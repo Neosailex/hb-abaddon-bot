@@ -3738,6 +3738,11 @@ class Bot:
                         self.stats["state"] = f"voy hacia los {tgt[2]['name']} ({tgt[0]},{tgt[1]})"
                         self._walk_to(m, (int(dest[0]), int(dest[1])), tgt[2]["name"])
                         return True
+        if not ok and ok0 and hp_now < 85 and not any(d(e) <= 3 for e in ents):
+            # hay bichos pero todos en grupo y estoy bajo de vida: descanso acá en vez de irme a explorar
+            self._release()
+            self.stats["state"] = f"recupero vida ({hp_now:.0f}%)"
+            return True
         if not ok:
             if now - getattr(self, "_oly_nest_said", 0) > 120:
                 self._oly_nest_said = now
@@ -3786,7 +3791,7 @@ class Bot:
             self._engage(pt)
             self.stats["target"] = e[2]["name"]
             return True
-        if d(e) <= 30:
+        if d(e) <= 120:
             m = self.world.map_for(self.pos.get("map") or "")
             if m:
                 self.stats["state"] = f"voy a un {e[2]['name']} ({e[0]},{e[1]})"
