@@ -1,1 +1,1 @@
-{"version": 193, "notes": "Sin misión también va hacia los bichos que ve lejos (en vez de explorar zonas vacías) y descansa cerca cuando está bajo de vida."}
+{"version": 194, "notes": "Si no puede llegar a unos bichos (pared, agua) en 25 s, saltea esa zona 5 minutos en vez de quedar trabado."}

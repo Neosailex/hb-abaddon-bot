@@ -3690,7 +3690,9 @@ class Bot:
         cap = max(3.0, 0.10 * hpmax) if hpmax < 150 else 0.04 * hpmax
         want = getattr(self, "_hunt_mob", None)
         # un bicho "en mi misma baldosa" es un dato viejo de la memoria (dos no pueden ocupar el mismo lugar)
+        bz_ = [z for z in getattr(self, "_oly_badzone", []) if z[2] > now]
         ok = [e for e in ents if e[3] not in bad and (e[0], e[1]) != (px, py)
+              and not any(max(abs(e[0] - z[0]), abs(e[1] - z[1])) <= 5 and max(abs(e[0] - px), abs(e[1] - py)) > 1 for z in bz_)
               and (e[2].get("dmg_avg", 99) <= cap or e[2]["name"] == want)]
         if not ok:
             return False
@@ -3793,6 +3795,17 @@ class Bot:
             return True
         if d(e) <= 120:
             m = self.world.map_for(self.pos.get("map") or "")
+            # no llego (agua, pared, mapa mal): si en 25 s no me acerqué, lo salteo un rato
+            ow = getattr(self, "_oly_walk", None)
+            if not ow or max(abs(ow["x"] - e[0]), abs(ow["y"] - e[1])) > 4:
+                ow = self._oly_walk = {"x": e[0], "y": e[1], "t": now, "best": d(e)}
+            elif d(e) < ow["best"]:
+                ow["best"], ow["t"] = d(e), now
+            elif now - ow["t"] > 25:
+                self._oly_badzone = [z for z in getattr(self, "_oly_badzone", []) if z[2] > now] + [(e[0], e[1], now + 300)]
+                self._oly_walk = None
+                self.log(f"🚧 No llego al {e[2]['name']} de ({e[0]},{e[1]}): lo salteo 5 min.")
+                return False
             if m:
                 self.stats["state"] = f"voy a un {e[2]['name']} ({e[0]},{e[1]})"
                 self._walk_to(m, (int(e[0]), int(e[1])), e[2]["name"])
