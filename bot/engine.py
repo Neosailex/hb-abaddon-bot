@@ -7090,9 +7090,13 @@ class Bot:
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
             for it in items:
                 self._busy_t0 = None
-                tb = tabs.get("armas" if it.get("slot") in ("arma", "arma2m") else "armadura")
-                if not tb:
-                    continue
+                tname = it.get("tab") or ("armas" if it.get("slot") in ("arma", "arma2m") else "armadura")
+                tb = tabs.get(tname)
+                if not tb:  # las pestañas en letra gótica no siempre se leen: están a distancia fija de la primera
+                    off = {"armas": 0, "armadura": 148, "varios": 298}.get(tname)
+                    if off is None:
+                        continue
+                    tb = (tname, t_ref[1] + off * kx, t_ref[2])
                 winapi.click(*self.abs_pt(tb[1], tb[2]))
                 time.sleep(0.9)
                 for _ in range(25):
