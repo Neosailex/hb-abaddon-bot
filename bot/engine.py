@@ -3860,7 +3860,26 @@ class Bot:
         crs = self._creatures_db()
         seen, out = set(), []
         generic = {"name": "bicho", "type": -1, "dmg_avg": 0, "hit": 0, "hp": 0} if self.oly.sig.get("type_off") is None else None
+        # fantasmas: el juego deja en memoria bichos que ya no están (muertos hace horas, o de otro mapa). El campo
+        # "id" es en realidad el reloj de su última actualización (en milisegundos): los vivos lo tienen al día.
+        live_after = None
+        try:
+            if self.oly.sig.get("id_off") is not None and raw:
+                import ctypes
+                gtc = int(ctypes.windll.kernel32.GetTickCount()) & 0xFFFFFFFF
+                mt = max(int(r_[4]) for r_ in raw)
+                off = (gtc - mt) & 0xFFFFFFFF
+                tk = self.__dict__.setdefault("_oly_tk", {"off": None})
+                if tk["off"] is None or off < tk["off"]:
+                    tk["off"] = off  # diferencia entre mi reloj y el del juego, medida cuando hay bichos vivos a la vista
+                live_after = ((gtc - tk["off"]) & 0xFFFFFFFF) - int(self.cfg.get("ent_fresh_ms", 6000))
+        except Exception:
+            live_after = None
+        ghosts = 0
         for x, y, typ, st, oid in raw:
+            if live_after is not None and int(oid) < live_after:
+                ghosts += 1
+                continue
             cr = crs.get(typ) or generic
             # el campo "id" de Olympia cambia solo (es un contador): identifico al bicho por tipo y baldosa
             key = (typ, x, y)
@@ -3868,6 +3887,10 @@ class Bot:
                 continue
             seen.add(key)
             out.append((x, y, cr, key))
+        self._oly_ghosts = ghosts
+        if ghosts and not getattr(self, "_oly_ghost_said", False):
+            self._oly_ghost_said = True
+            self.log(f"👻 Descarto {ghosts} bichos fantasma de la memoria (ya no están en el mapa): les pegaba al aire.")
         if out and not getattr(self, "_oly_said", False):
             self._oly_said = True
             self.log(f"🧠 Memoria (Olympia): ya veo la lista de bichos ({len(out)} cerca). Cazo con ella.")
