@@ -6043,12 +6043,14 @@ class Bot:
             t0 = time.time()
             if any(k in (self.pos.get("map") or "").lower() for k in ("smith", "herrer")):
                 time.sleep(1.0)  # estoy en el herrero: el encargo me saca solo
-            if not self._same(self.pos.get("map") or "", "Aresden Farm") and not inshop():
+            far = self.pos.get("x") is None or max(abs(self.pos["x"] - 63), abs(self.pos["y"] - 72)) > 3
+            if (far or not self._same(self.pos.get("map") or "", "Aresden Farm")) and not inshop():
+                # siempre me paro primero frente a la puerta (del lado de afuera): de costado hay pared
                 self.goto = {"map": "Aresden Farm", "x": 63, "y": 72, "t": time.time()}
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inshop():
-                self.mission = {"map": "Aresden Farm", "goal": [63, 67], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
+                self.mission = {"map": "Aresden Farm", "goal": [63, 69], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
                 while not inshop() and time.time() - t0 < 900 and self.alive and self.running:
                     time.sleep(0.3)
             if not inshop():
@@ -6462,7 +6464,7 @@ class Bot:
                 self.log(f"🧭 Error armando el plan: {ex!r}")
 
     # lugares del server (puertas y vendedores). Se pueden pisar desde la config ("places") para otro server.
-    PLACES = {"olympia": {"shop": {"map": "Aresden Farm", "door": [63, 67], "inside": ("shop", "tienda"), "npc_type": 15, "npc": [59, 42]},
+    PLACES = {"olympia": {"shop": {"map": "Aresden Farm", "door": [63, 69], "inside": ("shop", "tienda"), "npc_type": 15, "npc": [59, 42]},
                           "smith": {"map": "Aresden Farm", "door": [75, 86], "inside": ("smith", "herrer"), "npc_type": 24, "npc": [49, 33]}}}
 
     def _place(self, kind):
