@@ -4925,6 +4925,10 @@ class Bot:
         ws = self._q_words(img, {"x1": int(1670 * kx), "y1": int(225 * ky), "x2": img.shape[1], "y2": int(420 * ky)})
         prog = next((w for w in ws if re.fullmatch(r"\d+/\d+", w[0].strip())), None)
         if not prog:
+            done = next((w for w in ws if "mplet" in w[0].lower() or "mpiet" in w[0].lower()), None)
+            if done:  # '¡Completado!': lista para cobrar
+                name = " ".join(w[0] for w in ws if w[2] < done[2] - 12 * ky)
+                return name.strip(), 1, 1
             return None
         a_, b_ = map(int, prog[0].strip().split("/"))
         name = " ".join(w[0] for w in ws if w[2] < prog[2] - 12 * ky)
