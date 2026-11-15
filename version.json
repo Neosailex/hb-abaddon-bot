@@ -1,1 +1,1 @@
-{"version": 171, "notes": "Ignora bichos fantasma de la memoria (en la misma baldosa del pj)."}
+{"version": 172, "notes": "Olympia: al bicho pegado le pega con click derecho (el sprite del pj lo tapaba y el clic caía sobre el pj). Identifica bichos por tipo y baldosa."}

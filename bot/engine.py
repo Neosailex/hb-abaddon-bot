@@ -3315,10 +3315,12 @@ class Bot:
         generic = {"name": "bicho", "type": -1, "dmg_avg": 0, "hit": 0, "hp": 0} if self.oly.sig.get("type_off") is None else None
         for x, y, typ, st, oid in raw:
             cr = crs.get(typ) or generic
-            if not cr or oid in seen:
+            # el campo "id" de Olympia cambia solo (es un contador): identifico al bicho por tipo y baldosa
+            key = (typ, x, y)
+            if not cr or key in seen:
                 continue
-            seen.add(oid)
-            out.append((x, y, cr, oid))
+            seen.add(key)
+            out.append((x, y, cr, key))
         if out and not getattr(self, "_oly_said", False):
             self._oly_said = True
             self.log(f"🧠 Memoria (Olympia): ya veo la lista de bichos ({len(out)} cerca). Cazo con ella.")
@@ -3428,7 +3430,18 @@ class Bot:
                 return False
             cx, cy = self._char()
             tw, th = self._tile()
-            self._engage((int(cx + (e[0] - px) * tw), int(cy + (e[1] - py) * th - th * 0.3)))
+            pt = (int(cx + (e[0] - px) * tw), int(cy + (e[1] - py) * th - th * 0.3))
+            if d(e) <= 1:
+                # pegado: el sprite del pj tapa al bicho y el clic izquierdo cae sobre mí. Con click derecho en
+                # modo ataque el juego pega en esa dirección sin caminar (wiki: Gameplay).
+                self._release()
+                winapi.click(*self.abs_pt(pt[0], pt[1] + int(th * 0.3)), button="right")
+                self.state = "seek"
+                self._last_enemy = now
+                self.stats["state"], self.stats["target"] = "atacando", e[2]["name"]
+                time.sleep(0.35)
+                return True
+            self._engage(pt)
             self.stats["target"] = e[2]["name"]
             return True
         if d(e) <= 30:
