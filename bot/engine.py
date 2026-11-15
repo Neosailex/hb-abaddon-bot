@@ -919,6 +919,12 @@ class Bot:
             return
         if self._fleeing() and self.ents.center and self.mem.learned and self._flee_mem():
             return
+        if self._fleeing() and cfgmod.server_slug(cfg) != "abaddon" and self.pos.get("x") is not None:
+            ents_ = self._oly_ents()
+            if ents_ and self._oly_kite(ents_, force=True):
+                return
+            if not getattr(self, "_kite", None):
+                self._flee_until = 0  # ya estoy a salvo y con vida: sigo cazando
         if self._fleeing():
             home = cfg.get("travel", {}).get("home", "aresden")
             cur_ = self.pos.get("map") or ""
@@ -3528,6 +3534,65 @@ class Bot:
         except Exception:
             return None
 
+    def _oly_kite(self, ents, force=False):
+        """Pelear como un jugador: si me rodean más de los que aguanto o me queda poca vida, me alejo del grupo
+        (para el lado contrario a los bichos) hasta que nadie me siga, descanso hasta 85% y vuelvo.
+        Vale para cualquier bicho (uso la lista de la memoria). True = ocupé esta vuelta."""
+        if self.pos.get("x") is None:
+            return False
+        px, py = self.pos["x"], self.pos["y"]
+        now = time.time()
+        hp = self.bars.get("hp")
+        dist = lambda e, x=px, y=py: max(abs(e[0] - x), abs(e[1] - y))
+        adj = [e for e in ents if dist(e) <= 1]
+        near4 = [e for e in ents if dist(e) <= 4]
+        cap = self._oly_allow() + 1
+        k = getattr(self, "_kite", None)
+        if k is None:
+            if not (force or (hp is not None and hp < 45 and adj) or len(adj) > cap):
+                return False
+            why = f"vida {hp:.0f}%" if hp is not None and hp < 45 else f"{len(adj)} bichos encima"
+            k = self._kite = {"t": now, "pt": None, "why": why}
+            self.log(f"🏃 Me alejo del grupo ({why}): descanso y vuelvo.")
+        m = self.world.map_for(self.pos.get("map") or "")
+        if not m:
+            self._kite = None
+            return False
+        if not near4:
+            # nadie cerca: descanso quieto hasta 85% (o un máximo de 90 s)
+            if hp is None or hp >= 85 or now - k["t"] > 150:
+                self._kite = None
+                self.log(f"🏃 Vida {hp if hp is None else round(hp)}%: vuelvo a cazar.")
+                return False
+            self._release()
+            self.nav["walking"] = False
+            self.stats["state"] = f"descansando lejos ({hp:.0f}%)" if hp is not None else "descansando lejos"
+            return True
+        pt = k.get("pt")
+        if not pt or any(max(abs(e[0] - pt[0]), abs(e[1] - pt[1])) <= 5 for e in ents) or dist((pt[0], pt[1])) <= 1:
+            # punto nuevo: en un anillo de 8-12 baldosas, el más lejos de todos los bichos
+            best, bs = None, -1
+            for r in (9, 12, 7):
+                for i in range(16):
+                    a = 2 * math.pi * i / 16
+                    c = (int(round(px + math.cos(a) * r)), int(round(py + math.sin(a) * r)))
+                    c = m.nearest_walkable(c[0], c[1], r=2)
+                    if not c or not m.ok(c[0], c[1]) or m.tele[c[1], c[0]]:
+                        continue
+                    sc = min((max(abs(e[0] - c[0]), abs(e[1] - c[1])) for e in ents), default=99)
+                    if sc > bs:
+                        best, bs = c, sc
+                if bs >= 7:
+                    break
+            k["pt"] = best
+            pt = best
+        if not pt:
+            self._kite = None
+            return False
+        self.stats["state"] = "alejándome del grupo"
+        self._walk_to(m, (int(pt[0]), int(pt[1])), "alejarme del grupo")
+        return True
+
     def _oly_discover(self):
         try:
             self.log("🔎 No encuentro a los bichos en la memoria: los busco solo (los que se mueven cerca).")
@@ -3556,6 +3621,8 @@ class Bot:
             return False
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
+        if self._oly_kite(ents):
+            return True
         # recién maté uno: levanto lo que haya tirado (Shift + clic en la baldosa) si no tengo a nadie encima
         lt = getattr(self, "_oly_loot", None)
         if lt and now - lt[2] < 10 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents):
@@ -3587,7 +3654,15 @@ class Bot:
         crowd = lambda e: sum(1 for o in ents if o is not e and max(abs(o[0] - e[0]), abs(o[1] - e[1])) <= 3)
         self._oly_fight_review()
         allow = self._oly_allow()
-        ok = [e for e in ok if crowd(e) <= allow]
+        hp_now = self.bars.get("hp") or 100
+        # nidos: no los descarto; voy sacando de a uno desde el borde (el de menos vecinos y más cerca).
+        # Si el más suelto igual tiene más vecinos de los que aguanto, entro solo con la vida casi llena.
+        if ok:
+            low = min(crowd(e) for e in ok)
+            if low > allow and hp_now < 85:
+                ok = [e for e in ok if d(e) <= 1]  # solo me defiendo hasta recuperar vida
+            else:
+                ok = [e for e in ok if crowd(e) <= max(allow, low)]
         if getattr(self, "_exp_plan", None) and getattr(self, "_exploring", False):
             ok = [e for e in ok if d(e) <= 1]  # relevando: solo me defiendo
         qm = self._quest_mob_names()

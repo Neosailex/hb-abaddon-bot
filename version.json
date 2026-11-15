@@ -1,1 +1,1 @@
-{"version": 180, "notes": "Bichos en tiempo real: la memoria se lee sola cada 0,2 s (barrido completo cada 3 s para ver los que aparecen). Contador de bichos en el panel y puntos rojos en el mapa."}
+{"version": 181, "notes": "Pelea como jugador: saca slimes de a uno desde el borde del nido; si lo rodean o queda con poca vida se aleja del grupo, descansa hasta 85% y vuelve. Vale para cualquier bicho."}
