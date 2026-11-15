@@ -5518,8 +5518,10 @@ class Bot:
         """De todas las misiones del cartel, la que toca ahora: primero una '¡Completado!' (hay que cobrarla);
         si no, la primera cuyos bichos ya puedo enfrentar. Devuelve (nombre, hechos, total) o None."""
         qs = self._quest_list(img)
-        if qs != getattr(self, "quests", None):
-            self.quests = qs
+        sig = [(q["name"], q["done"], q["a"]) for q in qs]
+        self.quests = qs
+        if sig != getattr(self, "_quests_sig", None):
+            self._quests_sig = sig
             if qs:
                 self.log("📜 Misiones: " + " · ".join(q["name"] + (" (lista para cobrar)" if q["done"] else f" {q['a']}/{q['b']}") for q in qs) + ".")
         if not qs:
