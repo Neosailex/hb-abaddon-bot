@@ -914,7 +914,8 @@ class Bot:
         if p != getattr(self, "_wd_pos", None):
             self._wd_pos, self._wd_pos_t = p, now
         # sin memoria del pj la exp se lee cada varios minutos (ficha): ahí la señal de vida son las muertes de bichos
-        e = self._exp_mem() if self._mem_struct() else self.stats.get("kills")
+        live = None if self._mem_struct() else self._exp_live()
+        e = self._exp_mem() if self._mem_struct() else (live if live is not None else self.stats.get("kills"))
         if e is not None and e != getattr(self, "_wd_exp", None):
             self._wd_exp, self._wd_exp_t = e, now
         if getattr(self, "_rest_since", 0) or getattr(self, "_kite", None):
@@ -1012,6 +1013,7 @@ class Bot:
                 self.log(f"Aprendizaje: error {e!r}")
         self._zone_flush()
         self._fight_sample()
+        self._tmeter()
         if getattr(self, "_busy_ui", False):
             # otro hilo está usando ventanas del juego (comprando): no tocar nada
             self.stats["state"] = "comprando"
@@ -1104,6 +1106,9 @@ class Bot:
             self.state, self.target = "seek", None
         # Si estoy yendo a algún lado (otro mapa), no me distraigo con cada bicho: solo peleo si me pegan.
         focused = self._is_travelling() and not self._attacked_recently()
+        in_town = self._in_town()
+        if in_town and not self._attacked_recently():
+            focused = True  # en la ciudad no hay nada que cazar: lo que "veo" ahí son vecinos, gatos y guardias
         if focused and self.state != "seek":
             self._release()
             self.state, self.target = "seek", None
@@ -1151,6 +1156,14 @@ class Bot:
                 return
         if self._travel():
             return
+        if in_town and not self._attacked_recently():
+            self._release()
+            self.state, self.target = "seek", None
+            self.stats["state"] = "en la ciudad (busco cómo salir a cazar)"
+            if time.time() - getattr(self, "_town_said", 0) > 300:
+                self._town_said = time.time()
+                self.log(f"🏙 Estoy en {self.pos.get('map')} y no encuentro camino a {self.travel_dest() or 'un mapa de caza'}: acá no cazo.")
+            return
         mname = (self.pos.get("map") or "").lower()
         if any(k in mname for k in ("shop", "blacksmith", "cityhall", "city hall", "warehouse", "guild", "cathedral", "church", "wizard", "magic tower", "barrack", "jail", "command hall")):
             self.stats["state"] = "en un edificio"
@@ -1195,7 +1208,7 @@ class Bot:
     def _close_junk_windows(self):
         """Ventanas que el bot no usa (ej. 'Resumen de Muerte' de Olympia): las cierro con click derecho
         sobre la ventana. Miro cada ~8 s, solo si no estoy peleando."""
-        titles = self.cfg.get("close_windows") or []
+        titles = list(self.cfg.get("close_windows") or []) + ["Heldenian"]
         if not titles or not self.rect or self.state == "attack" or getattr(self, "_busy_ui", False):
             return False
         now = time.time()
@@ -3016,6 +3029,11 @@ class Bot:
         if prev and lvl > prev["level"] and prev.get("exp") is not None:
             off += prev["exp"] + (prev.get("next") or 0)
             self._exp_off = off
+        tb = self._exp_table()
+        if tb.get(lvl) is not None:
+            off = self._exp_off = tb[lvl]  # tabla del server: experiencia total al empezar este nivel
+            if not sh["next"] and sh["exp"] is not None and tb.get(lvl + 1):
+                sh["next"] = max(0, tb[lvl + 1] - tb[lvl] - sh["exp"])  # no leí 'A sig. nivel': lo saco de la tabla
         sh["exp_total"] = off + sh["exp"] if sh["exp"] is not None else None
         if sh["exp"] is not None and sh["next"]:
             sh["pct"] = round(100.0 * sh["exp"] / (sh["exp"] + sh["next"]), 1)
@@ -3762,8 +3780,7 @@ class Bot:
                     if n >= 2 and lvl < dm.get("lvl", 0) + 3 and now - dm.get("t", 0) < 3600 * min(3, n - 1):
                         cand.append(mk)
                 for mk in cand:
-                    alts = [m for m in ex_l if m != mk and m not in cand and m not in self._avoid_v]
-                    if mk in ex_l and not alts:
+                    if mk in ex_l:
                         continue  # es el único mapa de caza que me toca: no me lo prohíbo, cazo con más cuidado
                     if mk not in self._avoid_v:
                         self._avoid_v.append(mk)
@@ -4598,7 +4615,8 @@ class Bot:
             return True
         if force_dest:
             pass
-        elif (self.state in ("attack", "loot", "lootq") or time.time() - getattr(self, "_last_enemy", 0) < 6) and not self._is_travelling():
+        elif (self.state in ("attack", "loot", "lootq") or time.time() - getattr(self, "_last_enemy", 0) < 6) and not self._is_travelling() \
+                and not self._in_town():
             return False  # ya estoy en mi mapa de caza: si está peleando o acaba de ver un monstruo, que siga cazando
         elif self._under_attack():
             self._defend_until = time.time() + 8
@@ -4894,6 +4912,61 @@ class Bot:
                 return (x, y)
         return None
 
+    def _tmeter(self):
+        """En qué se me va el tiempo (última hora): pegando, yendo a un bicho, viajando, pueblo/ventanas,
+        descansando, parado. El objetivo es 90% entre pegar y caminar hacia un bicho."""
+        now = time.time()
+        dt = min(2.0, max(0.0, now - getattr(self, "_tm_t", now)))
+        self._tm_t = now
+        if not self.running or dt <= 0:
+            return
+        st = str(self.stats.get("state") or "").lower()
+        cur = (self.pos.get("map") or "").lower()
+        if getattr(self, "_busy_ui", False) or any(k in cur for k in ("shop", "blacksmith", "city", "ciudad", "warehouse", "hall")):
+            k = "pueblo"
+        elif getattr(self, "_rest_since", 0) or getattr(self, "_kite", None) or "descans" in st or "recupero" in st:
+            k = "descansando"
+        elif self.state in ("attack", "loot", "lootq") or st.startswith("atacando") or now - getattr(self, "_last_enemy", 0) < 2.5:
+            k = "pegando"
+        elif st.startswith(("voy a un", "voy hacia", "buscando")):
+            k = "yendo a un bicho"
+        elif getattr(self, "goto", None) or getattr(self, "mission", None) or self._is_travelling() or "yendo" in st or "zona" in st:
+            k = "viajando"
+        elif "destrab" in st or "trabad" in st:
+            k = "trabado"
+        else:
+            k = "parado"
+        b = self.__dict__.setdefault("_tm", {})
+        m = int(now // 60)
+        b.setdefault(m, {})[k] = b[m].get(k, 0.0) + dt
+        for old in [x for x in b if x < m - 60]:
+            del b[old]
+        if now - getattr(self, "_tm_said", now - 1500) > 1800:
+            self._tm_said = now
+            t = self.time_use()
+            if t["total"] > 600:
+                self.log("⏱ Última hora: " + ", ".join(f"{v}% {n}" for n, v in t["pct"].items() if v) + ".")
+
+    def time_use(self):
+        tot = {}
+        for d in (getattr(self, "_tm", None) or {}).values():
+            for k, v in d.items():
+                tot[k] = tot.get(k, 0.0) + v
+        s_ = sum(tot.values())
+        order = ("pegando", "yendo a un bicho", "viajando", "pueblo", "descansando", "trabado", "parado")
+        return {"total": int(s_), "pct": {k: (int(round(100 * tot.get(k, 0) / s_)) if s_ else 0) for k in order}}
+
+    def _in_town(self):
+        """Mapa de ciudad (no de caza): 'Aresden City', 'Ciudad Elvine'… salvo que sea justo el destino de caza."""
+        cur = (self.pos.get("map") or "").lower()
+        if not cur or not any(k in cur for k in ("city", "ciudad")):
+            return False
+        try:
+            d = self.travel_dest()
+        except Exception:
+            d = None
+        return not (d and self._same(cur, d))
+
     def _is_travelling(self):
         """True si tengo que ir a otro mapa y sé el camino (se recalcula cada 2 s)."""
         now = time.time()
@@ -4954,7 +5027,21 @@ class Bot:
         if live is not None:
             return live
         sh = self._sheet(3600)
+        if sh and sh.get("exp") is not None and self._exp_table().get(sh.get("level")) is not None:
+            return self._exp_table()[sh["level"]] + int(sh["exp"])
         return sh.get("exp_total") if sh else None
+
+    def _exp_table(self):
+        """{nivel: experiencia total al empezar ese nivel}, de exp_table.json en la carpeta del server (sale de la
+        wiki del server). Vacío si no hay: ahí me arreglo con lo que lea de la ficha."""
+        t = getattr(self, "_exp_tb", None)
+        if t is None:
+            try:
+                t = {int(k): int(v) for k, v in (self._load_json("exp_table.json").get("totals") or {}).items()}
+            except Exception:
+                t = {}
+            self._exp_tb = t
+        return t
 
     def _exp_live(self):
         """Experiencia al instante, sin abrir ninguna ventana: la barrita verde finita de arriba del tablero marca
@@ -4970,7 +5057,8 @@ class Bot:
             lv = str(sh["level"])
             if sh.get("exp") is not None and sh.get("next"):
                 needs[lv] = int(sh["exp"]) + int(sh["next"])
-            need = needs.get(lv)
+            tb = self._exp_table()
+            need = (tb[int(lv) + 1] - tb[int(lv)]) if tb.get(int(lv)) is not None and tb.get(int(lv) + 1) else needs.get(lv)
             st = self.__dict__.setdefault("_xl", {"len": float(self.cfg.get("calib", {}).get("exp_len") or 0), "max": 0, "lvl": lv, "cal_t": 0, "block": 0})
             glen = eb[0]
             if st["lvl"] != lv:
@@ -4999,7 +5087,7 @@ class Bot:
             v = max(v, int(sh["exp"]) if now - sh["t"] < 600 else 0, st["max"])  # nunca para atrás dentro del nivel
             st["max"] = v
             self._exp_now = {"exp": v, "need": need, "pct": round(100.0 * v / need, 2), "t": now}
-            return v + int(sh.get("exp_off") or 0)
+            return v + int(tb[int(lv)] if tb.get(int(lv)) is not None else (sh.get("exp_off") or 0))
         except Exception:
             return None
 
@@ -6197,7 +6285,8 @@ class Bot:
                           "next": ({"name": g["next"]["name"], "price": g["next"].get("price")} if g.get("next") else None),
                           "blocked": g.get("blocked")} for g in (p.get("gear") or [])],
                 "saving": sv, "buy_now": p.get("buy_now") or [],
-                "strategy": dict(getattr(self, "_strat", None) or {}),
+                "strategy": dict(getattr(self, "_strat", None) or {}), "time": self.time_use(),
+                "exp_now": getattr(self, "_exp_now", None),
                 "lines": ([(getattr(self, "_strat", None) or {}).get("line")] if (getattr(self, "_strat", None) or {}).get("line") else []) + [l for l in (p.get("lines") or [])], "zones": zones[:6], "level": sh.get("level") or self.cfg.get("travel", {}).get("my_level"),
                 "pct": sh.get("pct"), "server": cfgmod.server_slug(self.cfg),
                 "prices": dict((self.learner.st or {}).get("prices", {})) if getattr(self.learner, "st", None) else {},
