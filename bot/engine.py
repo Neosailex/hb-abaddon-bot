@@ -6623,34 +6623,43 @@ class Bot:
             self._busy_ui = False
             self._rep_last = time.time()
 
-    def _reequip_loose(self):
-        """Lo que quedó suelto en el bolso y no es poción ni oro (un arma o un escudo que se desequipó al romperse):
-        doble click para ponérmelo (en este cliente, equipar desde el bolso reemplaza lo que hubiera puesto)."""
+    def _reequip_loose(self, max_n=3):
+        """Lo que quedó suelto en el bolso y no es poción ni oro (un arma que se desequipó al romperse, o lo recién
+        comprado): doble click para ponérmelo. En este cliente, equipar desde el bolso manda al bolso lo que estaba
+        puesto, así que hago como mucho 'max_n' cambios y no vuelvo a tocar el mismo lugar."""
         try:
             if not any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.9)
-            self._oly_pots()
-            img = self.screen.grab(self.rect)
-            bag = self._oly_bag(names=False) or []
-            n = 0
-            for o in bag:
-                if o["kind"] != "item":
-                    continue
-                p_ = img[max(0, o["y"] - 12):o["y"] + 12, max(0, o["x"] - 10):o["x"] + 10].reshape(-1, 3).astype(int)
-                col = ((p_.max(axis=1) - p_.min(axis=1)) > 90).sum()
-                if col >= 12:
-                    continue  # ícono de color fuerte: poción u otro consumible; no lo toco
+            done, n = [], 0
+            for _ in range(max_n):
+                img = self.screen.grab(self.rect)
+                bag = self._oly_bag(names=False) or []
+                cand = []
+                for o in bag:
+                    if o["kind"] != "item" or any(abs(o["x"] - p[0]) < 18 and abs(o["y"] - p[1]) < 18 for p in done):
+                        continue
+                    p_ = img[max(0, o["y"] - 12):o["y"] + 12, max(0, o["x"] - 10):o["x"] + 10].reshape(-1, 3).astype(int)
+                    if ((p_.max(axis=1) - p_.min(axis=1)) > 90).sum() >= 12:
+                        continue  # ícono de color fuerte: poción u otro consumible; no lo toco
+                    cand.append(o)
+                if not cand:
+                    break
+                o = cand[0]
+                done.append((o["x"], o["y"]))
                 x, y = self.abs_pt(o["x"], o["y"])
                 winapi.click(x, y)
                 time.sleep(0.09)
                 winapi.click(x, y)
-                time.sleep(1.0)
+                time.sleep(1.1)
                 n += 1
-                if n >= 3:
-                    break
             if n:
-                self.log(f"🛡 Me volví a poner {n} objeto/s que estaban sueltos en el bolso.")
+                self.log(f"🛡 Me puse {n} objeto/s que estaban sueltos en el bolso.")
+            try:
+                self._oly_pots()
+                self._loose_ok = getattr(self, "_bag_items", 0) or 0  # lo que queda suelto es repuesto: no es señal de rotura
+            except Exception:
+                pass
             if any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.4)
@@ -6751,7 +6760,9 @@ class Bot:
             if not hasattr(self, "_rep_last"):
                 self._rep_last = now
             worn = self._worn_check() or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
-            loose = (getattr(self, "_bag_items", 0) or 0) > 0 and now - self._rep_last > 1800
+            if not hasattr(self, "_loose_ok"):
+                self._loose_ok = int(self.cfg.get("loose_ok", 1))
+            loose = (getattr(self, "_bag_items", 0) or 0) > self._loose_ok and now - self._rep_last > 1800
             due = now - self._rep_last > float(self.cfg.get("repair_every_min", 150)) * 60
             if not (worn or loose or due) or now - self._rep_last < 300:
                 return
@@ -7086,7 +7097,7 @@ class Bot:
             winapi.click(*self.abs_pt(t_ref[1] + 200 * kx, t_ref[2] + 317 * ky), button="right")
             time.sleep(0.7)
             if bought:
-                self._reequip_loose()
+                self._reequip_loose(max_n=len(bought))
                 own = [o for o in (self.cfg.get("owned_items") or [])]
                 cat = {i["name"]: i for i in (self._load_json("tiendas.json").get("items") or [])}
                 for it in bought:
