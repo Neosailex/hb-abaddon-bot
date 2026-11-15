@@ -157,6 +157,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
       <button data-p="calib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Calibración</button>
       <button data-p="config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Configuración</button>
       <button data-p="world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>Mapa</button>
+      <button data-p="eco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.6-1-1.700-1.500-3-1.500-1.700 0-3 .900-3 2.200 0 3 6 1.400 6 4.300 0 1.300-1.300 2.200-3 2.200-1.400 0-2.500-.600-3.100-1.600M12 6v2M12 16.700V19"/></svg>Economía</button>
       <button data-p="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l5-14 3 8 3-5 5 11"/></svg>Guía de nivel</button>
       <button data-p="db"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Base de datos</button>
       <button data-p="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Eventos</button>
@@ -384,6 +385,41 @@ input[type=range]{accent-color:var(--gold);width:100%}
       </div>
     </section>
 
+    <!-- ECONOMIA -->
+    <section class="page" id="p-eco">
+      <h1>Economía</h1><p class="sub">Cuánto oro hay, cuánto se junta por hora, qué lleva puesto y para qué está ahorrando.</p>
+      <div class="grid g2">
+        <div class="card">
+          <h2>Oro</h2>
+          <div style="font-size:34px;font-weight:700;color:var(--gold,#e7c66b)" id="ecoGold">—</div>
+          <p class="hint" id="ecoGoldHint"></p>
+          <div class="kv" style="margin-top:12px" id="ecoRate"></div>
+        </div>
+        <div class="card">
+          <h2>Plan</h2>
+          <div style="font-size:16px;font-weight:600" id="ecoPlan">—</div>
+          <div style="height:8px;border-radius:6px;background:var(--panel2);margin:10px 0;overflow:hidden"><div id="ecoBar" style="height:100%;width:0;background:var(--gold,#e7c66b)"></div></div>
+          <p class="hint" id="ecoPlanHint"></p>
+          <div class="tl" id="ecoLines" style="margin-top:10px"></div>
+        </div>
+        <div class="card">
+          <h2>Equipo puesto y próxima mejora</h2>
+          <div class="kv" id="ecoGear" style="grid-template-columns:90px 1fr 1fr"></div>
+          <p class="hint" id="ecoGearHint" style="margin-top:10px"></p>
+        </div>
+        <div class="card">
+          <h2>Bolso</h2>
+          <div class="kv" id="ecoBag"></div>
+          <p class="hint" id="ecoBagHint" style="margin-top:10px"></p>
+        </div>
+        <div class="card" style="grid-column:1/-1">
+          <h2>Rendimiento por zona</h2>
+          <div class="kv" id="ecoZones" style="grid-template-columns:1.4fr 1fr 1fr 1fr"></div>
+          <p class="hint" style="margin-top:10px">Se mide mientras caza. Si una zona no rinde experiencia, el bot la compara con lo que deja de oro.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- DB -->
     <section class="page" id="p-db">
       <h1>Base de datos</h1><p class="sub" id="dbSub"></p>
@@ -436,7 +472,46 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','
 /* ---------- navegación ---------- */
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;go(b.dataset.p)});
 function go(p){curPage=p;$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));$$('.page').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));
-  if(p==='calib')loadThumbs(); if(p==='events')loadEvents(); if(p==='world')loadWorld();}
+  if(p==='calib')loadThumbs(); if(p==='events')loadEvents(); if(p==='world')loadWorld(); if(p==='eco')loadEco();}
+
+/* ---------- economía ---------- */
+const fmtN=n=>n==null?'—':Number(n).toLocaleString('es-AR');
+const ago=s=>s==null?'':(s<90?'hace instantes':s<3600?`hace ${Math.round(s/60)} min`:`hace ${(s/3600).toFixed(1)} h`);
+async function loadEco(){
+  if(!API||!API.economy)return;
+  let e; try{e=await API.economy()}catch(_){return}
+  if(!e||e.error){$('#ecoGoldHint').textContent=e&&e.error?('No pude armar el resumen: '+e.error):'';return}
+  $('#ecoGold').textContent=e.gold==null?'sin leer':(e.approx?'≈ ':'')+fmtN(e.gold);
+  $('#ecoGoldHint').textContent=e.gold==null?'Todavía no leí el oro del bolso (lo miro cada 4 minutos cuando no hay bichos cerca).'
+    :`Leído del bolso ${ago(e.gold_age)}.`+(e.approx?' El juego lo muestra redondeado (2.6k), así que es aproximado.':'');
+  $('#ecoRate').innerHTML=[['Por hora',e.per_hour==null?'midiendo…':fmtN(e.per_hour)+' de oro'],['Juntado',fmtN(e.earned)+(e.hours?` en ${e.hours} h`:'')],
+    ['Gastado',fmtN(e.spent)],['Nivel',(e.level||'—')+(e.pct!=null?` (${e.pct}%)`:'')]].map(r=>`<span>${r[0]}</span><span>${esc(String(r[1]))}</span>`).join('');
+  const sv=e.saving;
+  if(sv){
+    const done=sv.missing===0;
+    $('#ecoPlan').textContent=done?`Ya alcanza para ${sv.item}: lo compro en el próximo viaje al pueblo.`:`Juntando oro para ${sv.item}`;
+    const pr=sv.price||0, have=sv.missing==null?0:Math.max(0,pr-sv.missing);
+    $('#ecoBar').style.width=(pr?Math.min(100,100*have/pr):0)+'%';
+    $('#ecoPlanHint').textContent=sv.missing==null?`Cuesta ${fmtN(pr)}. Falta leer el oro para saber cuánto falta.`
+      :`Cuesta ${fmtN(pr)} · faltan ${fmtN(sv.missing)}`+(sv.eta_h?` · a este ritmo, unas ${sv.eta_h} h`:'');
+  }else{
+    $('#ecoPlan').textContent=(e.buy_now&&e.buy_now.length)?('Para comprar ya: '+e.buy_now.map(i=>i.name).join(', ')):'Sin compra pendiente';
+    $('#ecoBar').style.width='0';$('#ecoPlanHint').textContent='';
+  }
+  $('#ecoLines').innerHTML=(e.lines||[]).slice(0,8).map(l=>`<div class="hint" style="margin:4px 0">${esc(l)}</div>`).join('');
+  const SL={arma:'Arma',arma2m:'Arma 2 manos',escudo:'Escudo',pecho:'Pecho',piernas:'Piernas',brazos:'Brazos',cabeza:'Cabeza',capa:'Capa',pies:'Pies'};
+  $('#ecoGear').innerHTML=(e.gear||[]).map(g=>`<span>${esc(SL[g.slot]||g.slot)}</span><span>${esc(g.have||'nada')}</span><span style="color:var(--muted)">${g.next?('→ '+esc(g.next.name)+(g.next.price?` (${fmtN(g.next.price)})`:'')):(g.blocked?esc(g.blocked):'')}</span>`).join('')||'<span>—</span><span>Todavía sin datos</span><span></span>';
+  $('#ecoGearHint').textContent=e.server!=='abaddon'?'En este server todavía no leo el equipo puesto directamente: muestro lo que el bot sabe que tiene. Los precios son los de la lista base hasta que vea los de la tienda.':'';
+  const p=e.pots||{};
+  const rows=[['Pociones de vida',p['vida']],['Pociones de maná',p['maná']],['Pociones de energía',p['energía']]].filter(r=>r[1]!=null).map(r=>`<span>${r[0]}</span><span>${r[1]}</span>`);
+  const named=(e.bag||[]).filter(o=>o.name), anon=(e.bag||[]).length-named.length;
+  named.forEach(o=>rows.push(`<span>Objeto</span><span>${esc(o.name)}</span>`));
+  if(anon>0)rows.push(`<span>Otros objetos</span><span>${anon} sin identificar</span>`);
+  $('#ecoBag').innerHTML=rows.join('')||'<span>—</span><span>Todavía no abrí el bolso</span>';
+  $('#ecoBagHint').textContent=e.bag_age!=null?`Bolso mirado ${ago(e.bag_age)}.`:'';
+  $('#ecoZones').innerHTML='<span>Zona</span><span>Exp por hora</span><span>Oro por hora</span><span>Tiempo medido</span>'+((e.zones||[]).map(z=>`<span style="color:inherit">${esc(z.map)}</span><span>${fmtN(z.exp_h)}</span><span>${fmtN(z.gold_h)}</span><span>${z.min} min</span>`).join('')||'<span>Midiendo…</span><span></span><span></span><span></span>');
+}
+setInterval(()=>{if(curPage==='eco')loadEco()},5000);
 
 
 /* ---------- mapa del mundo ---------- */

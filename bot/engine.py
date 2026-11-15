@@ -2704,6 +2704,14 @@ class Bot:
     def _sheet(self, max_age=1800):
         """Última ficha leída (nivel, exp, stats) si no es muy vieja."""
         sh = getattr(self, "sheet", None)
+        if sh is None and not getattr(self, "_sheet_loaded", False):
+            self._sheet_loaded = True
+            try:
+                with open(os.path.join(cfgmod.profile_dir(self.cfg), "ficha.json"), encoding="utf-8") as f:
+                    sh = self.sheet = json.load(f)
+                self._exp_off = sh.get("exp_off", 0)
+            except Exception:
+                sh = None
         return sh if sh and time.time() - sh.get("t", 0) < max_age else None
 
     def _ficha_glyphs(self):
@@ -2852,7 +2860,7 @@ class Bot:
         start = int(self.cfg.get("stats_start_total", 70))
         per = int(self.cfg.get("stats_per_level", 3))
         pend = per * (lvl - 1) - (sum(best[n] for n in names) - start)
-        prev = getattr(self, "sheet", None)
+        prev = self._sheet(10 ** 9)
         if not (1 <= lvl <= 250) or not (0 <= pend <= per * 60) or (prev and not (0 <= lvl - prev["level"] <= 5)):
             self._sheet_fail = getattr(self, "_sheet_fail", 0) + 1
             return None  # lectura que no cierra (un dígito mal leído): no la uso
@@ -2868,6 +2876,12 @@ class Bot:
             sh["pct"] = round(100.0 * sh["exp"] / (sh["exp"] + sh["next"]), 1)
             self.progress["exp"] = sh["pct"]
         self.sheet = sh
+        self._sheet_loaded = True
+        try:
+            with open(os.path.join(cfgmod.profile_dir(self.cfg), "ficha.json"), "w", encoding="utf-8") as f:
+                json.dump(dict(sh, exp_off=getattr(self, "_exp_off", 0)), f)
+        except Exception:
+            pass
         self._sheet_fail = 0
         self._stats_vals = dict(sh["stats"])
         t = self.cfg.setdefault("travel", {})
@@ -5675,15 +5689,27 @@ class Bot:
             if o["kind"] == "gold":
                 o["name"] = "Gold"
                 gbox = (o["x"] + int(2 * kx), o["y"] + int(10 * ky), o["x"] + int(80 * kx), o["y"] + int(38 * ky))
+                d, approx = None, False
                 try:
-                    d = next((int(norm(w[0])) for w in ocr.read_words(img, {"x1": gbox[0], "y1": gbox[1], "x2": gbox[2], "y2": gbox[3]}, scale=2.0) if norm(w[0]).isdigit()), None)
+                    # el juego abrevia: '774', '2.6k', '1.2m'. Lo busco entre las palabras de la ventana (se lee mejor entera)
+                    for w in ws:
+                        if abs(w[1] - (o["x"] + 22 * kx)) < 40 * kx and 0 <= w[2] - o["y"] < 34 * ky:
+                            t = w[0].strip().lower().replace(",", ".")
+                            mm = re.fullmatch(r"(\d+(?:\.\d+)?)([km]?)", t)
+                            if mm:
+                                d = int(round(float(mm.group(1)) * {"": 1, "k": 1000, "m": 1000000}[mm.group(2)]))
+                                approx = bool(mm.group(2))
+                                break
+                    if d is None:
+                        d = next((int(norm(w[0])) for w in ocr.read_words(img, {"x1": gbox[0], "y1": gbox[1], "x2": gbox[2], "y2": gbox[3]}, scale=2.0) if norm(w[0]).isdigit()), None)
                 except Exception:
                     d = None
-                if d is not None and d >= 10:
+                if d is not None and d >= 10 and not approx:
                     self._glyph_learn(img, gbox, d)
                 if d is None:
                     d = self._read_small_num(img, *gbox)
                 self._gold = d
+                self._eco_note(d, approx)
                 continue
             if not names:
                 continue
@@ -5708,6 +5734,63 @@ class Bot:
                 o["kind"] = "pot"
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
         return out
+
+    # ---------------------------------------------------------------- economía
+    def _eco_note(self, gold, approx=False):
+        """Anoto cada lectura del oro: de ahí sale cuánto junto por hora (lo que gasto no cuenta como pérdida)."""
+        if gold is None:
+            return
+        now = time.time()
+        e = self.__dict__.setdefault("_eco", {"t0": now, "g0": gold, "earned": 0, "spent": 0, "last": gold, "hist": []})
+        d = gold - e["last"]
+        if d > 0:
+            e["earned"] += d
+        elif d < 0:
+            e["spent"] += -d
+        e["last"], e["t"], e["approx"] = gold, now, bool(approx)
+        e["hist"].append((int(now), gold))
+        del e["hist"][:-200]
+        try:
+            mk = (self.pos.get("map") or "").strip().lower()
+            if d > 0 and mk:
+                y = self._yield_entry(mk)
+                y["gold"] = y.get("gold", 0.0) + d
+        except Exception:
+            pass
+
+    def economy(self):
+        """Resumen para la pestaña Economía: oro, ritmo, bolso, equipo y plan de compras."""
+        now = time.time()
+        e = getattr(self, "_eco", None) or {}
+        hrs = (now - e["t0"]) / 3600.0 if e else 0
+        per_h = int(e["earned"] / hrs) if e and hrs > 0.15 else None
+        p = getattr(self, "plan", None) or {}
+        sv = p.get("saving")
+        gold = e.get("last") if e else getattr(self, "_gold", None)
+        if sv and gold is not None and sv.get("price"):
+            miss = max(0, int(sv["price"]) - max(0, gold - int(self.cfg.get("gold_reserve", 150))))
+            sv = dict(sv, missing=miss, eta_h=(round(miss / per_h, 1) if per_h and miss else None))
+        bag = []
+        for o in getattr(self, "_bag_list", None) or []:
+            bag.append({"name": o.get("name") or "", "kind": o.get("kind"), "n": o.get("n")})
+        zones = []
+        for mk, y in (self.world.learn.get("yield", {}) or {}).items():
+            if y.get("sec", 0) >= 300:
+                zones.append({"map": mk.title(), "exp_h": int(y.get("exp", 0) / y["sec"] * 3600),
+                              "gold_h": int(y.get("gold", 0) / y["sec"] * 3600), "min": int(y["sec"] / 60)})
+        zones.sort(key=lambda z: -z["exp_h"])
+        sh = self._sheet(6 * 3600) or {}
+        return {"gold": gold, "approx": bool(e.get("approx")), "gold_age": int(now - e["t"]) if e.get("t") else None,
+                "earned": e.get("earned"), "spent": e.get("spent"), "per_hour": per_h, "hours": round(hrs, 1),
+                "pots": dict(getattr(self, "_pot_counts", None) or {}), "bag": bag, "bag_age": int(now - getattr(self, "_bag_t", now)) if getattr(self, "_bag_list", None) else None,
+                "equipped": list(getattr(self, "_owned", None) or []),
+                "gear": [{"slot": g["slot"], "have": g.get("have"),
+                          "next": ({"name": g["next"]["name"], "price": g["next"].get("price")} if g.get("next") else None),
+                          "blocked": g.get("blocked")} for g in (p.get("gear") or [])],
+                "saving": sv, "buy_now": p.get("buy_now") or [],
+                "lines": [l for l in (p.get("lines") or [])], "zones": zones[:6], "level": sh.get("level") or self.cfg.get("travel", {}).get("my_level"),
+                "pct": sh.get("pct"), "server": cfgmod.server_slug(self.cfg),
+                "prices": dict((self.learner.st or {}).get("prices", {})) if getattr(self.learner, "st", None) else {}}
 
     def _equip_from_bag(self, name):
         """Me pongo un objeto del bolso con Ctrl + click (wiki: equipa lo que se pueda equipar)."""
@@ -5780,7 +5863,29 @@ class Bot:
             self._pots_unknown = unknown
             try:
                 bag = self._oly_bag(names=False) or []
-                self._bag_items = max(0, sum(1 for o in bag if o["kind"] == "item") - len(seen))
+                # clasifico cada cosa del bolso por el color del ícono: frascos azules (maná) y verdes (energía)
+                pc = {"vida": total, "maná": 0, "energía": 0}
+                others = 0
+                for o in bag:
+                    if o["kind"] != "item":
+                        continue
+                    p_ = img[max(0, o["y"] - 12):o["y"] + 12, max(0, o["x"] - 10):o["x"] + 10].reshape(-1, 3).astype(int)
+                    blue = int(((p_[:, 0] > 140) & (p_[:, 2] < 110) & (p_[:, 1] < 110)).sum())
+                    green = int(((p_[:, 1] > 140) & (p_[:, 2] < 110) & (p_[:, 0] < 110)).sum())
+                    red = int(((p_[:, 2] > 140) & (p_[:, 1] < 70) & (p_[:, 0] < 80)).sum())
+                    if red >= 12:
+                        o["kind"] = "pot"
+                        continue
+                    if blue >= 12 or green >= 12:
+                        o["kind"] = "pot"
+                        n_ = self._read_small_num(img, o["x"] - int(9 * kx), o["y"] + int(13 * ky), o["x"] + int(13 * kx), o["y"] + int(36 * ky)) or 1
+                        pc["maná" if blue >= green else "energía"] += n_
+                    else:
+                        others += 1
+                self._pot_counts = pc
+                self._bag_items = others
+                self._bag_list = [{"name": "", "kind": "item"} for _ in range(others)]
+                self._bag_t = time.time()
             except Exception:
                 pass
             return total
@@ -5832,7 +5937,7 @@ class Bot:
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inshop():
-                self.mission = {"map": "Aresden Farm", "goal": [63, 70], "label": "Tienda (pociones)", "until": time.time() + 300}
+                self.mission = {"map": "Aresden Farm", "goal": [63, 68], "label": "Tienda (pociones)", "until": time.time() + 300}
                 while not inshop() and time.time() - t0 < 900 and self.alive and self.running:
                     time.sleep(0.3)
             if not inshop():
@@ -6041,7 +6146,8 @@ class Bot:
         """Oro del pj: el item 90 del inventario. None si no se sabe."""
         inv = self._inv_mem()
         if inv is None:
-            return None
+            e = getattr(self, "_eco", None)  # sin inventario en memoria: el oro leído del bolso (si es reciente)
+            return e["last"] if e and time.time() - e.get("t", 0) < 1800 else None
         return sum(i["count"] for i in inv if i["id"] == self.ID_GOLD)
 
     def _supplies_mem(self):
@@ -6223,7 +6329,12 @@ class Bot:
             reach = lambda n: self._same(cur, n) or self._known_route(cur, n, avoid)
             idb = self._items_db()
             inv = self._inv_mem()
-            owned = [idb[i["id"]]["name"] for i in inv if i["id"] in idb] if (inv and idb) else pj.get("owned", [])
+            if inv and idb:
+                owned = [idb[i["id"]]["name"] for i in inv if i["id"] in idb]
+            elif cfgmod.server_slug(self.cfg) != "abaddon":
+                owned = list(self.cfg.get("owned_items") or [])  # pj de otro server: no heredo el equipo del de Abaddon
+            else:
+                owned = pj.get("owned", [])
             self._owned = owned
             from . import gear
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),

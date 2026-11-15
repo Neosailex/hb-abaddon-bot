@@ -147,6 +147,12 @@ class Api:
             v["spawns"], v["spawn_error"] = [], repr(e)
         return v
 
+    def economy(self):
+        try:
+            return self._bot.economy()
+        except Exception as e:
+            return {"error": repr(e)}
+
     def goto(self, mapname, x, y):
         import time as _t
         if not mapname:
