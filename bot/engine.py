@@ -1041,6 +1041,7 @@ class Bot:
         if self._quest_step():
             return
         self._selfcheck()
+        self._strategy()
         self._maybe_shop()
         self._maybe_repair()
         self._brain_step()
@@ -4209,7 +4210,7 @@ class Bot:
         lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
         cap = self.learner.crowd_cap(mob, lvl)
         allow = min(allow, 1 + lvl // 6)  # nivel bajo: pocos vecinos aunque venga bien (los nidos matan de golpe)
-        if time.time() < getattr(self, "_careful_until", 0):
+        if time.time() < getattr(self, "_careful_until", 0) or self._chill():
             return 0  # vengo muriendo seguido: solo bichos sueltos por un rato
         return allow if cap is None else min(allow, cap)
 
@@ -5145,6 +5146,11 @@ class Bot:
             cand.append([xp, zn, c, f"{mk}|{x1},{y1}", xp is not None])
         if not cand:
             return None
+        if self._chill():
+            ds = [c_[1]["dmg"] for c_ in cand if c_[1].get("dmg") is not None]
+            if ds:
+                easy = [c_ for c_ in cand if c_[1].get("dmg") is not None and c_[1]["dmg"] <= min(ds) * 1.5]
+                cand, meas = easy, [c_[0] for c_ in easy if c_[0] is not None]
         qm = self._quest_mob_names()
         if qm:
             qc = [c_ for c_ in cand if c_[1].get("mob") in qm]
@@ -5929,7 +5935,8 @@ class Bot:
                           "next": ({"name": g["next"]["name"], "price": g["next"].get("price")} if g.get("next") else None),
                           "blocked": g.get("blocked")} for g in (p.get("gear") or [])],
                 "saving": sv, "buy_now": p.get("buy_now") or [],
-                "lines": [l for l in (p.get("lines") or [])], "zones": zones[:6], "level": sh.get("level") or self.cfg.get("travel", {}).get("my_level"),
+                "strategy": dict(getattr(self, "_strat", None) or {}),
+                "lines": ([(getattr(self, "_strat", None) or {}).get("line")] if (getattr(self, "_strat", None) or {}).get("line") else []) + [l for l in (p.get("lines") or [])], "zones": zones[:6], "level": sh.get("level") or self.cfg.get("travel", {}).get("my_level"),
                 "pct": sh.get("pct"), "server": cfgmod.server_slug(self.cfg),
                 "prices": dict((self.learner.st or {}).get("prices", {})) if getattr(self.learner, "st", None) else {},
                 "check": getattr(self, "health", None)}
@@ -6057,7 +6064,7 @@ class Bot:
         n = getattr(self, "_left", {}).get("pot")
         lim = 0 if getattr(self, "_pots_unknown", False) else int(self.cfg.get("buy_pots_below", 3))
         gold = getattr(self, "_gold", None)
-        afford = gold is not None and gold >= int(self.cfg.get("gold_reserve", 150)) + 45
+        afford = gold is not None and self._pot_budget(gold, n or 0) >= (1 if not n else 3)
         many = (getattr(self, "_bag_items", 0) or 0) >= int(self.cfg.get("sell_when_items", 12))
         if now - getattr(self, "_shop_last", 0) < 900:
             return
@@ -6132,7 +6139,7 @@ class Bot:
             reserve = int(self.cfg.get("gold_reserve", 150))
             # cuántas: hasta el objetivo de pociones, gastando como mucho un tercio del oro que sobra de la reserva
             want_n = int(self.cfg.get("pots_target", 15))
-            n = 0 if gold is None else max(0, min(want_n - have, int((gold - reserve) * float(self.cfg.get("pots_gold_share", 0.34))) // 45))
+            n = self._pot_budget(gold, have)
             if n <= 0:
                 self.log(f"🛒 No compro pociones: tengo {gold} de oro y guardo {reserve} para equipo.")
                 return
@@ -6733,6 +6740,106 @@ class Bot:
             pass
         return False
 
+    def _pot_price(self):
+        try:
+            return int((self._load_json("tiendas.json").get("shop_prices") or {}).get("Health Potion") or 45)
+        except Exception:
+            return 45
+
+    def _chill(self):
+        return (getattr(self, "_strat", None) or {}).get("mode") == "chill"
+
+    def _strategy(self):
+        """Decido como un jugador qué me conviene AHORA: seguir en la zona que más experiencia da (gasta pociones
+        y arreglos) o cazar tranquilo bichos fáciles, sin pociones, hasta juntar para volver bien armado.
+        Miro lo medido: oro por hora, pociones por hora de la zona, muertes y lo que tengo encima."""
+        if cfgmod.server_slug(self.cfg) == "abaddon":
+            return
+        now = time.time()
+        if now - getattr(self, "_strat_t", 0) < 120:
+            return
+        self._strat_t = now
+        st = self.__dict__.setdefault("_strat", {"mode": "exp", "since": now, "why": ""})
+        price = self._pot_price()
+        kit = int(self.cfg.get("pots_kit", 10)) * price
+        gold = getattr(self, "_gold", None)
+        pots = (getattr(self, "_left", {}) or {}).get("pot")
+        if getattr(self, "_pots_unknown", False):
+            pots = None
+        e = getattr(self, "_eco", None) or {}
+        hrs = (now - e["t0"]) / 3600.0 if e else 0
+        gold_h = e["earned"] / hrs if e and hrs > 0.25 else None
+        mk = (self.pos.get("map") or "").strip().lower()
+        y = (self.world.learn.get("yield", {}) or {}).get(mk) or {}
+        pots_h = y.get("pots", 0) / y["sec"] * 3600 if y.get("sec", 0) >= 600 else None
+        rep_h = float(self.cfg.get("repair_cost_h", 100))  # arreglos: ~250 cada dos horas y media
+        cost_h = (pots_h * price + rep_h) if pots_h is not None else None
+        net_h = (gold_h - cost_h) if gold_h is not None and cost_h is not None else None
+        d30 = sum(1 for t in (getattr(self, "_sc_d", None) or []) if now - t < 1800)
+        st.update(gold_h=None if gold_h is None else int(gold_h), cost_h=None if cost_h is None else int(cost_h),
+                  net_h=None if net_h is None else int(net_h), deaths_30m=d30, kit=kit)
+        mode, why = st["mode"], None
+        if mode == "exp":
+            if pots == 0 and gold is not None and gold < 5 * price:
+                why = f"sin pociones y con {gold} de oro no llego ni a 5"
+            elif d30 >= 3:
+                why = f"me mataron {d30} veces en media hora"
+            elif net_h is not None and net_h < 0 and gold is not None and gold < kit and pots is not None and pots < 3:
+                why = f"esta zona me cuesta ~{int(cost_h)} de oro por hora y junto ~{int(gold_h)}"
+            if why:
+                st.update(mode="chill", since=now, why=why, g0=gold)
+                self._zone_goal = None
+                self.log(f"🧠 Plan: {why}. Me conviene cazar tranquilo bichos fáciles (sin gastar pociones ni "
+                         f"volver al pueblo a cada rato) hasta juntar {kit} de oro para {kit // price} pociones.")
+        else:
+            mins = (now - st["since"]) / 60.0
+            back = None
+            if gold is not None and gold >= kit and mins >= 10:
+                back = f"ya junté {gold} de oro: compro pociones y vuelvo a la zona que más experiencia da"
+                self._shop_last = 0
+            elif mins >= 45 and gold is not None and gold - (st.get("g0") or 0) < price and d30 == 0:
+                back = "acá casi no cae oro, así que no gano nada esperando: vuelvo a la mejor zona cuidándome (bichos sueltos y descanso)"
+                self._careful_until = now + 1800
+            elif mins >= 120:
+                back = "ya pasé dos horas tranquilo: pruebo de nuevo la mejor zona"
+            if back:
+                st.update(mode="exp", since=now, why=back)
+                self._zone_goal = None
+                self.log("🧠 Plan: " + back[0].upper() + back[1:] + ".")
+        st["line"] = self._strat_line(st, gold, pots, price)
+
+    def _strat_line(self, st, gold, pots, price):
+        if st["mode"] == "chill":
+            miss = None if gold is None else max(0, st["kit"] - gold)
+            eta = f" (~{round(miss / st['gold_h'], 1)} h)" if miss and st.get("gold_h") else ""
+            return (f"Modo tranquilo: bichos fáciles sin pociones porque {st.get('why')}. "
+                    + (f"Me faltan {miss} de oro{eta} para {st['kit'] // price} pociones." if miss is not None else ""))
+        if st.get("net_h") is not None:
+            sg = "me sobran" if st["net_h"] >= 0 else "pierdo"
+            return (f"Modo experiencia: junto ~{st['gold_h']} de oro por hora y gasto ~{st['cost_h']} en pociones y "
+                    f"arreglos ({sg} ~{abs(st['net_h'])} por hora).")
+        return "Modo experiencia: cazo donde más experiencia da; todavía estoy midiendo cuánto oro deja y cuánto gasta."
+
+    def _pot_budget(self, gold, have):
+        """Cuántas pociones compro. Sin pociones no se puede cazar: lo mínimo va primero, aunque toque la reserva.
+        El resto depende de si la próxima mejora de equipo está cerca (guardo) o lejos (las pociones rinden ya)."""
+        if gold is None:
+            return 0
+        price = self._pot_price()
+        want = max(0, int(self.cfg.get("pots_target", 15)) - have)
+        reserve = int(self.cfg.get("gold_reserve", 150))
+        sv = (getattr(self, "plan", None) or {}).get("saving") or {}
+        gh = (getattr(self, "_strat", None) or {}).get("gold_h")
+        miss = max(0, int(sv.get("price") or 0) - gold) if sv.get("price") else None
+        near = miss is not None and (miss == 0 or (gh and miss / max(gh, 1) <= 1.0))
+        if near:
+            n = int((gold - reserve) * float(self.cfg.get("pots_gold_share", 0.34))) // price
+        else:
+            n = int(gold * 0.7) // price  # la mejora está lejos: el oro rinde más en pociones para cazar mejor
+        if have < 3:
+            n = max(n, min(5 - have, gold // price))
+        return max(0, min(want, n))
+
     def _selfcheck(self):
         """'¿Estoy bien?' — lo que un jugador mira cada tanto: ¿mato al ritmo normal?, ¿muero seguido?, ¿tengo
         pociones?, ¿se rompió algo? Si algo está mal, eso pasa a ser lo urgente. Vale para cualquier server."""
@@ -7187,6 +7294,14 @@ class Bot:
             if not self.cfg.get("buy_gear_auto", True) or not self._place("smith"):
                 return
             buy = [i for i in ((getattr(self, "plan", None) or {}).get("buy_now") or []) if i.get("shop") == "Blacksmith" and i.get("confirmed")]
+            g_, p_ = getattr(self, "_gold", None), (getattr(self, "_left", {}) or {}).get("pot") or 0
+            if g_ is not None and p_ < 5:  # un jugador no se compra el arma y se queda sin plata para pociones
+                keep, ok_ = (5 - p_) * self._pot_price(), []
+                for i in buy:
+                    if g_ - int(i.get("price") or 0) >= keep:
+                        ok_.append(i)
+                        g_ -= int(i.get("price") or 0)
+                buy = ok_
             if not buy:
                 return
             self._gear_last = now
