@@ -4145,6 +4145,8 @@ class Bot:
             qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 30]
             if qok:
                 ok = qok  # misión activa: primero sus bichos
+            elif not self._quest_strict():
+                pass  # misión de juntar cosas (o bicho escaso): mientras no aparezca uno, cazo lo de siempre
             else:
                 # no hay bichos de la misión cerca: no pierdo tiempo con otros (salvo que me peguen encima);
                 # camino hacia el bicho de la misión más suelto que vea en la memoria (aunque esté lejos)
@@ -5230,7 +5232,7 @@ class Bot:
         qm = self._quest_mob_names()
         if qm:
             qc = [c_ for c_ in cand if c_[1].get("mob") in qm]
-            if qc:
+            if qc and self._quest_strict():
                 cand = qc  # misión activa: solo zonas de su bicho
                 meas = [c_[0] for c_ in qc if c_[0] is not None] or meas
         top = max(meas) if meas else 1000.0
@@ -5588,6 +5590,21 @@ class Bot:
             if r > br:
                 best, br = q, r
         return (best, hud[1], hud[2]) if best and br >= 0.75 else None
+
+    def _quest_strict(self):
+        """¿La misión activa justifica cazar SOLO su bicho? Sí cuando es de matar N y viene avanzando. No cuando
+        es de juntar objetos (salen cada tanto) o cuando llevo 15 minutos sin avanzar: ahí se caza normal y el
+        bicho de la misión solo tiene prioridad cuando aparece."""
+        qa = self._quest_active()
+        if not qa:
+            return False
+        if qa[0].get("kind") == "items":
+            return False
+        now = time.time()
+        pr = self.__dict__.setdefault("_q_prog", {"name": None, "a": -1, "t": now})
+        if pr["name"] != qa[0]["name"] or qa[1] != pr["a"]:
+            pr.update(name=qa[0]["name"], a=qa[1], t=now)
+        return now - pr["t"] < 900
 
     def _quest_mob_names(self):
         qa = self._quest_active()
