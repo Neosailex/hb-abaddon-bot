@@ -5135,7 +5135,9 @@ class Bot:
             if not st["len"]:
                 return None
             v = int(min(1.0, glen / st["len"]) * need)
-            v = max(v, int(sh["exp"]) if now - sh["t"] < 600 else 0, st["max"])  # nunca para atrás dentro del nivel
+            # el ruido de un par de píxeles no cuenta como bajar; una baja de verdad (morir quita experiencia) sí
+            if v < st["max"] and st["max"] - v <= 0.004 * need:
+                v = st["max"]
             st["max"] = v
             self._exp_now = {"exp": v, "need": need, "pct": round(100.0 * v / need, 2), "t": now}
             return v + int(tb[int(lv)] if tb.get(int(lv)) is not None else (sh.get("exp_off") or 0))
@@ -6409,9 +6411,11 @@ class Bot:
             if not sc:
                 return None
             total = sc["pots"]["vida"]
+            now_ = time.time()
             prev = (getattr(self, "_left", {}) or {}).get("pot")
-            if sc["unknown"] and prev is not None and prev >= 2 and total >= 1:
-                total, sc["unknown"] = prev, False  # hay frascos pero no leí el número: vale lo último que sabía
+            if sc["unknown"] and prev is not None and total >= 1 and prev >= total and now_ - getattr(self, "_pots_buy_t", 0) < 3600 \
+                    and prev - total <= 12:
+                pass  # no leí el número: no invento; queda marcado como "al menos N"
             self._pots_unknown = bool(sc["unknown"])
             self._pot_counts = dict(sc["pots"])
             self._bag_items = len(sc["items"])
@@ -6555,8 +6559,19 @@ class Bot:
                 if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws):
                     hp = w
                     break
+            if not hp and tabp:
+                click(tabp[1], tabp[2])  # la ventana pudo abrir en otra pestaña
+                time.sleep(1.2)
+                ws = words(grab())
+                hp = next((w for w in ws if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws)), None)
             if not hp:
-                self.log("🛒 No veo las Health Potion en la lista.")
+                try:
+                    import cv2
+                    cv2.imwrite(os.path.join(cfgmod.DATA, "tienda_falla.jpg"), grab(), [cv2.IMWRITE_JPEG_QUALITY, 75])
+                except Exception:
+                    pass
+                self.log("🛒 No veo las Health Potion en la lista (guardé la captura para revisarlo).")
+                self._shop_retry = time.time() + 240
                 return
             click(hp[1], hp[2])
             time.sleep(1.0)
@@ -6599,6 +6614,9 @@ class Bot:
             self.mission = None
             self._busy_ui = False
             self._shop_last = time.time()
+            if time.time() < getattr(self, "_shop_retry", 0):
+                self._shop_last -= 660  # falló la compra: reintento en 4 minutos, no en 15
+                self._shop_retry = 0
 
     def _oly_buy_food(self, words, grab, click, tabp, hun):
         """En la tienda abierta: compro pan (Baguette) o carne según el hambre. Me la como después, con la tienda

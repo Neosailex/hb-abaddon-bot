@@ -1,1 +1,1 @@
-{"version": 237, "notes": "Toma todas las misiones disponibles (incluida la repetible), guarda la calibracion de la barrita de exp."}
+{"version": 238, "notes": "Exp real tras morir, conteo de pociones sin inventar, reintento y captura si falla la tienda."}
