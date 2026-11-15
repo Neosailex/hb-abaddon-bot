@@ -3550,10 +3550,10 @@ class Bot:
         adj = [e for e in ents if dist(e) <= 1]
         near4 = [e for e in ents if dist(e) <= 4]
         # cuántos pegados aguanto: lo aprendido + 1, y uno más si tengo buena vida
-        cap = self._oly_allow() + (2 if (hp or 0) >= 60 else 1)
+        cap = min(self._oly_allow(), 1) + (1 if (hp or 0) >= 70 else 0)
         k = getattr(self, "_kite", None)
         if k is None:
-            if not (force or (hp is not None and hp < 45 and adj) or len(adj) > cap):
+            if not (force or (hp is not None and hp < 50 and adj) or len(adj) > max(1, cap)):
                 return False
             why = f"vida {hp:.0f}%" if hp is not None and hp < 45 else f"{len(adj)} bichos encima"
             k = self._kite = {"t": now, "pt": None, "why": why}
@@ -3744,7 +3744,9 @@ class Bot:
                 self.log(f"🧠 Por lo aprendido en otros servers, arranco aceptando {prior} vecino/s por bicho.")
         lr = self.world.learn["oly_nest"]
         allow = int(lr.get("allow", 0))
-        cap = self.learner.crowd_cap(mob, int(self.cfg.get("travel", {}).get("my_level", 1) or 1))
+        lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
+        cap = self.learner.crowd_cap(mob, lvl)
+        allow = min(allow, 1 + lvl // 6)  # nivel bajo: pocos vecinos aunque venga bien (los nidos matan de golpe)
         return allow if cap is None else min(allow, cap)
 
     def _oly_fight_review(self):
@@ -3767,7 +3769,8 @@ class Bot:
             lr["ok"] = 0
         elif hp >= 60 and cur["crowd"] >= lr["allow"]:
             lr["ok"] = lr.get("ok", 0) + 1
-            if lr["ok"] >= 6 and lr["allow"] < 8:
+            lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
+            if lr["ok"] >= 6 and lr["allow"] < min(8, 1 + lvl // 6):
                 lr["allow"] += 1
                 lr["ok"] = 0
                 self.log(f"🪺 Vengo aguantando bien: me animo a bichos con hasta {lr['allow']} vecinos (nidos más cargados).")
@@ -4975,10 +4978,16 @@ class Bot:
         if now - getattr(self, "_qacc_t", 0) < 600 and getattr(self, "_qacc_name", None) == q["name"] and not getattr(self, "goto", None):
             return False
         loc = None
-        for mp_, xy in (self._quest_db().get("npcs", {}).get(q["npc"], {}) or {}).items():
-            if not any(k in mp_.lower() for k in ("elvine", "eldiniel")):
-                loc = (mp_, xy[0], xy[1])
-                break
+        stay = (self.cfg.get("travel", {}) or {}).get("stay_map") or ""
+        cur0 = self.pos.get("map") or ""
+        cands = [(mp_, xy) for mp_, xy in (self._quest_db().get("npcs", {}).get(q["npc"], {}) or {}).items()
+                 if not any(k in mp_.lower() for k in ("elvine", "eldiniel"))]
+        cands.sort(key=lambda c: (not self._same(c[0], stay or cur0), not self._same(c[0], cur0)))
+        if stay:
+            cands = [c for c in cands if self._same(c[0], stay)]
+        for mp_, xy in cands:
+            loc = (mp_, xy[0], xy[1])
+            break
         if not loc:
             return False
         cur = self.pos.get("map") or ""
@@ -5039,6 +5048,14 @@ class Bot:
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
         img = grab()
         hud = self._quest_hud(img)
+        if hud:
+            self._q_miss = 0
+        else:
+            self._q_miss = getattr(self, "_q_miss", 0) + 1
+            if self._q_miss < 4 and getattr(self, "quest", None):
+                hud = None  # una lectura fallida no es "sin misión": espero 4 seguidas antes de ir a buscar otra
+                self._q_scan_t = now
+                return False
         self.quest = hud
         # 1) misión completa: voy a cobrar
         if hud and hud[2] > 0 and hud[1] >= hud[2]:
