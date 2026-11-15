@@ -4277,12 +4277,15 @@ class Bot:
         lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
         cap = self.learner.crowd_cap(mob, lvl)
         allow = min(allow, 1 + lvl // 6)  # nivel bajo: pocos vecinos aunque venga bien (los nidos matan de golpe)
-        if (getattr(self, "_left", {}) or {}).get("pot") == 0 and not getattr(self, "_pots_unknown", False):
+        pots_ = (getattr(self, "_left", {}) or {}).get("pot")
+        # con pociones encima me animo a grupos de tres (el bicho y dos vecinos); sin pociones, de a pares
+        floor = 2 if (pots_ or 0) >= 5 else 1
+        if pots_ == 0 and not getattr(self, "_pots_unknown", False):
             allow = min(allow, 1)  # sin pociones no me meto en nidos
         if time.time() < getattr(self, "_careful_until", 0) or self._chill():
-            return 1 if self.cfg.get("careful_pairs", True) else 0  # vengo muriendo seguido: de a pares como mucho
-        # piso de 1 vecino: en mapas donde todo anda en grupo, pedir bichos solos es quedarse sin cazar
-        return max(1, allow if cap is None else min(allow, cap))
+            return floor if self.cfg.get("careful_pairs", True) else 0  # vengo muriendo seguido: grupos chicos
+        # piso: en mapas donde todo anda en grupo, pedir bichos solos es quedarse sin cazar
+        return max(floor, allow if cap is None else min(allow, cap))
 
     def _oly_fight_review(self):
         """Terminó la pelea anterior (elijo otro bicho): si salí con buena vida sumo una buena; si quedé muy
