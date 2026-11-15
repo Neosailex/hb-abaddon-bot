@@ -3441,9 +3441,10 @@ class Bot:
         if not plan or plan.get("map") != mk:
             # puntos caminables cada 10 baldosas, recorridos de cerca en cerca
             pts = []
-            for yy in range(5, m.h - 5, 10):
-                for xx in range(5, m.w - 5, 10):
-                    c = m.nearest_walkable(xx, yy, r=4)
+            step = max(16, int(max(m.w, m.h) / 10))  # ~100 puntos por mapa (se ve unas 15 baldosas a cada lado)
+            for yy in range(step // 2, m.h - 3, step):
+                for xx in range(step // 2, m.w - 3, step):
+                    c = m.nearest_walkable(xx, yy, r=6)
                     if c and m.ok(c[0], c[1]):
                         pts.append(tuple(c))
             px, py = self.pos["x"], self.pos["y"]
@@ -3472,7 +3473,7 @@ class Bot:
         self._exploring = True
         px, py = self.pos["x"], self.pos["y"]
         g = plan["pts"][0]
-        if max(abs(g[0] - px), abs(g[1] - py)) <= 2 or (plan["last"] == g and now - plan["tp"] > 45):
+        if max(abs(g[0] - px), abs(g[1] - py)) <= 4 or (plan["last"] == g and now - plan["tp"] > 30):
             plan["pts"].pop(0)  # llegué (o no hay forma de llegar en 45 s): al siguiente
             plan["tp"], plan["last"] = now, None
             if len(plan["pts"]) % 10 == 0 and plan["pts"]:

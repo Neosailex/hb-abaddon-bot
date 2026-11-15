@@ -1,1 +1,1 @@
-{"version": 175, "notes": "Olympia: spawns relevados por el bot (se olvidan los de Abaddon). En cada mapa nuevo lo recorre entero anotando dónde sale cada bicho; si lo matan 2 veces corta y caza en los nidos que aguanta. Botón Relevar en el mapa (Investigar hace lo mismo en Olympia)."}
+{"version": 176, "notes": "Relevamiento: ~100 puntos por mapa y salta los que no puede alcanzar en 30 s."}
