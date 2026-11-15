@@ -4280,8 +4280,9 @@ class Bot:
         if (getattr(self, "_left", {}) or {}).get("pot") == 0 and not getattr(self, "_pots_unknown", False):
             allow = min(allow, 1)  # sin pociones no me meto en nidos
         if time.time() < getattr(self, "_careful_until", 0) or self._chill():
-            return min(allow, 1) if self.cfg.get("careful_pairs", True) else 0  # vengo muriendo seguido: solo bichos sueltos por un rato
-        return allow if cap is None else min(allow, cap)
+            return 1 if self.cfg.get("careful_pairs", True) else 0  # vengo muriendo seguido: de a pares como mucho
+        # piso de 1 vecino: en mapas donde todo anda en grupo, pedir bichos solos es quedarse sin cazar
+        return max(1, allow if cap is None else min(allow, cap))
 
     def _oly_fight_review(self):
         """Terminó la pelea anterior (elijo otro bicho): si salí con buena vida sumo una buena; si quedé muy
