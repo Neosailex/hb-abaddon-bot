@@ -1074,6 +1074,18 @@ class Bot:
                     winapi.left_up()
                     winapi.click(*self.abs_pt(btn[1], btn[2]))
                     self.log(f"Cartel '{key}': respondo '{btn[0]}' (nunca tiro cosas ni elijo talentos solo).")
+                    if key == "unirte" and self.pos.get("x") is not None:
+                        try:
+                            mk = (self.pos.get("map") or "").strip().lower()
+                            bl = self.world.learn.setdefault("no_pisar", {}).setdefault(mk, [])
+                            pt_ = [int(self.pos["x"]), int(self.pos["y"])]
+                            if pt_ not in bl:
+                                bl.append(pt_)
+                                self.world.save()
+                                self.log(f"🚫 Anoto ({pt_[0]},{pt_[1]}) como portal de ciudad: no lo vuelvo a pisar.")
+                            self._apply_no_pisar()
+                        except Exception:
+                            pass
                     time.sleep(0.4)
                     return True
         if not getattr(self, "_shop_th", None) or not self._shop_th.is_alive():
@@ -3855,7 +3867,22 @@ class Bot:
         self._walk_to(m, (int(g["x"]), int(g["y"])), label)
         return True
 
+    def _apply_no_pisar(self, m=None):
+        """Baldosas que no hay que pisar (portales que preguntan si me uno a una ciudad): las bloqueo con margen."""
+        mk = (self.pos.get("map") or "").strip().lower()
+        m = m or self.world.map_for(self.pos.get("map") or "")
+        if not m:
+            return
+        for x, y in self.world.learn.get("no_pisar", {}).get(mk, []):
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if 0 <= x + dx < m.w and 0 <= y + dy < m.h:
+                        m.walk[y + dy, x + dx] = False
+        m._no_pisar = mk
+
     def _walk_to(self, m, goal, label):
+        if getattr(m, "_no_pisar", None) is None and cfgmod.server_slug(self.cfg) != "abaddon":
+            self._apply_no_pisar(m)
         now = time.time()
         px, py = self.pos["x"], self.pos["y"]
         if (px, py) != self.nav.get("last_pos"):
