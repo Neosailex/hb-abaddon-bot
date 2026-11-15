@@ -5129,6 +5129,8 @@ class Bot:
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
             bag = self._oly_bag() or []
             sell = [o for o in bag if o["kind"] == "item" and o["name"] and not any(k in o["name"].lower() for k in self.KEEP_WORDS)]
+            if not self.cfg.get("sell_olympia", False):
+                sell = []  # apagado hasta probarlo bien: leía mal los nombres y podía vender lo que no debía
             if sell and tabp:
                 click(tabp[1] + 346 * kx, tabp[2])
                 time.sleep(1.0)
