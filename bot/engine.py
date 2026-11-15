@@ -1074,7 +1074,7 @@ class Bot:
                     winapi.left_up()
                     winapi.click(*self.abs_pt(btn[1], btn[2]))
                     self.log(f"Cartel '{key}': respondo '{btn[0]}' (nunca tiro cosas ni elijo talentos solo).")
-                    if key == "unirte" and self.pos.get("x") is not None:
+                    if key == "unirte" and self.pos.get("x") is not None and any(c in t for t, _ in txt for c in ("aresden", "elvine")):
                         try:
                             mk = (self.pos.get("map") or "").strip().lower()
                             bl = self.world.learn.setdefault("no_pisar", {}).setdefault(mk, [])
