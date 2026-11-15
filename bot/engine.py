@@ -3296,7 +3296,7 @@ class Bot:
         if cfgmod.server_slug(self.cfg) == "abaddon" or not getattr(self.mem, "proc", None):
             return []
         now = time.time()
-        if now - getattr(self, "_oly_t", 0) < 0.4:
+        if now - getattr(self, "_oly_t", 0) < 0.15:
             return self._oly_last
         self._oly_t = now
         pdir = cfgmod.profile_dir(self.cfg)
@@ -3309,10 +3309,15 @@ class Bot:
             except Exception:
                 pass
             self.oly.set_sig(sig or memory.DEFAULT_SIG)
-        try:
-            raw = self.oly.read(self.mem.proc)
-        except Exception:
-            raw = []
+        # lectura en tiempo real (hilo propio): tomo la última lista; si el hilo no anda, leo acá
+        self.oly.start(lambda: getattr(self.mem, "proc", None))
+        if now - getattr(self.oly, "latest_t", 0) < 1.0:
+            raw = self.oly.latest
+        else:
+            try:
+                raw = self.oly.read(self.mem.proc, full_every=3.0)
+            except Exception:
+                raw = []
         # server nuevo / cliente actualizado: si en 3 minutos cazando no veo ningún bicho en memoria, busco
         # solo dónde los guarda (los bichos que se mueven cerca del pj) y guardo la firma para la próxima
         if raw:
@@ -3510,6 +3515,18 @@ class Bot:
             key = next((k for k in base if self._same(k, mk)), mk)
             out[key] = dict(base.get(key, {}), zones=v["zones"], surveyed=True)
         return out
+
+    def _mobs_near_view(self):
+        """Para la pantalla: bichos que veo ahora (memoria en tiempo real) alrededor del pj."""
+        try:
+            if cfgmod.server_slug(self.cfg) == "abaddon" or self.pos.get("x") is None:
+                return None
+            px, py = self.pos["x"], self.pos["y"]
+            out = [{"x": e[0], "y": e[1], "n": e[2]["name"]} for e in (getattr(self, "_oly_last", None) or [])
+                   if max(abs(e[0] - px), abs(e[1] - py)) <= 20]
+            return {"map": self.pos.get("map"), "list": out[:80], "near": sum(1 for o in out if max(abs(o["x"] - px), abs(o["y"] - py)) <= 9)}
+        except Exception:
+            return None
 
     def _oly_discover(self):
         try:
@@ -7024,5 +7041,6 @@ class Bot:
                          "rate": self.progress.get("rate"), "eta_min": self.progress.get("eta_min"),
                          "levelups": self.progress.get("levelups", 0)},
             "nav": {"status": self.nav["status"], "dest": self.nav["dest"]},
+            "mobs": self._mobs_near_view(),
             "goto": getattr(self, "goto", None),
         }

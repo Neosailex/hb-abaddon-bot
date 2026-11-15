@@ -178,7 +178,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
               <button class="power" id="power" title="Prender / apagar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.2 7.2a8 8 0 1 0 11.6 0"/></svg></button>
               <div class="pstate off" id="pstate">Apagado</div>
               <div class="chips"><span class="chip" id="cWin">Sin juego</span><span class="chip" id="cState">—</span><span class="chip" id="cAdmin"></span></div>
-              <div class="chips"><span class="chip gold" id="cPos">📍 sin leer</span><span class="chip" id="cMem">🧠 —</span></div>
+              <div class="chips"><span class="chip gold" id="cPos">📍 sin leer</span><span class="chip" id="cMem">🧠 —</span><span class="chip" id="cMobs">👾 —</span></div>
               <div class="hint" id="cNav" style="text-align:center"></div>
             </div>
           </div>
@@ -440,7 +440,7 @@ function go(p){curPage=p;$$('#nav button').forEach(b=>b.classList.toggle('on',b.
 
 
 /* ---------- mapa del mundo ---------- */
-let WGOTO=null, WDRAG=0, WORLD=null, WPOS=null, WV={x:0,y:0,z:0.5}, WIMG={};
+let WMOBS=null, WGOTO=null, WDRAG=0, WORLD=null, WPOS=null, WV={x:0,y:0,z:0.5}, WIMG={};
 const CELL=340, BOX=300;
 function wMap(k){return WORLD&&WORLD.maps.find(m=>m.key===k)}
 function wPt(m,x,y){const s=BOX/Math.max(m.w,m.h);return [m.gx*CELL+(BOX-m.w*s)/2+x*s, m.gy*CELL+(BOX-m.h*s)/2+y*s]}
@@ -477,6 +477,9 @@ function drawWorld(){
     if(!b||b===a)continue;const [x2,y2]=l.tx!=null?wPt(b,l.tx,l.ty):wPt(b,b.w/2,b.h/2);
     g.strokeStyle=l.seen?'rgba(233,196,106,.8)':'rgba(160,150,140,.35)';g.lineWidth=(l.seen?2:1)/WV.z;g.setLineDash(l.seen?[]:[6/WV.z,5/WV.z]);
     g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.stroke();g.setLineDash([])}
+  // bichos vistos ahora en la memoria (tiempo real)
+  if(WMOBS&&cur&&WMOBS.list)for(const o of WMOBS.list){const [ox,oy]=wPt(cur,o.x+.5,o.y+.5);g.fillStyle='#ff4d4d';g.beginPath();g.arc(ox,oy,Math.max(1.5,3/WV.z),0,7);g.fill();
+    if(WV.z>2.5){g.fillStyle='#ffb3b3';g.font=`${Math.max(4,9/WV.z)}px system-ui`;g.fillText(o.n,ox+3/WV.z,oy-3/WV.z)}}
   if(WGOTO){const gm=wMap(WGOTO.map);if(gm){const [gx,gy]=wPt(gm,WGOTO.x+.5,WGOTO.y+.5);g.strokeStyle='#4cc9f0';g.lineWidth=2/WV.z;
     g.beginPath();g.moveTo(gx-7/WV.z,gy-7/WV.z);g.lineTo(gx+7/WV.z,gy+7/WV.z);g.moveTo(gx+7/WV.z,gy-7/WV.z);g.lineTo(gx-7/WV.z,gy+7/WV.z);g.stroke()}}
   if(cur){const [px,py]=wPt(cur,WPOS.x,WPOS.y);const r=(6+3*Math.sin(Date.now()/250))/WV.z;
@@ -515,6 +518,7 @@ async function poll(){
     $('#mini').classList.toggle('on',on); $('#miniTxt').textContent=on?'Prendido':'Apagado';
     const w=$('#cWin'); w.textContent=s.window?('🎮 '+s.window):'Sin juego'; w.className='chip '+(s.window?'good':'bad');
     $('#cState').textContent=s.stats.state||'—';
+    WMOBS=s.mobs; {const c=$('#cMobs'); if(c) c.textContent=s.mobs?`👾 ${s.mobs.near} en pantalla (${s.mobs.list.length} cerca)`:'👾 —';}
     WPOS=s.pos; if(s.goto===null&&WGOTO)WGOTO=null; if(curPage==='world')drawWorld();
     $('#cPos').textContent=s.pos&&s.pos.map?`📍 ${s.pos.map} (${s.pos.x},${s.pos.y})`:'📍 sin leer';
     {const m=$('#cMem');m.textContent='🧠 '+(s.mem||'—');m.className='chip '+(s.mem&&s.mem.startsWith('posición exacta')?'good':'');}

@@ -524,6 +524,30 @@ class OlyEntities:
                 off += n
         return out, chunks
 
+    # lectura continua en segundo plano: lista nueva cada ~0,2 s y barrido completo cada 3 s (bichos nuevos)
+    def start(self, get_proc):
+        import threading
+        import time as _t
+        if getattr(self, "_th", None) and self._th.is_alive():
+            return
+        self.latest, self.latest_t = [], 0.0
+
+        def loop():
+            while not getattr(self, "_stop", False):
+                p = get_proc()
+                if not p:
+                    _t.sleep(1.0)
+                    continue
+                try:
+                    self.latest = self.read(p, full_every=3.0)
+                    self.latest_t = _t.time()
+                except Exception:
+                    _t.sleep(0.5)
+                _t.sleep(0.2)
+        self._stop = False
+        self._th = threading.Thread(target=loop, daemon=True)
+        self._th.start()
+
     def read(self, proc, full_every=20.0):
         """[(x, y, tipo, estado, id)] en coordenadas del mapa."""
         import time as _t
