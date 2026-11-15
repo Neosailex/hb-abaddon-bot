@@ -5932,12 +5932,14 @@ class Bot:
         try:
             self.log(f"🛒 Quedan {getattr(self, '_left', {}).get('pot')} pociones: voy a la tienda de la granja de Aresden.")
             t0 = time.time()
+            if any(k in (self.pos.get("map") or "").lower() for k in ("smith", "herrer")):
+                time.sleep(1.0)  # estoy en el herrero: el encargo me saca solo
             if not self._same(self.pos.get("map") or "", "Aresden Farm") and not inshop():
                 self.goto = {"map": "Aresden Farm", "x": 63, "y": 72, "t": time.time()}
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inshop():
-                self.mission = {"map": "Aresden Farm", "goal": [63, 68], "label": "Tienda (pociones)", "until": time.time() + 300}
+                self.mission = {"map": "Aresden Farm", "goal": [63, 67], "label": "Tienda (pociones)", "until": time.time() + 300}
                 while not inshop() and time.time() - t0 < 900 and self.alive and self.running:
                     time.sleep(0.3)
             if not inshop():
@@ -5951,22 +5953,9 @@ class Bot:
             click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
             tw, th = self._tile()
             cx, cy = self._char()
-            com = None
-            tiles = [(57, 42), (57, 41), (58, 42), (56, 42), (58, 41)]
-            try:  # la tendera camina: si la veo en la memoria (tipo 15 = vendedora) voy a donde está
-                kio = [(r[0], r[1]) for r in self.oly.read(self.mem.proc) if r[2] == 15]
-                px0, py0 = self.pos.get("x"), self.pos.get("y")
-                if kio and px0 is not None:
-                    tiles = [min(kio, key=lambda t_: abs(t_[0] - px0) + abs(t_[1] - py0))] + tiles
-            except Exception:
-                pass
-            for tx, ty in tiles:
-                px, py = self.pos.get("x"), self.pos.get("y")
-                click(cx + (tx - px) * tw, cy + (ty - py) * th - th * 0.3)
-                time.sleep(2.2)
-                com = next((w for w in words(grab()) if norm(w[0]).startswith("comerciar")), None)
-                if com:
-                    break
+            pl = self._place("shop") or {"npc_type": 15, "npc": [59, 42]}
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar")
+            com = next((w for w in (menu or []) if norm(w[0]).startswith("comerciar")), None)
             if not com:
                 self.log("🛒 No encontré a la tendera.")
                 return
@@ -5996,7 +5985,9 @@ class Bot:
             gold = getattr(self, "_gold", None)
             have = getattr(self, "_left", {}).get("pot") or 0
             reserve = int(self.cfg.get("gold_reserve", 150))
-            n = 0 if gold is None else max(0, min(4 - have, (gold - reserve) // 45))
+            # cuántas: hasta el objetivo de pociones, gastando como mucho un tercio del oro que sobra de la reserva
+            want_n = int(self.cfg.get("pots_target", 15))
+            n = 0 if gold is None else max(0, min(want_n - have, int((gold - reserve) * float(self.cfg.get("pots_gold_share", 0.34))) // 45))
             if n <= 0:
                 self.log(f"🛒 No compro pociones: tengo {gold} de oro y guardo {reserve} para equipo.")
                 return
@@ -6026,11 +6017,15 @@ class Bot:
             time.sleep(1.0)
             ws = words(grab())
             plus = next((w for w in ws if w[0].strip() == "+" and w[2] > hp[2] + 400 * ky), None)
+            if not plus and tabp:  # el '+' casi nunca se lee: está siempre en el mismo lugar respecto de la pestaña
+                plus = ("+", tabp[1] + 81 * kx, tabp[2] + 640 * ky)
             for _ in range(n - 1):
                 if plus:
                     click(plus[1], plus[2])
-                    time.sleep(0.25)
+                    time.sleep(0.3)
             cp = next((w for w in words(grab()) if norm(w[0]).startswith("comprar")), None)
+            if not cp and tabp:
+                cp = ("Comprar", tabp[1] + 355 * kx, tabp[2] + 640 * ky)
             if not cp:
                 self.log("🛒 No veo el botón Comprar.")
                 return
@@ -6354,13 +6349,189 @@ class Bot:
                 self._brain_err = True
                 self.log(f"🧭 Error armando el plan: {ex!r}")
 
+    # lugares del server (puertas y vendedores). Se pueden pisar desde la config ("places") para otro server.
+    PLACES = {"olympia": {"shop": {"map": "Aresden Farm", "door": [63, 67], "inside": ("shop", "tienda"), "npc_type": 15, "npc": [59, 42]},
+                          "smith": {"map": "Aresden Farm", "door": [75, 86], "inside": ("smith", "herrer"), "npc_type": 24, "npc": [49, 33]}}}
+
+    def _place(self, kind):
+        p = dict((self.PLACES.get(cfgmod.server_slug(self.cfg)) or {}).get(kind) or {})
+        p.update((self.cfg.get("places") or {}).get(kind) or {})
+        return p or None
+
+    def _npc_menu(self, npc_type, fallback, want, tries=6):
+        """Camino hasta un vendedor (lo ubico por su tipo en la memoria, o por la baldosa conocida) y le hago click
+        hasta que salga su menú con la palabra 'want'. Si sale el menú de otro (ej. el oficial de clanes), lo cancelo.
+        Devuelve las palabras del menú o None."""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        tw, th = self._tile()
+        cx, cy = self._char()
+        for _ in range(tries):
+            if not (self.alive and self.running):
+                return None
+            tx, ty = fallback
+            try:
+                cand = [(r[0], r[1]) for r in self.oly.read(self.mem.proc) if r[2] == npc_type]
+                if cand:
+                    tx, ty = min(cand, key=lambda t_: abs(t_[0] - fallback[0]) + abs(t_[1] - fallback[1]))
+            except Exception:
+                pass
+            px, py = self.pos.get("x"), self.pos.get("y")
+            if px is None:
+                time.sleep(1.0)
+                continue
+            winapi.click(*self.abs_pt(cx + (tx - px) * tw, cy + (ty - py) * th - th * 0.3))
+            t0 = time.time()
+            while time.time() - t0 < 4.5:
+                time.sleep(0.8)
+                ws = self._q_words(self.screen.grab(self.rect))
+                can = next((w for w in ws if norm(w[0]) == "cancelar"), None)
+                if not can:
+                    continue
+                menu = [w for w in ws if abs(w[1] - can[1]) < 260 and 0 <= can[2] - w[2] < 240]
+                if any(norm(w[0]).startswith(want) for w in menu):
+                    return menu
+                winapi.click(*self.abs_pt(can[1], can[2]))  # menú de otro: lo cierro sin tocar nada
+                time.sleep(0.8)
+                break
+        return None
+
+    def _oly_repair_trip(self, why=""):
+        """Herrero (cualquier server con este cliente): puerta → 'Reparar Todo' → 'Sí' → me vuelvo a poner lo que
+        haya quedado suelto en el bolso (un arma rota se desequipa sola)."""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        pl = self._place("smith")
+        if not pl:
+            return
+        inside = lambda: any(k in (self.pos.get("map") or "").lower() for k in pl["inside"])
+        try:
+            self.log("🔧 Voy al herrero a reparar el equipo" + (f" ({why})" if why else "") + ".")
+            t0 = time.time()
+            d = pl["door"]
+            if not inside() and not self._same(self.pos.get("map") or "", pl["map"]):
+                self.goto = {"map": pl["map"], "x": d[0], "y": d[1] + 2, "t": time.time()}
+                while self.goto and time.time() - t0 < 600 and self.alive and self.running:
+                    time.sleep(0.5)
+            if not inside():
+                self.mission = {"map": pl["map"], "goal": list(d), "label": "Herrero (reparar)", "until": time.time() + 300}
+                while not inside() and time.time() - t0 < 900 and self.alive and self.running:
+                    time.sleep(0.3)
+            if not inside():
+                self.log("🔧 No llegué al herrero.")
+                return
+            self._busy_ui = True
+            self._release()
+            time.sleep(1.5)
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar")
+            if not menu:
+                self.log("🔧 No encontré al herrero.")
+                return
+            todo = next((w for w in menu if norm(w[0]) == "todo"), None) or next(w for w in menu if norm(w[0]).startswith("reparar"))
+            winapi.click(*self.abs_pt(todo[1], todo[2]))
+            time.sleep(1.8)
+            ws = self._q_words(self.screen.grab(self.rect))
+            q = next((w for w in ws if norm(w[0]).startswith("reparar") and w[2] < self.rect[3] * 0.3), None)
+            yes = next((w for w in ws if norm(w[0]) in ("sí", "si") and q and 0 < w[2] - q[2] < 200), None)
+            cost = next((int(norm(w[0])) for w in ws if q and norm(w[0]).isdigit() and abs(w[2] - q[2]) < 30), None)
+            gold = getattr(self, "_gold", None)
+            if yes and (cost is None or gold is None or cost <= gold):
+                winapi.click(*self.abs_pt(yes[1], yes[2]))
+                time.sleep(1.5)
+                self.log(f"🔧 Reparé todo el equipo" + (f" por {cost} de oro." if cost else "."))
+            elif yes:
+                no = next((w for w in ws if norm(w[0]) == "no" and abs(w[2] - yes[2]) < 15), None)
+                if no:
+                    winapi.click(*self.abs_pt(no[1], no[2]))
+                self.log(f"🔧 Reparar cuesta {cost} y tengo {gold}: no me alcanza.")
+                return
+            else:
+                self.log("🔧 No hay nada para reparar.")
+            self._reequip_loose()
+            self._worn_seen = 0
+        except Exception as e:
+            self.log(f"🔧 Error en el herrero: {e!r}")
+        finally:
+            self.mission = None
+            self._busy_ui = False
+            self._rep_last = time.time()
+
+    def _reequip_loose(self):
+        """Lo que quedó suelto en el bolso y no es poción ni oro (un arma o un escudo que se desequipó al romperse):
+        doble click para ponérmelo (en este cliente, equipar desde el bolso reemplaza lo que hubiera puesto)."""
+        try:
+            if not any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
+                winapi.press("F6")
+                time.sleep(0.9)
+            self._oly_pots()
+            img = self.screen.grab(self.rect)
+            bag = self._oly_bag(names=False) or []
+            n = 0
+            for o in bag:
+                if o["kind"] != "item":
+                    continue
+                p_ = img[max(0, o["y"] - 12):o["y"] + 12, max(0, o["x"] - 10):o["x"] + 10].reshape(-1, 3).astype(int)
+                col = ((p_.max(axis=1) - p_.min(axis=1)) > 90).sum()
+                if col >= 12:
+                    continue  # ícono de color fuerte: poción u otro consumible; no lo toco
+                x, y = self.abs_pt(o["x"], o["y"])
+                winapi.click(x, y)
+                time.sleep(0.09)
+                winapi.click(x, y)
+                time.sleep(1.0)
+                n += 1
+                if n >= 3:
+                    break
+            if n:
+                self.log(f"🛡 Me volví a poner {n} objeto/s que estaban sueltos en el bolso.")
+            if any(w[0].strip().startswith("Peso:") for w in self._q_words(self.screen.grab(self.rect))):
+                winapi.press("F6")
+                time.sleep(0.4)
+        except Exception as e:
+            self.log(f"🛡 No pude revisar el bolso: {e!r}")
+
+    def _worn_check(self):
+        """El juego avisa abajo a la izquierda cuando algo se rompió ('El objeto está desgastado'). Lo miro cada 20 s."""
+        now = time.time()
+        if now - getattr(self, "_worn_chk", 0) < 20 or self.img is None:
+            return False
+        self._worn_chk = now
+        try:
+            H, W = self.img.shape[:2]
+            ws = ocr.read_words(self.img, {"x1": 0, "y1": int(H * 0.80), "x2": int(W * 0.55), "y2": int(H * 0.915)}, scale=1.0)
+            t = " ".join(w[0].lower() for w in ws)
+            if "desgastad" in t or "repáralo" in t or "reparalo" in t:
+                self._worn_seen = now
+                return True
+        except Exception:
+            pass
+        return False
+
     def _maybe_repair(self):
         """El equipo se gasta y cuando se rompe se desequipa solo (queda pegando a mano): voy al herrero cada tanto,
         o enseguida si de golpe dejo de matar."""
         if getattr(self, "mission", None) or getattr(self, "_busy_ui", False):
             return
         if cfgmod.server_slug(self.cfg) != "abaddon":
-            return  # el herrero de Olympia todavía no está mapeado: no salgo a buscarlo
+            if not self._place("smith"):
+                return
+            for a in ("_shop_th", "_rep_th"):
+                th = getattr(self, a, None)
+                if th is not None and th.is_alive():
+                    return
+            now = time.time()
+            if self.state == "attack" or self._under_attack() or self._fleeing():
+                return
+            if not hasattr(self, "_rep_last"):
+                self._rep_last = now
+            worn = self._worn_check() or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
+            loose = (getattr(self, "_bag_items", 0) or 0) > 0 and now - self._rep_last > 1800
+            due = now - self._rep_last > float(self.cfg.get("repair_every_min", 150)) * 60
+            if not (worn or loose or due) or now - self._rep_last < 300:
+                return
+            self._rep_last = now
+            why = "se rompió algo" if worn else "hay equipo suelto en el bolso" if loose else "mantenimiento"
+            self._rep_th = threading.Thread(target=self._oly_repair_trip, args=(why,), daemon=True)
+            self._rep_th.start()
+            return
         for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
             th = getattr(self, a, None)
             if th is not None and th.is_alive():
