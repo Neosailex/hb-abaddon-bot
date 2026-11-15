@@ -671,6 +671,8 @@ class Bot:
                 row = cv2.cvtColor(self.img[y:y + 1, int(eb["x1"]):int(eb["x2"])], cv2.COLOR_BGR2HSV)[0]
                 g = (row[:, 0] > 40) & (row[:, 0] < 85) & (row[:, 1] > 120) & (row[:, 2] > 90)
                 if g.any():
+                    ix = np.where(g)[0]
+                    self._expbar = (int(ix.max() - ix.min() + 1), time.time())  # largo en píxeles de lo verde
                     self._exp_update(round(100.0 * (np.where(g)[0].max() + 1) / len(g), 1))
         hp = self.bars.get("hp")
         if hp is not None:
@@ -3035,7 +3037,8 @@ class Bot:
         if cfgmod.server_slug(self.cfg) == "abaddon" or self._mem_struct() or not self.rect:
             return False
         now = time.time()
-        every = 240 if getattr(self, "_sheet_fail", 0) < 3 else 900
+        # con la barrita de experiencia calibrada ya no necesito abrir la ficha tan seguido (solo nivel y puntos)
+        every = (600 if (getattr(self, "_xl", None) or {}).get("len") else 240) if getattr(self, "_sheet_fail", 0) < 3 else 900
         if now - getattr(self, "_census_t", 0) < every or self.state == "attack" or getattr(self, "_busy_ui", False):
             return False
         try:
@@ -4905,8 +4908,58 @@ class Bot:
                 return None
         except Exception:
             pass
+        live = self._exp_live()
+        if live is not None:
+            return live
         sh = self._sheet(3600)
         return sh.get("exp_total") if sh else None
+
+    def _exp_live(self):
+        """Experiencia al instante, sin abrir ninguna ventana: la barrita verde finita de arriba del tablero marca
+        el % del nivel. La ficha me da cada tanto el número exacto: con eso sé cuántos píxeles mide la barra llena
+        y cuánta experiencia pide el nivel, y entre lectura y lectura sigo la barra."""
+        try:
+            eb = getattr(self, "_expbar", None)
+            sh = self._sheet(24 * 3600)
+            if not eb or not sh or time.time() - eb[1] > 5 or not sh.get("level"):
+                return None
+            now = time.time()
+            needs = self.world.learn.setdefault("oly_need", {})
+            lv = str(sh["level"])
+            if sh.get("exp") is not None and sh.get("next"):
+                needs[lv] = int(sh["exp"]) + int(sh["next"])
+            need = needs.get(lv)
+            st = self.__dict__.setdefault("_xl", {"len": float(self.cfg.get("calib", {}).get("exp_len") or 0), "max": 0, "lvl": lv, "cal_t": 0, "block": 0})
+            glen = eb[0]
+            if st["lvl"] != lv:
+                st.update(lvl=lv, max=0, block=0)
+            # subí de nivel: la barra se vació. Hasta releer la ficha no sé la base del nivel nuevo.
+            if st.get("last") and glen < 0.5 * st["last"] and st["last"] > 40 and sh["t"] < now - 3:
+                st["block"] = now
+                self._census_t = 0
+            st["last"] = glen
+            if st["block"] and sh["t"] < st["block"]:
+                return None
+            st["block"] = 0
+            if not need or sh.get("exp") is None:
+                return None
+            # calibro el largo de la barra llena cuando la ficha está recién leída
+            if now - sh["t"] < 6 and sh["t"] != st["cal_t"] and sh["exp"] > 0.05 * need and glen > 20:
+                L = glen / (sh["exp"] / float(need))
+                if 200 < L < 4000:
+                    st["len"] = L if not st["len"] or abs(L - st["len"]) > 0.05 * st["len"] else 0.7 * st["len"] + 0.3 * L
+                    st["cal_t"] = sh["t"]
+                    st["max"] = 0
+                    self.cfg.setdefault("calib", {})["exp_len"] = round(st["len"], 1)
+            if not st["len"]:
+                return None
+            v = int(min(1.0, glen / st["len"]) * need)
+            v = max(v, int(sh["exp"]) if now - sh["t"] < 600 else 0, st["max"])  # nunca para atrás dentro del nivel
+            st["max"] = v
+            self._exp_now = {"exp": v, "need": need, "pct": round(100.0 * v / need, 2), "t": now}
+            return v + int(sh.get("exp_off") or 0)
+        except Exception:
+            return None
 
     def _zone_kill(self):
         """Al matar anoto dónde fue; la experiencia llega un instante después, así que la cuento en _zone_flush."""
