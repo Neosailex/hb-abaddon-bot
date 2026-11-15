@@ -3546,7 +3546,8 @@ class Bot:
         dist = lambda e, x=px, y=py: max(abs(e[0] - x), abs(e[1] - y))
         adj = [e for e in ents if dist(e) <= 1]
         near4 = [e for e in ents if dist(e) <= 4]
-        cap = self._oly_allow() + 1
+        # cuántos pegados aguanto: lo aprendido + 1, y uno más si tengo buena vida
+        cap = self._oly_allow() + (2 if (hp or 0) >= 60 else 1)
         k = getattr(self, "_kite", None)
         if k is None:
             if not (force or (hp is not None and hp < 45 and adj) or len(adj) > cap):
