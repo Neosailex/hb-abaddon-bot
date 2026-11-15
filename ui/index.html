@@ -158,6 +158,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
       <button data-p="config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Configuración</button>
       <button data-p="world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>Mapa</button>
       <button data-p="eco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.6-1-1.700-1.500-3-1.500-1.700 0-3 .900-3 2.200 0 3 6 1.400 6 4.300 0 1.300-1.300 2.200-3 2.200-1.400 0-2.500-.600-3.100-1.600M12 6v2M12 16.700V19"/></svg>Economía</button>
+      <button data-p="server"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></svg>Server</button>
       <button data-p="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l5-14 3 8 3-5 5 11"/></svg>Guía de nivel</button>
       <button data-p="db"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Base de datos</button>
       <button data-p="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Eventos</button>
@@ -385,6 +386,29 @@ input[type=range]{accent-color:var(--gold);width:100%}
       </div>
     </section>
 
+    <!-- SERVER -->
+    <section class="page" id="p-server">
+      <h1>Server</h1><p class="sub" id="svSub">Qué necesita el bot para jugar solo en este server: qué ya tiene, qué va aprendiendo y qué te pide.</p>
+      <div class="grid">
+        <div class="card">
+          <div class="row" style="margin-top:0;align-items:center">
+            <div><h2 style="margin:0" id="svName">—</h2><p class="hint" id="svReady" style="margin:4px 0 0"></p></div>
+            <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn sm" id="svShop">📌 Anotar tienda acá</button>
+              <button class="btn sm" id="svSmith">📌 Anotar herrero acá</button>
+              <button class="btn sm" id="svFolder">📁 Carpeta del server</button>
+            </div>
+          </div>
+          <p class="hint" id="svMsg" style="margin-top:8px"></p>
+        </div>
+        <div class="card"><div id="svList"></div></div>
+        <div class="card">
+          <h2>Para un server nuevo</h2>
+          <p class="hint">1. En Configuración poné el nombre del server y confirmá que permite bots. 2. Abrí el juego, entrá con el personaje y prendé el bot: la posición, los bichos, la ficha y la calibración los saca solo. 3. Pará al personaje en la puerta de la tienda y del herrero y tocá los botones de arriba (una sola vez). 4. Lo que figure como "opcional" mejora el arranque, pero sin eso igual juega y aprende sobre la marcha. Los archivos van en la carpeta del server.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- ECONOMIA -->
     <section class="page" id="p-eco">
       <h1>Economía</h1><p class="sub">Cuánto oro hay, cuánto se junta por hora, qué lleva puesto y para qué está ahorrando.</p>
@@ -472,7 +496,26 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','
 /* ---------- navegación ---------- */
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;go(b.dataset.p)});
 function go(p){curPage=p;$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));$$('.page').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));
-  if(p==='calib')loadThumbs(); if(p==='events')loadEvents(); if(p==='world')loadWorld(); if(p==='eco')loadEco();}
+  if(p==='calib')loadThumbs(); if(p==='events')loadEvents(); if(p==='world')loadWorld(); if(p==='eco')loadEco(); if(p==='server')loadServer();}
+
+/* ---------- server ---------- */
+async function loadServer(){
+  if(!API||!API.server_status)return;
+  let s; try{s=await API.server_status()}catch(_){return}
+  if(!s||s.error){$('#svMsg').textContent=s&&s.error?('No pude armar el estado: '+s.error):'';return}
+  $('#svName').textContent=s.server;
+  $('#svReady').textContent=(s.ready?'Listo para jugar solo':'Le falta algo tuyo para jugar solo')+` · ${s.ok} de ${s.total} puntos completos`;
+  const IC={ok:['✔','var(--ok)','Listo'],auto:['⟳','var(--gold2)','Lo aprende solo'],ask:['!','var(--blood2)','Necesita un dato tuyo']};
+  $('#svList').innerHTML=(s.items||[]).map(i=>{const c=IC[i.state]||IC.auto;return `<div style="display:grid;grid-template-columns:26px 1fr;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--line)">
+    <div style="color:${c[1]};font-weight:700;font-size:16px">${c[0]}</div><div><b>${esc(i.label)}</b> <span class="chip" style="margin-left:6px">${c[2]}</span>
+    <div class="hint" style="margin-top:3px">${esc(i.detail)}</div>${i.how?`<div class="hint" style="margin-top:3px;color:var(--gold2)">${esc(i.how)}</div>`:''}</div></div>`}).join('');
+}
+document.addEventListener('click',async e=>{
+  const id=e.target&&e.target.id;
+  if(id==='svShop'||id==='svSmith'){const r=await API.note_place(id==='svShop'?'shop':'smith');$('#svMsg').textContent=r&&r.msg||'';loadServer()}
+  if(id==='svFolder'){API.open_server_folder()}
+});
+setInterval(()=>{if(curPage==='server')loadServer()},6000);
 
 /* ---------- economía ---------- */
 const fmtN=n=>n==null?'—':Number(n).toLocaleString('es-AR');

@@ -147,6 +147,26 @@ class Api:
             v["spawns"], v["spawn_error"] = [], repr(e)
         return v
 
+    def server_status(self):
+        try:
+            return self._bot.server_status()
+        except Exception as e:
+            return {"error": repr(e), "items": []}
+
+    def note_place(self, kind):
+        try:
+            return self._bot.note_place(kind)
+        except Exception as e:
+            return {"ok": False, "msg": repr(e)}
+
+    def open_server_folder(self):
+        import os as _os
+        try:
+            _os.startfile(cfgmod.profile_dir(self._bot.cfg))
+        except Exception:
+            pass
+        return True
+
     def economy(self):
         try:
             return self._bot.economy()

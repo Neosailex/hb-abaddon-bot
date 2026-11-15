@@ -68,6 +68,8 @@ class Learner:
 
     def knob(self, name, default):
         self._profile()
+        if not self.bot.cfg.get("learn_knobs", False):
+            return default  # las pruebas de ajustes quedaron apagadas: no mostraron mejoras medibles
         return self.st["knobs"].get(name, default)
 
     # ------------------------------------------------------------ experimentos
@@ -85,7 +87,7 @@ class Learner:
     def tick(self):
         """Llamado en cada vuelta. Mide la ventana de prueba actual y, al cerrarla, elige la siguiente."""
         b = self.bot
-        if not b.running:
+        if not b.running or not b.cfg.get("learn_knobs", False):
             return
         self._profile()
         now = time.time()

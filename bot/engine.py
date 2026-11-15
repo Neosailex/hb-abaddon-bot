@@ -24,6 +24,14 @@ POINT_SLOTS = {"char_center", "hp_pot_slot", "mp_pot_slot", "sp_pot_slot", "food
 TWO_POINT_SLOTS = {"hp_bar", "mp_bar", "sp_bar", "game_area", "pos_box", "char_box"}
 
 
+def _load_any(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
 class Bot:
     def __init__(self):
         self.cfg = cfgmod.load()
@@ -82,11 +90,98 @@ class Bot:
 
     # ------------------------------------------------------------------ util
     def _load_json(self, name):
+        """Datos del juego. Primero busco en la carpeta del server (data/servers/<nombre>/): ahí va lo propio de cada
+        uno (misiones, precios, guía); si no está, uso el archivo general de data/."""
+        for d in (cfgmod.profile_dir(self.cfg), cfgmod.DATA):
+            try:
+                with open(os.path.join(d, name), encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                continue
+        return {}
+
+    def _server_file(self, name):
+        return os.path.join(cfgmod.profile_dir(self.cfg), name)
+
+    # ------------------------------------------------------------ estado del server (pestaña 'Server')
+    def server_status(self):
+        """Qué necesita el bot para jugar en este server, qué ya tiene, qué va aprendiendo solo y qué hay que darle."""
+        slug = cfgmod.server_slug(self.cfg)
+        pdir = cfgmod.profile_dir(self.cfg)
+        has = lambda n: os.path.exists(os.path.join(pdir, n))
+        items = []
+
+        def add(key, label, state, detail, how=""):
+            items.append({"key": key, "label": label, "state": state, "detail": detail, "how": how})
+
+        sv = self.cfg.get("server") or {}
+        add("permiso", "Permiso para usar bots", "ok" if sv.get("bots_permitidos") else "ask",
+            "Confirmado por vos." if sv.get("bots_permitidos") else "Sin confirmar: el bot no arranca solo.",
+            "" if sv.get("bots_permitidos") else "Marcá en Configuración que los admins de este server permiten bots.")
+        add("ventana", "Ventana del juego", "ok" if self.hwnd else "ask",
+            "Encontrada." if self.hwnd else "No veo el juego abierto.", "" if self.hwnd else "Abrí el juego (y el bot como administrador si el juego lo es).")
+        add("posicion", "Posición del personaje", "ok" if (self.mem.learned or self.pos.get("x") is not None) else "auto",
+            "La leo de la memoria." if self.mem.learned else ("La leo de la pantalla." if self.pos.get("x") is not None else "La busco sola al entrar al juego (moverse unos pasos ayuda)."))
+        ents_ok = bool(getattr(self, "_oly_last", None)) or bool(self.ents.center)
+        add("bichos_mem", "Bichos en tiempo real", "ok" if ents_ok else "auto",
+            "Veo la lista de bichos en la memoria." if ents_ok else "Todavía no la encontré: la descubro sola parado cerca de bichos (un par de minutos).")
+        sh = self._sheet(24 * 3600)
         try:
-            with open(os.path.join(cfgmod.DATA, name), encoding="utf-8") as f:
-                return json.load(f)
+            known = self._ficha_glyphs().known()
         except Exception:
-            return {}
+            known = []
+        miss = [d for d in "0123456789" if d not in known]
+        add("ficha", "Ficha (nivel, exp, stats)", "ok" if sh and not miss else "auto" if sh or known else "ask",
+            (f"Leída: nivel {sh['level']}." if sh else "Todavía no la pude leer.") + (f" Cifras que me falta aprender: {', '.join(miss)} (las aprendo cuando aparecen)." if miss and known else ""),
+            "" if sh or known else "Si en este cliente la ficha no se abre con F5 o tiene otro formato, pasame una captura de la ventana del personaje.")
+        nmaps = len(getattr(self.world, "maps", {}) or {}) if hasattr(self.world, "maps") else None
+        gd = getattr(self.world, "game_dir", None)
+        add("mapas", "Mapas del juego", "ok" if gd else "ask", f"Carpeta del juego: {gd}." if gd else "No encontré la carpeta del juego (de ahí saco los mapas para caminar).",
+            "" if gd else "Decime dónde está instalado el juego (carpeta con 'mapdata').")
+        places = {k: self._place(k) for k in ("shop", "smith")}
+        okp = [k for k, v in places.items() if v]
+        add("lugares", "Tienda y herrero", "ok" if len(okp) == 2 else "ask",
+            ("Sé dónde están: " + ", ".join({"shop": "tienda", "smith": "herrero"}[k] for k in okp) + ".") if okp else "No sé dónde están la tienda ni el herrero.",
+            "" if len(okp) == 2 else "Llevá al personaje hasta la puerta de cada uno y apretá 'Anotar tienda' / 'Anotar herrero', o decime mapa y baldosa.")
+        cat = _load_any(os.path.join(pdir, "tienda.json"))
+        n_items = sum(len(v) for v in (cat.get("tabs") or {}).values()) if cat else 0
+        add("precios", "Precios de las tiendas", "ok" if n_items else "auto",
+            f"{n_items} objetos con precio leídos de las tiendas." if n_items else "Los leo solo la primera vez que entro a cada tienda.")
+        seen = self.world.learn.get("types_seen", {}) or {}
+        crs = self._creatures_db()
+        unk = [t for t in seen if str(t).isdigit() and int(t) not in crs]
+        add("criaturas", "Datos de los bichos", "ok" if crs and not unk else "auto",
+            f"{len(crs)} bichos en la base." + (f" {len(unk)} tipos vistos sin identificar: los mido peleando." if unk else ""),
+            "Opcional: si el server tiene wiki de monstruos, pasame el link o un archivo y arranco sabiendo vida y daño de cada uno.")
+        q = has(f"misiones.json") or bool(self._load_json(f"misiones_{slug}.json"))
+        add("misiones", "Misiones", "ok" if q else "auto", "Tengo la lista de misiones del server." if q else "Sin lista: igual acepto las que ofrecen los NPC que veo (cartel '!').",
+            "" if q else "Opcional: pasame la página de misiones de la wiki y las priorizo por nivel.")
+        tp = has("training_path.json")
+        add("guia", "Guía de niveles", "ok" if tp else "auto", "Guía propia de este server." if tp else "Uso la guía general de guerrero y la corrijo con lo que mido (exp por hora por mapa).",
+            "" if tp else "Opcional: si este server tiene otros mapas o niveles, pasame la guía.")
+        t = self.cfg.get("travel", {}) or {}
+        add("ciudad", "Ciudadanía", "ok" if not t.get("join_city") else "auto", "Sin pendiente." if not t.get("join_city") else f"Me uno a {str(t['join_city']).title()} al llegar a nivel {t.get('join_level', 10)}.",
+            "Si el server pide elegir ciudad y todavía no elegiste, decime cuál.")
+        cal = self.cfg.get("calib", {}) or {}
+        okc = bool(cal.get("tile")) and bool(cal.get("char_center")) and bool(cal.get("hp_bar"))
+        add("calibracion", "Calibración de pantalla", "ok" if okc else "ask", "Hecha." if okc else "Falta calibrar (baldosa, centro del personaje, barras).",
+            "" if okc else "Apretá HOME con el juego abierto: se calibra solo.")
+        n_ok = sum(1 for i in items if i["state"] == "ok")
+        return {"server": sv.get("name") or "Abaddon", "slug": slug, "folder": pdir, "items": items, "ok": n_ok, "total": len(items),
+                "ready": all(i["state"] != "ask" for i in items)}
+
+    def note_place(self, kind):
+        """Anota la puerta de la tienda/herrero donde está parado el pj ahora (para servers nuevos)."""
+        if kind not in ("shop", "smith") or self.pos.get("x") is None:
+            return {"ok": False, "msg": "No sé dónde está el personaje."}
+        pl = self.cfg.setdefault("places", {}).setdefault(kind, {})
+        pl.update({"map": self.pos["map"], "door": [int(self.pos["x"]), int(self.pos["y"]) - 1],
+                   "inside": ["shop", "tienda"] if kind == "shop" else ["smith", "herrer"]})
+        pl.setdefault("npc_type", -1)
+        pl.setdefault("npc", [0, 0])
+        cfgmod.save(self.cfg)
+        self.log(f"📌 Anoté la puerta de {'la tienda' if kind == 'shop' else 'el herrero'}: {pl['map']} {pl['door']}. Al vendedor lo busco por su menú.")
+        return {"ok": True, "msg": f"Anotado en {pl['map']} {pl['door']}."}
 
     def _reset_session(self):
         self.stats = {"kills": 0, "hp_pots": 0, "mp_pots": 0, "sp_pots": 0, "loot_clicks": 0, "started": None,
@@ -944,6 +1039,7 @@ class Bot:
             return
         if self._quest_step():
             return
+        self._selfcheck()
         self._maybe_shop()
         self._maybe_repair()
         self._brain_step()
@@ -1280,7 +1376,8 @@ class Bot:
                 except Exception:
                     pass
                 if dm["n"] >= 2:
-                    self.log(f"☠ {dm['n']} muertes seguidas en {self.pos.get('map')}: lo dejo por {dm['n']} hora(s) (o hasta subir 3 niveles) y mientras cazo un escalón más abajo.")
+                    if dm["n"] in (2, 5, 10) or dm["n"] % 25 == 0:
+                        self.log(f"☠ {dm['n']} muertes seguidas en {self.pos.get('map')}: si tengo otro mapa para mi nivel lo dejo descansar un rato (máximo 3 horas).")
             except Exception:
                 pass
         # botón "Restart" (abajo a la derecha, donde sale Level Up)
@@ -3572,11 +3669,19 @@ class Bot:
                 self._avoid_v = brain.avoid_maps(self.db, lvl, getattr(self, "_owned", None) or pj.get("owned", []), self._load_json("tiendas.json"), self.cfg.get("comfort", {}), exempt)
                 # mapas donde me mataron 2 veces seguidas: los dejo descansar (1 hora por muerte) y vuelvo a probar;
                 # también vuelvo si subí 3 niveles
+                ex_l = [str(e).split(" (")[0].strip().lower() for e in (exempt or [])]
+                cand = []
                 for mk, dm in self.world.learn.get("deaths", {}).items():
                     n = dm.get("n", 0)
-                    if n >= 2 and lvl < dm.get("lvl", 0) + 3 and now - dm.get("t", 0) < 3600 * n:
-                        if mk not in self._avoid_v:
-                            self._avoid_v.append(mk)
+                    # descanso de 1 a 3 horas como mucho (antes crecía sin tope y dejaba al pj sin dónde cazar)
+                    if n >= 2 and lvl < dm.get("lvl", 0) + 3 and now - dm.get("t", 0) < 3600 * min(3, n - 1):
+                        cand.append(mk)
+                for mk in cand:
+                    alts = [m for m in ex_l if m != mk and m not in cand and m not in self._avoid_v]
+                    if mk in ex_l and not alts:
+                        continue  # es el único mapa de caza que me toca: no me lo prohíbo, cazo con más cuidado
+                    if mk not in self._avoid_v:
+                        self._avoid_v.append(mk)
             except Exception:
                 self._avoid_v = [a.lower() for a in self.cfg.get("travel", {}).get("avoid", [])]
             self._avoid_t = now
@@ -4103,6 +4208,8 @@ class Bot:
         lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
         cap = self.learner.crowd_cap(mob, lvl)
         allow = min(allow, 1 + lvl // 6)  # nivel bajo: pocos vecinos aunque venga bien (los nidos matan de golpe)
+        if time.time() < getattr(self, "_careful_until", 0):
+            return 0  # vengo muriendo seguido: solo bichos sueltos por un rato
         return allow if cap is None else min(allow, cap)
 
     def _oly_fight_review(self):
@@ -5790,7 +5897,8 @@ class Bot:
                 "saving": sv, "buy_now": p.get("buy_now") or [],
                 "lines": [l for l in (p.get("lines") or [])], "zones": zones[:6], "level": sh.get("level") or self.cfg.get("travel", {}).get("my_level"),
                 "pct": sh.get("pct"), "server": cfgmod.server_slug(self.cfg),
-                "prices": dict((self.learner.st or {}).get("prices", {})) if getattr(self.learner, "st", None) else {}}
+                "prices": dict((self.learner.st or {}).get("prices", {})) if getattr(self.learner, "st", None) else {},
+                "check": getattr(self, "health", None)}
 
     def _equip_from_bag(self, name):
         """Me pongo un objeto del bolso con Ctrl + click (wiki: equipa lo que se pueda equipar)."""
@@ -5954,7 +6062,8 @@ class Bot:
             tw, th = self._tile()
             cx, cy = self._char()
             pl = self._place("shop") or {"npc_type": 15, "npc": [59, 42]}
-            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar")
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 else None
+            menu = menu or self._npc_find("shop", "comerciar")
             com = next((w for w in (menu or []) if norm(w[0]).startswith("comerciar")), None)
             if not com:
                 self.log("🛒 No encontré a la tendera.")
@@ -6358,6 +6467,26 @@ class Bot:
         p.update((self.cfg.get("places") or {}).get(kind) or {})
         return p or None
 
+    def _npc_find(self, kind, want):
+        """Server nuevo: no sé cuál de los personajes del local es el vendedor. Pruebo con cada uno que esté cerca
+        hasta que alguno abra un menú con la palabra buscada, y lo dejo anotado para la próxima."""
+        try:
+            px, py = self.pos["x"], self.pos["y"]
+            cands = [(r[0], r[1], r[2]) for r in self.oly.read(self.mem.proc)
+                     if (r[0], r[1]) != (px, py) and max(abs(r[0] - px), abs(r[1] - py)) <= 18 and r[0] > 0]
+        except Exception:
+            cands = []
+        cands.sort(key=lambda c: abs(c[0] - px) + abs(c[1] - py))
+        for x, y, typ in cands[:10]:
+            menu = self._npc_menu(typ, (x, y), want, tries=2)
+            if menu:
+                pl = self.cfg.setdefault("places", {}).setdefault(kind, {})
+                pl.update({"npc_type": int(typ), "npc": [int(x), int(y)]})
+                cfgmod.save(self.cfg)
+                self.log(f"📌 Encontré al vendedor ({kind}) en ({x},{y}): lo anoto.")
+                return menu
+        return None
+
     def _npc_menu(self, npc_type, fallback, want, tries=6):
         """Camino hasta un vendedor (lo ubico por su tipo en la memoria, o por la baldosa conocida) y le hago click
         hasta que salga su menú con la palabra 'want'. Si sale el menú de otro (ej. el oficial de clanes), lo cancelo.
@@ -6370,7 +6499,9 @@ class Bot:
                 return None
             tx, ty = fallback
             try:
-                cand = [(r[0], r[1]) for r in self.oly.read(self.mem.proc) if r[2] == npc_type]
+                # el 'tipo' que leo de la memoria puede cambiar (es la animación): lo uso solo si está cerca de donde lo espero
+                cand = [(r[0], r[1]) for r in self.oly.read(self.mem.proc)
+                        if r[2] == npc_type and max(abs(r[0] - fallback[0]), abs(r[1] - fallback[1])) <= 4]
                 if cand:
                     tx, ty = min(cand, key=lambda t_: abs(t_[0] - fallback[0]) + abs(t_[1] - fallback[1]))
             except Exception:
@@ -6379,6 +6510,19 @@ class Bot:
             if px is None:
                 time.sleep(1.0)
                 continue
+            if max(abs(tx - px), abs(ty - py)) > 3:
+                # de lejos el click no abre el menú: primero me acerco a 2 baldosas
+                ax = tx + (-2 if px < tx else 2 if px > tx else 0)
+                ay = ty + (1 if py >= ty else -1)
+                winapi.click(*self.abs_pt(cx + (ax - px) * tw, cy + (ay - py) * th))
+                t1 = time.time()
+                while time.time() - t1 < 7:
+                    time.sleep(0.5)
+                    px, py = self.pos.get("x"), self.pos.get("y")
+                    if max(abs(tx - px), abs(ty - py)) <= 3:
+                        break
+                time.sleep(0.4)
+                px, py = self.pos.get("x"), self.pos.get("y")
             winapi.click(*self.abs_pt(cx + (tx - px) * tw, cy + (ty - py) * th - th * 0.3))
             t0 = time.time()
             while time.time() - t0 < 4.5:
@@ -6421,7 +6565,8 @@ class Bot:
             self._busy_ui = True
             self._release()
             time.sleep(1.5)
-            menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar")
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 else None
+            menu = menu or self._npc_find("smith", "reparar")
             if not menu:
                 self.log("🔧 No encontré al herrero.")
                 return
@@ -6504,6 +6649,65 @@ class Bot:
         except Exception:
             pass
         return False
+
+    def _selfcheck(self):
+        """'¿Estoy bien?' — lo que un jugador mira cada tanto: ¿mato al ritmo normal?, ¿muero seguido?, ¿tengo
+        pociones?, ¿se rompió algo? Si algo está mal, eso pasa a ser lo urgente. Vale para cualquier server."""
+        if cfgmod.server_slug(self.cfg) == "abaddon":
+            return
+        now = time.time()
+        k = self.stats.get("kills", 0)
+        d = self.stats.get("deaths", 0) or 0
+        kh = self.__dict__.setdefault("_sc_k", [])
+        dh = self.__dict__.setdefault("_sc_d", [])
+        if k != getattr(self, "_sc_lk", k):
+            kh.append(now)
+        if d != getattr(self, "_sc_ld", d):
+            dh.append(now)
+        self._sc_lk, self._sc_ld = k, d
+        del kh[:-400]
+        del dh[:-100]
+        hunting = self._hunting_now() and not getattr(self, "_busy_ui", False)
+        if hunting:
+            self._sc_hunt = getattr(self, "_sc_hunt", 0.0) + min(2.0, now - getattr(self, "_sc_t", now))
+        self._sc_t = now
+        if now - getattr(self, "_sc_last", 0) < 120:
+            return
+        self._sc_last = now
+        k10 = sum(1 for t in kh if now - t < 600)
+        d15 = sum(1 for t in dh if now - t < 900)
+        pots = (getattr(self, "_left", {}) or {}).get("pot")
+        hunted = getattr(self, "_sc_hunt", 0.0)
+        issues = []
+        # 1) muero seguido: un rato solo bichos sueltos y descansando más
+        if d15 >= 2 and now > getattr(self, "_careful_until", 0):
+            self._careful_until = now + 1200
+            issues.append(f"me mataron {d15} veces en 15 min: por 20 min solo bichos sueltos")
+        # 2) no mato nada hace rato cazando: lo primero que sospecho es el arma
+        if hunted > 480 and k10 == 0:
+            self._sc_hunt = 0.0
+            if now - getattr(self, "_rep_last", 0) > 1200 and self._place("smith"):
+                self._worn_seen = now
+                self._rep_last = now - 400
+                issues.append("hace 8 min que cazo y no mato nada: voy al herrero a revisar el arma")
+            else:
+                self._wd_exp_t = 0
+                issues.append("hace 8 min que no mato nada: cambio de zona")
+        elif k10 > 0:
+            self._sc_hunt = min(hunted, 240.0)
+        # 3) sin pociones y con oro: que el viaje a la tienda no espere
+        if pots == 0 and (getattr(self, "_gold", None) or 0) >= 200 and now - getattr(self, "_shop_last", 0) > 600:
+            self._shop_last = 0
+            issues.append("me quedé sin pociones: paso por la tienda")
+        st = {"t": int(now), "kills_10m": k10, "deaths_15m": d15, "pots": pots, "issues": issues,
+              "careful": now < getattr(self, "_careful_until", 0)}
+        self.health = st
+        for i in issues:
+            self.log("🩺 " + i[0].upper() + i[1:] + ".")
+        if now - getattr(self, "_sc_said", 0) > 1800:
+            self._sc_said = now
+            self.log(f"🩺 Chequeo: {k10} bichos en 10 min, {d15} muerte/s en 15 min, pociones {pots if pots is not None else 'sin contar'}"
+                     + (", modo cuidadoso" if st["careful"] else "") + ".")
 
     def _maybe_repair(self):
         """El equipo se gasta y cuando se rompe se desequipa solo (queda pegando a mano): voy al herrero cada tanto,
