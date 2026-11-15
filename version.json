@@ -1,1 +1,1 @@
-{"version": 238, "notes": "Exp real tras morir, conteo de pociones sin inventar, reintento y captura si falla la tienda."}
+{"version": 239, "notes": "Si no hay bichos vivos cerca vuelve al ultimo lugar donde ganaba experiencia."}

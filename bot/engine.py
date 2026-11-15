@@ -4186,10 +4186,33 @@ class Bot:
         if self.pos.get("x") is None or time.time() - self.pos.get("t", 0) > 5:
             return False
         ents = self._oly_ents()
-        if not ents:
-            return False
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
+        if not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
+            # nada vivo cerca: en vez de dar vueltas, vuelvo adonde venía ganando experiencia
+            try:
+                mk = (self.pos.get("map") or "").strip().lower()
+                h = (self.world.learn.get("oly_hot") or {}).get(mk)
+                if h and max(abs(h["x"] - px), abs(h["y"] - py)) > 8 and now - getattr(self, "_hot_fail", 0) > 300:
+                    m = self.world.map_for(self.pos.get("map") or "")
+                    g = m.nearest_walkable(h["x"], h["y"], r=5) if m else None
+                    if g:
+                        st_ = self.__dict__.setdefault("_hot_go", {"t": now, "d": 999})
+                        dcur = max(abs(h["x"] - px), abs(h["y"] - py))
+                        if dcur < st_["d"]:
+                            st_["d"], st_["t"] = dcur, now
+                        elif now - st_["t"] > 40:
+                            self._hot_fail, self._hot_go = now, None  # no llego: no insisto por 5 minutos
+                            return False
+                        self.stats["state"] = f"vuelvo a mi zona de caza ({h['x']},{h['y']})"
+                        self._walk_to(m, (int(g[0]), int(g[1])), "zona de caza")
+                        return True
+            except Exception:
+                pass
+        else:
+            self._hot_go = None
+        if not ents:
+            return False
         if self._oly_kite(ents):
             return True
         # recién maté uno: levanto lo que haya tirado (Shift + clic en la baldosa) si no tengo a nadie encima
@@ -5178,6 +5201,18 @@ class Bot:
             if d <= 0 or d > 500000:
                 return
             self._yield_add(exp=e1 - e0)
+            try:
+                hx, hy, hmk = ready[-1][1], ready[-1][2], ready[-1][3]
+                hot = self.world.learn.setdefault("oly_hot", {})
+                h = hot.get(hmk)
+                if h and max(abs(h["x"] - hx), abs(h["y"] - hy)) <= 12 and time.time() - h.get("t", 0) < 1800:
+                    h["exp"] = h.get("exp", 0) + (e1 - e0)
+                    h["x"], h["y"], h["t"] = int(0.8 * h["x"] + 0.2 * hx), int(0.8 * h["y"] + 0.2 * hy), time.time()
+                elif not h or time.time() - h.get("t", 0) > 600 or (e1 - e0) > 0:
+                    if not h or time.time() - h.get("t", 0) > 600:
+                        hot[hmk] = {"x": int(hx), "y": int(hy), "t": time.time(), "exp": e1 - e0}
+            except Exception:
+                pass
             for _, x, y, mk in ready:
                 z = self.world.learn.setdefault("xpz", {}).setdefault(mk, {})
                 e = z.setdefault(f"{x // self.ZC},{y // self.ZC}", {"n": 0, "xp": 0.0, "x": x, "y": y})
