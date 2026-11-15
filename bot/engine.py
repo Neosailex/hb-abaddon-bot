@@ -1013,7 +1013,10 @@ class Bot:
                 self.log(f"Aprendizaje: error {e!r}")
         self._zone_flush()
         self._fight_sample()
-        self._tmeter()
+        try:
+            self._tmeter()
+        except Exception:
+            pass
         if getattr(self, "_busy_ui", False):
             # otro hilo está usando ventanas del juego (comprando): no tocar nada
             self.stats["state"] = "comprando"
@@ -4938,7 +4941,8 @@ class Bot:
             k = "parado"
         b = self.__dict__.setdefault("_tm", {})
         m = int(now // 60)
-        b.setdefault(m, {})[k] = b[m].get(k, 0.0) + dt
+        mb = b.setdefault(m, {})
+        mb[k] = mb.get(k, 0.0) + dt
         for old in [x for x in b if x < m - 60]:
             del b[old]
         if now - getattr(self, "_tm_said", now - 1500) > 1800:
