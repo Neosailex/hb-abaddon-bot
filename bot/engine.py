@@ -683,7 +683,8 @@ class Bot:
         now = time.time()
         p = self.progress
         last = p.get("exp")
-        if last is not None and pct + 40 < last:  # la barra se vació: subió de nivel
+        if last is not None and pct + 40 < last and not (self._sheet(3600) and not self._mem_struct()):
+            # la barra se vació: subió de nivel (donde leo la ficha, el nivel sale de ahí y no de la barra)
             t = self.cfg.setdefault("travel", {})
             lm = self._level_mem()
             t["my_level"] = max(lm or 0, int(t.get("my_level", 1)) + 1) if not self._mem_struct() else (lm or int(t.get("my_level", 1)) + 1)
@@ -2972,7 +2973,6 @@ class Bot:
         sh["exp_total"] = off + sh["exp"] if sh["exp"] is not None else None
         if sh["exp"] is not None and sh["next"]:
             sh["pct"] = round(100.0 * sh["exp"] / (sh["exp"] + sh["next"]), 1)
-            self.progress["exp"] = sh["pct"]
         self.sheet = sh
         self._sheet_loaded = True
         try:
@@ -6442,8 +6442,10 @@ class Bot:
                 owned = pj.get("owned", [])
             self._owned = owned
             from . import gear
+            # la tabla de objetos es la de Abaddon: en otro server manda el catálogo leído en sus tiendas
+            idb_l = list(idb.values()) if cfgmod.server_slug(self.cfg) == "abaddon" else []
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
-                           self._gold_mem(), owned, reach, cur, list(idb.values()), gear.owned_bonus(inv, idb))
+                           self._gold_mem(), owned, reach, cur, idb_l, gear.owned_bonus(inv, idb))
             self.plan = p
             try:
                 self._fight_report()
@@ -6488,14 +6490,24 @@ class Bot:
                 return menu
         return None
 
-    def _npc_menu(self, npc_type, fallback, want, tries=6):
+    def _npc_menu(self, npc_type, fallback, want, tries=10):
         """Camino hasta un vendedor (lo ubico por su tipo en la memoria, o por la baldosa conocida) y le hago click
         hasta que salga su menú con la palabra 'want'. Si sale el menú de otro (ej. el oficial de clanes), lo cancelo.
         Devuelve las palabras del menú o None."""
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         tw, th = self._tile()
         cx, cy = self._char()
-        for _ in range(tries):
+        try:  # una ventana abierta (bolso, personaje) se come los clicks: las cierro antes
+            ws0 = self._q_words(self.screen.grab(self.rect))
+            if any(w[0].strip().startswith("Peso:") for w in ws0):
+                winapi.press("F6")
+                time.sleep(0.5)
+            if any(norm(w[0]).startswith("estad") for w in ws0) and any(norm(w[0]).startswith("misiones") for w in ws0):
+                winapi.press("F5")
+                time.sleep(0.5)
+        except Exception:
+            pass
+        for _i in range(tries):
             if not (self.alive and self.running):
                 return None
             tx, ty = fallback
@@ -6513,17 +6525,28 @@ class Bot:
                 continue
             if max(abs(tx - px), abs(ty - py)) > 3:
                 # de lejos el click no abre el menú: primero me acerco a 2 baldosas
-                ax = tx + (-2 if px < tx else 2 if px > tx else 0)
-                ay = ty + (1 if py >= ty else -1)
+                # voy de a tramos de hasta 6 baldosas (un click muy lejos a veces cae fuera de la pantalla útil)
+                p0 = (px, py)
+                step = max(abs(tx - px), abs(ty - py))
+                f = min(1.0, 6.0 / step) if step > 8 else 1.0
+                off = [(-2, 1), (2, 1), (0, 2), (-2, -1), (2, -1)][_i % 5] if f == 1.0 else (0, 0)
+                ax = px + (tx - px) * f + (off[0] if px <= tx else -off[0])
+                ay = py + (ty - py) * f + off[1]
+                winapi.left_up()
                 winapi.click(*self.abs_pt(cx + (ax - px) * tw, cy + (ay - py) * th))
                 t1 = time.time()
-                while time.time() - t1 < 7:
+                while time.time() - t1 < 6:
                     time.sleep(0.5)
                     px, py = self.pos.get("x"), self.pos.get("y")
                     if max(abs(tx - px), abs(ty - py)) <= 3:
                         break
                 time.sleep(0.4)
                 px, py = self.pos.get("x"), self.pos.get("y")
+                if (px, py) == p0:
+                    self.log(f"🔎 El personaje no se movió hacia el vendedor (intento {_i + 1}): pruebo por otro lado.")
+                    continue
+                if max(abs(tx - px), abs(ty - py)) > 3:
+                    continue  # sigo acercándome en la próxima vuelta
             winapi.click(*self.abs_pt(cx + (tx - px) * tw, cy + (ty - py) * th - th * 0.3))
             t0 = time.time()
             while time.time() - t0 < 4.5:
@@ -6934,9 +6957,174 @@ class Bot:
             d["sell"] += [{"slot": i["slot"], "id": i["id"], "name": "Meat", "why": "comida de más", "kind": "shop"} for i in meats[keep_m:]]
         return d
 
+    # ------------------------------------------------------------ comprar equipo (clientes tipo Olympia)
+    def _shop_rows(self, img, tab):
+        """Filas visibles de la lista de una tienda: [(nombre, precio, x, y)]."""
+        ws = ocr.read_words(img, {"x1": int(tab[1] - 75), "y1": int(tab[2] + 22), "x2": int(tab[1] + 470), "y2": int(tab[2] + 445)}, scale=1.0)
+        by = {}
+        for w in ws:
+            by.setdefault(round(w[2] / 9), []).append(w)
+        out = []
+        for k in sorted(by):
+            r = sorted(by[k], key=lambda v: v[1])
+            pr = [v for v in r if re.fullmatch(r"\d{1,3}(\.\d{3})*", v[0].strip()) and v[1] > tab[1] + 330]
+            nm = [v for v in r if v[1] < tab[1] + 330]
+            if pr and nm:
+                out.append((" ".join(v[0] for v in nm), int(pr[-1][0].replace(".", "")), nm[0][1], r[0][2]))
+        return out
+
+    def _wheel(self, x, y, delta):
+        sx, sy = self.abs_pt(x, y)
+        winapi.move(sx, sy)
+        time.sleep(0.05)
+        try:
+            winapi.user32.PostMessageW(winapi.BG_HWND, 0x020A, (delta & 0xFFFF) << 16, ((int(sy) & 0xFFFF) << 16) | (int(sx) & 0xFFFF))
+        except Exception:
+            pass
+
+    def _oly_buy_trip(self, items):
+        """Compra equipo en el herrero: Comerciar → pestaña → busco la fila por nombre y precio → la selecciono,
+        confirmo en el recuadro de abajo que es ese objeto → Comprar → me lo pongo. items: entradas del catálogo."""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        pl = self._place("smith")
+        if not pl or not items:
+            return
+        inside = lambda: any(k in (self.pos.get("map") or "").lower() for k in pl["inside"])
+        bought = []
+        try:
+            self.log("🛍 Voy al herrero a comprar: " + ", ".join(f"{i['name']} ({i['price']})" for i in items) + ".")
+            t0 = time.time()
+            d = pl["door"]
+            if not inside() and not self._same(self.pos.get("map") or "", pl["map"]):
+                self.goto = {"map": pl["map"], "x": d[0], "y": d[1] + 2, "t": time.time()}
+                while self.goto and time.time() - t0 < 600 and self.alive and self.running:
+                    time.sleep(0.5)
+            if not inside():
+                self.mission = {"map": pl["map"], "goal": list(d), "label": "Herrero (comprar)", "until": time.time() + 300, "enter": True, "hold": True}
+                while not inside() and time.time() - t0 < 900 and self.alive and self.running:
+                    time.sleep(0.3)
+            if not inside():
+                self.log("🛍 No llegué al herrero.")
+                return
+            self._busy_ui = True
+            self._busy_t0 = None
+            self._release()
+            time.sleep(1.5)
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 else None
+            menu = menu or self._npc_find("smith", "comerciar")
+            com = next((w for w in (menu or []) if norm(w[0]).startswith("comerciar")), None)
+            if not com:
+                self.log("🛍 No pude abrir la tienda del herrero.")
+                return
+            winapi.click(*self.abs_pt(com[1], com[2]))
+            time.sleep(2.0)
+            ws = self._q_words(self.screen.grab(self.rect))
+            tabs = {norm(w[0]): w for w in ws if norm(w[0]) in ("armas", "armadura", "varios") and w[2] < self.rect[3] * 0.25}
+            t_ref = tabs.get("armas")
+            if not t_ref:
+                self.log("🛍 No veo las pestañas de la tienda.")
+                return
+            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            for it in items:
+                self._busy_t0 = None
+                tb = tabs.get("armas" if it.get("slot") in ("arma", "arma2m") else "armadura")
+                if not tb:
+                    continue
+                winapi.click(*self.abs_pt(tb[1], tb[2]))
+                time.sleep(0.9)
+                for _ in range(25):
+                    self._wheel(t_ref[1] + 150, t_ref[2] + 250, 120)
+                    time.sleep(0.05)
+                time.sleep(0.4)
+                want = norm(it["name"])
+                row = None
+                for _pg in range(40):
+                    winapi.move(*self.abs_pt(t_ref[1] + 700, t_ref[2] + 500))
+                    time.sleep(0.3)
+                    rows = self._shop_rows(self.screen.grab(self.rect), t_ref)
+                    # el OCR a veces se come una palabra ('Superior'): exijo nombre igual y precio igual
+                    sup = "superior" in want
+
+                    def _same_item(nm):
+                        n_ = norm(nm)
+                        if ("superior" in n_) != sup:
+                            return False
+                        return n_ == want or difflib.SequenceMatcher(None, n_, want).ratio() >= 0.86
+
+                    row = next((r for r in rows if r[1] == int(it["price"]) and _same_item(r[0])), None)
+                    if row:
+                        break
+                    self._wheel(t_ref[1] + 150, t_ref[2] + 250, -120)
+                    time.sleep(0.35)
+                if not row:
+                    self.log(f"🛍 No encontré '{it['name']}' a {it['price']} en la lista.")
+                    continue
+                winapi.click(*self.abs_pt(row[2] + 20, row[3]))
+                time.sleep(0.9)
+                winapi.move(*self.abs_pt(t_ref[1] + 700, t_ref[2] + 500))
+                time.sleep(0.4)
+                img = self.screen.grab(self.rect)
+                # recuadro de abajo: nombre del objeto elegido y su precio 'N c/u'
+                box = ocr.read_words(img, {"x1": int(t_ref[1] - 75), "y1": int(t_ref[2] + 440), "x2": int(t_ref[1] + 470), "y2": int(t_ref[2] + 590)}, scale=1.0)
+                txt = norm(" ".join(w[0] for w in sorted(box, key=lambda w: (round(w[2] / 9), w[1]))))
+                toks = [norm(t) for t in re.split(r"[\s()]+", it["name"]) if len(norm(t)) >= 2]
+                price_ok = str(int(it["price"])) in txt or str(int(it["price"])) in txt.replace("o", "0")
+                if not (all(t in txt for t in toks) and price_ok):
+                    self.log(f"🛍 Seleccioné una fila pero el recuadro no dice '{it['name']}' a {it['price']}: no compro (leí: {txt[:50]}).")
+                    continue
+                cp = next((w for w in self._q_words(img) if norm(w[0]).startswith("comprar") and w[2] > t_ref[2] + 560 * ky), None)
+                cpt = (cp[1], cp[2]) if cp else (t_ref[1] + 389 * kx, t_ref[2] + 640 * ky)
+                winapi.click(*self.abs_pt(*cpt))
+                time.sleep(1.6)
+                msg = norm(" ".join(w[0] for w in ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": int(self.rect[3] * 0.80), "x2": int(self.rect[2] * 0.6), "y2": int(self.rect[3] * 0.915)}, scale=1.0)))
+                if "compraste" in msg and (want[:8] in msg):
+                    bought.append(it)
+                    self.log(f"🛍 Compré {it['name']} por {it['price']} de oro.")
+                else:
+                    self.log(f"🛍 Apreté Comprar para {it['name']} pero no vi la confirmación (leí: {msg[-60:]}).")
+            # cierro la tienda y me pongo lo nuevo
+            winapi.click(*self.abs_pt(t_ref[1] + 200 * kx, t_ref[2] + 317 * ky), button="right")
+            time.sleep(0.7)
+            if bought:
+                self._reequip_loose()
+                own = [o for o in (self.cfg.get("owned_items") or [])]
+                cat = {i["name"]: i for i in (self._load_json("tiendas.json").get("items") or [])}
+                for it in bought:
+                    own = [o for o in own if cat.get(o, {}).get("slot") != it.get("slot")] + [it["name"]]
+                self.cfg["owned_items"] = own
+                cfgmod.save(self.cfg)
+                self._brain_t = 0
+                self._pots_t = 0
+        except Exception as e:
+            self.log(f"🛍 Error comprando equipo: {e!r}")
+        finally:
+            self.mission = None
+            self._busy_ui = False
+            self._gear_last = time.time()
+
     def _maybe_gear(self):
         """Cada tanto reviso el bolso: me pongo lo mejor, vendo lo que no sirve y compro lo que dice el plan."""
         if getattr(self, "mission", None) or getattr(self, "_busy_ui", False):
+            return
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            # el plan (brain.plan) ya dice qué mejora puedo usar y pagar con el oro que sobra de la reserva
+            now = time.time()
+            for a in ("_shop_th", "_rep_th", "_gear_th"):
+                th = getattr(self, a, None)
+                if th is not None and th.is_alive():
+                    return
+            if (now - getattr(self, "_gear_chk", 0) < 30 or self.state == "attack" or self._under_attack()
+                    or now - getattr(self, "_gear_last", 0) < float(self.cfg.get("gear_trip_every_min", 30)) * 60):
+                return
+            self._gear_chk = now
+            if not self.cfg.get("buy_gear_auto", True) or not self._place("smith"):
+                return
+            buy = [i for i in ((getattr(self, "plan", None) or {}).get("buy_now") or []) if i.get("shop") == "Blacksmith" and i.get("confirmed")]
+            if not buy:
+                return
+            self._gear_last = now
+            self._gear_th = threading.Thread(target=self._oly_buy_trip, args=(buy[:3],), daemon=True)
+            self._gear_th.start()
             return
         for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
             th = getattr(self, a, None)
