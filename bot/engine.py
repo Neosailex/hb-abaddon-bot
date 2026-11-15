@@ -4913,7 +4913,7 @@ class Bot:
             gr.learn(m[ys.min():ys.max() + 1, xs.min():xs.max() + 1], t)
 
     # ---------------------------------------------------------------- misiones (Olympia)
-    QUEST_TURNIN = ("completar", "entregar", "finalizar", "reclamar", "terminar", "recompensa")
+    QUEST_TURNIN = ("reclamar", "completar", "entregar", "finalizar", "terminar")
 
     def _q_words(self, img, box=None):
         box = box or {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}
@@ -5290,10 +5290,15 @@ class Bot:
                 time.sleep(0.8)
                 self.log(f"📜 Premio elegido: {pick[0]}.")
         ws = self._q_words(grab())
-        bt = next((w for w in ws if any(norm(w[0]).startswith(k) for k in self.QUEST_TURNIN)), None)
+        bt = next((w for k in self.QUEST_TURNIN for w in ws if norm(w[0]) == k or norm(w[0]).startswith(k) and len(norm(w[0])) <= len(k) + 2), None)
         if bt:
             click(bt[1], bt[2])
             time.sleep(1.5)
+            h2 = self._quest_hud(grab())
+            if h2 and h2[1] >= h2[2] and h2[2] > 0:
+                self.log("📜 Apreté para cobrar pero la misión sigue sin cobrar; pruebo de nuevo en un rato.")
+                self._q_npc = None
+                return
             self.log(f"📜 Cobré la misión '{hud[0]}'.")
             if self.cfg.get("need_weapon") and el and pick and any(k in pick[0].lower() for k in ("dagger", "sword", "gladius", "falchion", "gauche", "axe")):
                 try:
