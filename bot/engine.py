@@ -1572,6 +1572,7 @@ class Bot:
         if (hp is not None and hp < 60 and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0)
                 and not (cfgmod.server_slug(cfg) != "abaddon" and "beginner" in (self.pos.get("map") or "").lower())
                 and now > getattr(self, "_kite_block", 0)
+                and not ((getattr(self, "_left", {}) or {}).get("pot") or 0) >= 1
                 and self._adjacent_mobs() >= 3):
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()
@@ -1613,7 +1614,11 @@ class Bot:
         self.panic_count = 0
         for k in ("hp", "mp", "sp"):
             v = b.get(k)
-            if v is None or v >= cfg[f"{k}_pot_pct"]:
+            thr = cfg[f"{k}_pot_pct"]
+            if k == "hp" and cfgmod.server_slug(cfg) != "abaddon":
+                # descansar es gratis y la poción no: la tomo con bichos encima y vida baja, o al borde
+                thr = int(cfg.get("hp_pot_fight_pct", 40)) if self._adjacent_mobs() > 0 else int(cfg.get("hp_pot_alone_pct", 22))
+            if v is None or v >= thr:
                 continue
             if now - self.last_pot[k] < cfg["pot_cooldown"]:
                 continue
@@ -4091,7 +4096,9 @@ class Bot:
         adj = [e for e in ents if dist(e) <= 1]
         near4 = [e for e in ents if dist(e) <= 4]
         # cuántos pegados aguanto: lo aprendido + 1, y uno más si tengo buena vida
-        cap = min(self._oly_allow(), 1) + (1 if (hp or 0) >= 70 else 0)
+        pots_k = (getattr(self, "_left", {}) or {}).get("pot") or 0
+        dmg_k = (sum(float(e[2].get("dmg_avg") or 3.0) for e in adj) / len(adj)) if adj else None
+        cap = self._group_cap(dmg=dmg_k) if adj else 2
         k = getattr(self, "_kite", None)
         if k is not None and adj:
             # rodeado y sin poder salir (el camino está tapado): huir es comer golpes de espalda. Peleo.
@@ -4109,7 +4116,8 @@ class Bot:
         if k is None and now < getattr(self, "_kite_block", 0) and not force:
             return False
         if k is None:
-            if not (force or (hp is not None and hp < 50 and adj) or len(adj) > max(1, cap)):
+            low = hp is not None and adj and hp < (30 if pots_k >= 1 else 45)
+            if not (force or low or len(adj) > cap):
                 return False
             why = f"vida {hp:.0f}%" if hp is not None and hp < 45 else f"{len(adj)} bichos encima"
             k = self._kite = {"t": now, "pt": None, "why": why}
@@ -4354,32 +4362,44 @@ class Bot:
             hp = 0.0
         return min(30.0, max(7.0, 4.0 + hp / 5.0))
 
+    def _group_cap(self, mob=None, dmg=None):
+        """Cuántos bichos pegados aguanto a la vez. Una sola cuenta, la de cualquier jugador: lo que me sacan por
+        ronda no puede pasar del 12% de mi vida (15% con pociones encima). Con slimes (2,5 por golpe) y 80 de vida
+        son 3-4; con hormigas (4,7) son 2. Sin pociones, uno menos. Mínimo 2: en este juego todo anda en grupo."""
+        hpmax = float(self._hpmax_est() or 60)
+        if dmg is None:
+            try:
+                cr = next((c for c in self._creatures_db().values() if str(c.get("name", "")).lower() == str(mob or "").lower()), None)
+                dmg = self._mob_est(cr)[0] if cr else 3.0
+            except Exception:
+                dmg = 3.0
+        pots = (getattr(self, "_left", {}) or {}).get("pot")
+        share = 0.15 if (pots or 0) >= 3 else 0.12
+        n = int(share * hpmax / max(1.0, float(dmg)))
+        if pots == 0 and not getattr(self, "_pots_unknown", False):
+            n -= 1
+        if time.time() < getattr(self, "_careful_until", 0):
+            n -= 1  # vengo muriendo seguido: un rato con un bicho menos
+        return max(2, min(6, n))
+
     def _oly_allow(self):
+        """Vecinos que acepto alrededor del bicho que elijo: los que aguanto juntos, menos él."""
         mob = getattr(self, "_hunt_mob", None) or "Slime"
-        if "oly_nest" not in self.world.learn:
-            # primera vez en este server: arranco con lo que aguanté en otros servers con números parecidos
-            prior = self.learner.nest_prior(mob)
-            self.world.learn["oly_nest"] = {"allow": prior, "ok": 0}
-            if prior:
-                self.log(f"🧠 Por lo aprendido en otros servers, arranco aceptando {prior} vecino/s por bicho.")
-        lr = self.world.learn["oly_nest"]
-        allow = int(lr.get("allow", 0))
-        lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
-        cap = self.learner.crowd_cap(mob, lvl)
-        allow = min(allow, 1 + lvl // 6)  # nivel bajo: pocos vecinos aunque venga bien (los nidos matan de golpe)
-        pots_ = (getattr(self, "_left", {}) or {}).get("pot")
-        # con pociones encima me animo a grupos de tres (el bicho y dos vecinos); sin pociones, de a pares
-        floor = 2 if (pots_ or 0) >= 5 else 1
-        if pots_ == 0 and not getattr(self, "_pots_unknown", False):
-            allow = min(allow, 1)  # sin pociones no me meto en nidos
-        if time.time() < getattr(self, "_careful_until", 0) or self._chill():
-            return floor if self.cfg.get("careful_pairs", True) else 0  # vengo muriendo seguido: grupos chicos
-        # piso: en mapas donde todo anda en grupo, pedir bichos solos es quedarse sin cazar
-        return max(floor, allow if cap is None else min(allow, cap))
+        n = self._group_cap(mob) - 1
+        try:
+            lvl = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
+            cap = self.learner.crowd_cap(mob, lvl)  # lo que me mató antes con este bicho a este nivel
+            if cap is not None:
+                n = min(n, max(1, int(cap)))
+        except Exception:
+            pass
+        return max(1, n)
 
     def _oly_fight_review(self):
         """Terminó la pelea anterior (elijo otro bicho): si salí con buena vida sumo una buena; si quedé muy
         bajo, bajo el máximo de vecinos aceptado. Con 6 buenas seguidas me animo a un vecino más."""
+        self._oly_cur = None
+        return  # el tope de bichos juntos ahora sale de una sola cuenta (_group_cap), no de subir y bajar a tientas
         cur = getattr(self, "_oly_cur", None)
         if not cur or any(e[3] == cur["id"] for e in (getattr(self, "_oly_last", None) or [])):
             return
