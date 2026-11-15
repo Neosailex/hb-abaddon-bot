@@ -1381,13 +1381,15 @@ class Bot:
                 return True
         # enjambre: con 3+ bichos pegados y menos de 60% de vida, me retiro antes de quedar acorralado
         if (hp is not None and hp < 60 and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0)
+                and not (cfgmod.server_slug(cfg) != "abaddon" and "beginner" in (self.pos.get("map") or "").lower())
                 and self._adjacent_mobs() >= 3):
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()
             self.state, self.target = "seek", None
             self.log(f"¡{self._adjacent_mobs()} bichos encima y vida {hp:.0f}%! Me retiro antes de que me rodeen.")
             return False
-        if hp is not None and hp <= panic and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0):
+        if hp is not None and hp <= panic and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0) \
+                and not (cfgmod.server_slug(cfg) != "abaddon" and "beginner" in (self.pos.get("map") or "").lower()):
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self._flee_until = now + cfg.get("flee_max_sec", 600)
             self._release()
@@ -3580,6 +3582,18 @@ class Bot:
         # cuántos pegados aguanto: lo aprendido + 1, y uno más si tengo buena vida
         cap = min(self._oly_allow(), 1) + (1 if (hp or 0) >= 70 else 0)
         k = getattr(self, "_kite", None)
+        if k is not None and adj:
+            # rodeado y sin poder salir (el camino está tapado): huir es comer golpes de espalda. Peleo.
+            lp = k.get("lp")
+            if lp != (px, py):
+                k["lp"], k["lpt"] = (px, py), now
+            elif now - k.get("lpt", now) > 2.5:
+                self._kite = None
+                self._kite_block = now + 20
+                self.log(f"🗡 No puedo salir ({len(adj)} encima): peleo en vez de huir.")
+                return False
+        if k is None and now < getattr(self, "_kite_block", 0) and not force:
+            return False
         if k is None:
             if not (force or (hp is not None and hp < 50 and adj) or len(adj) > max(1, cap)):
                 return False
