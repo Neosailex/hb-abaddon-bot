@@ -3112,8 +3112,9 @@ class Bot:
         try:
             ents = self._oly_ents() if self.pos.get("x") is not None else []
             px, py = self.pos.get("x"), self.pos.get("y")
-            if any(max(abs(e[0] - px), abs(e[1] - py)) <= 4 for e in ents or []):
-                return False  # con bichos cerca no abro ventanas
+            forced = getattr(self, "_census_t", 1) == 0 and (self.bars.get("hp") or 0) >= 60
+            if any(max(abs(e[0] - px), abs(e[1] - py)) <= (1 if forced else 4) for e in ents or []):
+                return False  # con bichos cerca no abro ventanas (si subí de nivel alcanza con que no los tenga pegados)
         except Exception:
             pass
         self._census_t = now
@@ -5127,7 +5128,10 @@ class Bot:
                     st["len"] = L if not st["len"] or abs(L - st["len"]) > 0.05 * st["len"] else 0.7 * st["len"] + 0.3 * L
                     st["cal_t"] = sh["t"]
                     st["max"] = 0
+                    old_len = float(self.cfg.get("calib", {}).get("exp_len") or 0)
                     self.cfg.setdefault("calib", {})["exp_len"] = round(st["len"], 1)
+                    if abs(old_len - st["len"]) > 0.01 * st["len"]:
+                        cfgmod.save(self.cfg)  # que no se pierda al reiniciar
             if not st["len"]:
                 return None
             v = int(min(1.0, glen / st["len"]) * need)
@@ -5901,9 +5905,15 @@ class Bot:
         now = time.time()
         best = None
         last = getattr(self, "_q_last_seen", None)
+        nz = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
+        active = [nz(a["name"]) for a in (getattr(self, "quests", None) or [])]
         for q in self._quest_db().get("quests", []):
             if q.get("kind") != "kill" or lvl < int(q.get("level") or 1):
                 continue
+            if q.get("max_level") and lvl >= int(q["max_level"]):
+                continue  # ya me quedó chica
+            if any(difflib.SequenceMatcher(None, nz(q["name"]), a).ratio() >= 0.8 for a in active):
+                continue  # ya la tengo tomada
             if last and last[0] == q["name"] and now - last[1] < 1800:
                 continue  # la vi activa hace poco (sin terminar): el cartel no se leyó, no la voy a pedir de nuevo
             t_done = done.get(q["name"])
@@ -5926,10 +5936,13 @@ class Bot:
                 best = (score, q)
         return best[1] if best else None
 
-    def _quest_go_accept(self):
-        """Voy al NPC de la próxima misión (si sé dónde está) y la acepto."""
+    def _quest_go_accept(self, only_here=False):
+        """Voy al NPC de la próxima misión (si sé dónde está) y la acepto. only_here: solo si el NPC está en el
+        mapa donde estoy (con otras misiones en curso no cruzo el mundo para tomar una más)."""
         q = self._quest_pick()
         if not q:
+            return False
+        if only_here and not any(self._same(mp_, self.pos.get("map") or "") for mp_ in (self._quest_db().get("npcs", {}).get(q["npc"], {}) or {})):
             return False
         now = time.time()
         if now - getattr(self, "_qacc_t", 0) < 600 and getattr(self, "_qacc_name", None) == q["name"] and not getattr(self, "goto", None):
@@ -6038,9 +6051,10 @@ class Bot:
             self._quest_turnin(qn, hud)
             return True
         # 2) sin misión activa: voy a buscar la que más conviene (base de la wiki)
-        if not hud:
+        if not hud or (hud[1] < hud[2] and self.cfg.get("quests_take_all", True)):
             try:
-                if self._quest_go_accept():
+                # las tomo todas: tenerla tomada no cuesta nada y va sumando mientras cazo
+                if self._quest_go_accept(only_here=bool(hud)):
                     return True
             except Exception as e:
                 self.log(f"📜 Error buscando misión: {e!r}")
