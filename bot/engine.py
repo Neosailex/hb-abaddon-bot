@@ -5750,8 +5750,10 @@ class Bot:
         # 1) misión completa: voy a cobrar
         if hud and hud[2] > 0 and hud[1] >= hud[2]:
             qn = getattr(self, "_q_npc", None)
-            if not qn or now - qn.get("t", 0) > 600:
-                qn = self._quest_where()
+            if not qn or now - qn.get("t", 0) > 600 or qn.get("q") != hud[0]:
+                qn = self._quest_npc_db(hud[0]) or self._quest_where()
+                if qn:
+                    qn["q"] = hud[0]
                 if qn:
                     qn["t"] = now
                     self._q_npc = qn
@@ -5817,6 +5819,24 @@ class Bot:
                 winapi.press("CTRL+Q")
             return True
         return False
+
+    def _quest_npc_db(self, qname):
+        """Dónde se cobra esa misión según la base del server: el NPC que la da, en el mapa donde estoy si está ahí
+        (con varias misiones activas, la lista del juego no dice cuál NPC es de cuál)."""
+        try:
+            db = self._quest_db()
+            norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+            e = max(db.get("quests", []), key=lambda d: difflib.SequenceMatcher(None, norm(qname), norm(d["name"])).ratio(), default=None)
+            if not e or difflib.SequenceMatcher(None, norm(qname), norm(e["name"])).ratio() < 0.75:
+                return None
+            places = (db.get("npcs") or {}).get(e["npc"]) or {}
+            cur = self.pos.get("map") or ""
+            mp = next((m for m in places if self._same(m, cur)), None) or next((m for m in places if self.world.map_for(m)), None)
+            if not mp:
+                return None
+            return {"npc": e["npc"], "map": mp, "x": int(places[mp][0]), "y": int(places[mp][1])}
+        except Exception:
+            return None
 
     def _quest_where(self):
         """Abre la lista de misiones (Ctrl+Q) y lee dónde está el NPC: 'Enzu (Granja Aresden en 49,97)'."""
