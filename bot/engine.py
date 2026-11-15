@@ -3424,6 +3424,8 @@ class Bot:
         Solo peleo si me atacan. Si me matan 2 veces mientras exploro, corto y cazo en lo que ya vi."""
         if cfgmod.server_slug(self.cfg) == "abaddon" or not self.cfg.get("explore_maps", True):
             return False
+        if self.cfg.get("need_weapon"):
+            return False  # sin arma no salgo a recorrer el mapa: primero consigo una
         mk = self.pos.get("map") or ""
         if not mk or any(k in mk.lower() for k in self.TOWNS) or self.pos.get("x") is None:
             return False
