@@ -1,1 +1,1 @@
-{"version": 185, "notes": "No vuelve a pedir una misión que ya tiene activa cuando no alcanza a leer el cartel."}
+{"version": 186, "notes": "Si los bichos de la misión están lejos, camina hacia el más suelto (descansando antes) en vez de explorar zonas vacías."}

@@ -3661,6 +3661,7 @@ class Bot:
         hp_now = self.bars.get("hp") or 100
         # nidos: no los descarto; voy sacando de a uno desde el borde (el de menos vecinos y más cerca).
         # Si el más suelto igual tiene más vecinos de los que aguanto, entro solo con la vida casi llena.
+        ok0 = list(ok)
         if ok:
             low = min(crowd(e) for e in ok)
             if low > allow and hp_now < 85:
@@ -3676,8 +3677,25 @@ class Bot:
                 ok = qok  # misión activa: primero sus bichos
             else:
                 # no hay bichos de la misión cerca: no pierdo tiempo con otros (salvo que me peguen encima);
-                # dejo que el bot camine a la zona de spawn del bicho de la misión
+                # camino hacia el bicho de la misión más suelto que vea en la memoria (aunque esté lejos)
                 ok = [e for e in ok if d(e) <= 1]
+                far = [e for e in ok0 if e[2]["name"] in qm and d(e) > 1]
+                if not ok and far and hp_now < 85:
+                    self._release()
+                    self.stats["state"] = f"recupero vida antes de ir ({hp_now:.0f}%)"
+                    return True
+                if not ok and far:
+                    tgt = min(far, key=lambda e: d(e) + 4 * crowd(e))
+                    m = self.world.map_for(self.pos.get("map") or "")
+                    if m:
+                        # me paro a 4 baldosas del más suelto y de ahí lo saco de a uno
+                        dx, dy = tgt[0] - px, tgt[1] - py
+                        n_ = max(abs(dx), abs(dy)) or 1
+                        st = max(0, n_ - 4) / n_
+                        dest = m.nearest_walkable(int(round(px + dx * st)), int(round(py + dy * st)), r=3) or (tgt[0], tgt[1])
+                        self.stats["state"] = f"voy hacia los {tgt[2]['name']} ({tgt[0]},{tgt[1]})"
+                        self._walk_to(m, (int(dest[0]), int(dest[1])), tgt[2]["name"])
+                        return True
         if not ok:
             if now - getattr(self, "_oly_nest_said", 0) > 120:
                 self._oly_nest_said = now
