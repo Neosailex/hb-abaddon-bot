@@ -1182,7 +1182,21 @@ class Bot:
         now = time.time()
         b = self.bars
         hm = self._hp_mem()
-        dead = (hm == 0) if hm is not None else (b.get("hp") == 0 and ((b.get("mp") or 0) > 0 or (b.get("sp") or 0) > 0))
+        scr_dead = b.get("hp") == 0 and ((b.get("mp") or 0) > 0 or (b.get("sp") or 0) > 0)
+        # la memoria a veces vuelve a la vida llena mientras sigo tirado (Olympia): la barra en 0 manda
+        dead = (hm == 0) or scr_dead
+        if not dead and cfgmod.server_slug(self.cfg) != "abaddon" and self.rect and getattr(self, "img", None) is not None \
+                and now - getattr(self, "_rq_t", 0) > 5:
+            # Olympia: la barra y la memoria a veces no muestran la muerte; el botón 'Reiniciar' sí
+            self._rq_t = now
+            try:
+                H, W = self.img.shape[:2]
+                ws_ = ocr.read_words(self.img, {"x1": int(W * 0.75), "y1": int(H * 0.82), "x2": W, "y2": int(H * 0.92)}, scale=1.0)
+                if any("iciar" in "".join(c for c in x[0].lower() if c.isalnum()) for x in ws_):
+                    dead = True
+                    self._dead_since = getattr(self, "_dead_since", 0) or now - 3.5
+            except Exception:
+                pass
         if not dead:
             self._dead_since = 0
             self._death_logged = 0
