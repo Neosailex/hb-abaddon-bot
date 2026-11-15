@@ -1366,7 +1366,7 @@ class Bot:
             self.panic_count += 1
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self.stats["hp_pots"] += 1
-            if cfg["panic_action"] != "pots_only" and self.panic_count >= 3:
+            if cfg["panic_action"] in ("stop", "recall_and_stop") and self.panic_count >= 3:
                 self.log(f"¡PÁNICO! HP {hp:.0f}%.")
                 if cfg["panic_action"] == "recall_and_stop":
                     if self._do_action(cfg["recall_action"], "recall_slot"):
@@ -5502,6 +5502,8 @@ class Bot:
         o enseguida si de golpe dejo de matar."""
         if getattr(self, "mission", None) or getattr(self, "_busy_ui", False):
             return
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            return  # el herrero de Olympia todavía no está mapeado: no salgo a buscarlo
         for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th"):
             th = getattr(self, a, None)
             if th is not None and th.is_alive():
