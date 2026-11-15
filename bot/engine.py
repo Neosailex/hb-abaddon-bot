@@ -774,9 +774,12 @@ class Bot:
         p = (self.pos.get("map"), self.pos.get("x"), self.pos.get("y"))
         if p != getattr(self, "_wd_pos", None):
             self._wd_pos, self._wd_pos_t = p, now
-        e = self._exp_mem()
+        # sin memoria del pj la exp se lee cada varios minutos (ficha): ahí la señal de vida son las muertes de bichos
+        e = self._exp_mem() if self._mem_struct() else self.stats.get("kills")
         if e is not None and e != getattr(self, "_wd_exp", None):
             self._wd_exp, self._wd_exp_t = e, now
+        if getattr(self, "_rest_since", 0) or getattr(self, "_kite", None):
+            self._wd_pos_t = now  # descansando o retirándome a propósito: estar quieto no es estar trabado
         pos_t, exp_t = getattr(self, "_wd_pos_t", now), getattr(self, "_wd_exp_t", now)
         # escape en curso
         esc = getattr(self, "_escape", None)
@@ -2742,7 +2745,8 @@ class Bot:
 
         kx = self.rect[2] / 1920.0
         labels = {"STR": ("str", "slr", "sir"), "VIT": ("vit", "v1t"), "DEX": ("dex", "oex", "0ex"), "INT": ("int", "lnt", "1nt"),
-                  "MAG": ("mag",), "LUK": ("luk", "lux", "lik", "lix", "luc"), "LEVEL": ("nivel", "level"), "EXP": ("exp",)}
+                  "MAG": ("mag",), "LUK": ("luk", "lux", "lik", "lix", "luc"), "LEVEL": ("nivel", "level"), "EXP": ("exp",),
+                  "NEXT": ("sig", "next")}
         reach = {"LEVEL": 300, "EXP": 300}
         self._release()
         best = {}
@@ -2785,13 +2789,18 @@ class Bot:
                         break
                     if not lab:
                         continue
-                    if key in ("LEVEL", "EXP"):
+                    if key in ("LEVEL", "EXP", "NEXT"):
                         cxv = col if col else lab[1] + 195 * kx
                         box = (int(cxv - 75 * kx), int(lab[2] - 13 * ky), int(cxv + 75 * kx), int(lab[2] + 13 * ky))
                     else:
                         x0 = int(lab[1] + lab[3] / 2 + 5 * kx)
                         box = (x0, int(lab[2] - 13 * ky), int(x0 + 58 * kx), int(lab[2] + 13 * ky))
                     inbox = [v for v in ws if box[0] <= v[1] <= box[2] and abs(v[2] - lab[2]) < 10]
+                    if key == "NEXT":
+                        v = self._ficha_num(im, box, max_segs=10)
+                        if v is not None:
+                            best[key] = v
+                        continue
                     if key == "EXP":
                         cands = ["".join(v[0] for v in sorted(inbox, key=lambda v: v[1]))]
                         try:
@@ -2823,7 +2832,7 @@ class Bot:
                 dbg = getattr(self, "_sheet_dbg", None)
                 if dbg is not None:
                     dbg.append(dict(best))
-                if all(best.get(k) is not None for k in labels):
+                if all(best.get(k) is not None for k in labels if k != "NEXT"):
                     break
         except Exception:
             pass
@@ -2847,8 +2856,17 @@ class Bot:
         if not (1 <= lvl <= 250) or not (0 <= pend <= per * 60) or (prev and not (0 <= lvl - prev["level"] <= 5)):
             self._sheet_fail = getattr(self, "_sheet_fail", 0) + 1
             return None  # lectura que no cierra (un dígito mal leído): no la uso
-        sh = {"t": time.time(), "level": lvl, "exp": best.get("EXP"), "pending": max(0, pend),
+        sh = {"t": time.time(), "level": lvl, "exp": best.get("EXP"), "next": best.get("NEXT"), "pending": max(0, pend),
               "stats": {n: best[n] for n in names}}
+        # 'Exp' es la del nivel actual (vuelve a cero al subir): armo un total que no retrocede para medir exp por hora
+        off = getattr(self, "_exp_off", 0)
+        if prev and lvl > prev["level"] and prev.get("exp") is not None:
+            off += prev["exp"] + (prev.get("next") or 0)
+            self._exp_off = off
+        sh["exp_total"] = off + sh["exp"] if sh["exp"] is not None else None
+        if sh["exp"] is not None and sh["next"]:
+            sh["pct"] = round(100.0 * sh["exp"] / (sh["exp"] + sh["next"]), 1)
+            self.progress["exp"] = sh["pct"]
         self.sheet = sh
         self._sheet_fail = 0
         self._stats_vals = dict(sh["stats"])
@@ -4657,7 +4675,7 @@ class Bot:
         except Exception:
             pass
         sh = self._sheet(3600)
-        return sh.get("exp") if sh else None
+        return sh.get("exp_total") if sh else None
 
     def _zone_kill(self):
         """Al matar anoto dónde fue; la experiencia llega un instante después, así que la cuento en _zone_flush."""
