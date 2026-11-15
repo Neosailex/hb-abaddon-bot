@@ -4188,8 +4188,12 @@ class Bot:
         ents = self._oly_ents()
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
-        if not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
-            # nada vivo cerca: en vez de dar vueltas, vuelvo adonde venía ganando experiencia
+        dry = now - max(getattr(self, "_exp_gain_t", 0), getattr(self, "_start_t_oly", now)) > 150
+        if not hasattr(self, "_start_t_oly"):
+            self._start_t_oly = now
+        if (not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents) or dry) \
+                and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents):
+            # nada vivo cerca (o hace rato que no gano experiencia acá): vuelvo adonde venía ganando
             try:
                 mk = (self.pos.get("map") or "").strip().lower()
                 h = (self.world.learn.get("oly_hot") or {}).get(mk)
@@ -5201,6 +5205,7 @@ class Bot:
             if d <= 0 or d > 500000:
                 return
             self._yield_add(exp=e1 - e0)
+            self._exp_gain_t = time.time()
             try:
                 hx, hy, hmk = ready[-1][1], ready[-1][2], ready[-1][3]
                 hot = self.world.learn.setdefault("oly_hot", {})
