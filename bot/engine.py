@@ -4757,10 +4757,15 @@ class Bot:
         armor = ("plate", "chain", "scale", "hauberk", "helm", "leggings", "hose", "boots", "cape", "shield", "mail")
         bad = ("wand", "staff", "bow", "dagger", "rapier", "esterk", "robe", "magic")
 
+        need_w = bool(self.cfg.get("need_weapon"))
+        melee = ("dagger", "sword", "gladius", "falchion", "gauche", "axe", "rapier", "esterk", "claymore", "saber", "blade")
+
         def score(t):
             t = t.lower()
             if any(k in t for k in two_h):
                 return 100
+            if need_w and any(k in t for k in melee):
+                return 95  # el guerrero sin arma: cualquier arma cuerpo a cuerpo antes que el oro
             if any(k in t for k in armor):
                 return 70
             if "gold" in t or " oro" in t:
@@ -5066,6 +5071,7 @@ class Bot:
         time.sleep(1.5)
         ws = self._q_words(grab())
         el = next((w for w in ws if norm(w[0]).startswith("elige")), None)
+        pick = None
         if el:
             rows = {}
             for w in ws:
@@ -5084,6 +5090,11 @@ class Bot:
             click(bt[1], bt[2])
             time.sleep(1.5)
             self.log(f"📜 Cobré la misión '{hud[0]}'.")
+            if self.cfg.get("need_weapon") and el and pick and any(k in pick[0].lower() for k in ("dagger", "sword", "gladius", "falchion", "gauche", "axe")):
+                try:
+                    self._equip_from_bag(pick[0])
+                except Exception as e:
+                    self.log(f"🛡 No pude ponerme el arma: {e!r}")
             try:
                 qa = self._quest_active()
                 self.learner._profile()
@@ -5171,6 +5182,33 @@ class Bot:
                 o["kind"] = "pot"
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
         return out
+
+    def _equip_from_bag(self, name):
+        """Me pongo un objeto del bolso con Ctrl + click (wiki: equipa lo que se pueda equipar)."""
+        img = self.screen.grab(self.rect)
+        if not any(w[0].strip().startswith("Peso:") for w in self._q_words(img)):
+            winapi.press("F6")
+            time.sleep(0.9)
+        bag = self._oly_bag() or []
+        key = name.lower().split("(")[0].strip().split()[-1] if name else "dagger"
+        it = next((o for o in bag if key in o.get("name", "").lower()), None)
+        if not it:
+            it = next((o for o in bag if o["kind"] == "item" and not any(k in o.get("name", "").lower() for k in self.KEEP_WORDS)), None)
+        if not it:
+            self.log("🛡 No encuentro el arma nueva en el bolso.")
+            return False
+        winapi.left_up()
+        winapi.key_down("CTRL")
+        time.sleep(0.05)
+        winapi.click(*self.abs_pt(it["x"], it["y"]))
+        time.sleep(0.05)
+        winapi.key_up("CTRL")
+        time.sleep(0.8)
+        winapi.press("F6")
+        self.cfg["need_weapon"] = False
+        cfgmod.save(self.cfg)
+        self.log(f"🛡 Me puse {it.get('name') or name}.")
+        return True
 
     def _oly_pots(self):
         """Pociones de vida en el bolso (Olympia): abro F6, busco los frascos rojos y leo el número de abajo."""
