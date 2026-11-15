@@ -2628,7 +2628,8 @@ class Bot:
         return {"text": txt, "stats": stats, "level": int(lv.group(1)) if lv else None, "points": int(pts.group(1)) if pts else None}
 
     def _next_stat(self, stats):
-        plan = self._load_json("training_path.json").get("stat_plan", [])
+        # plan propio del server (armado con los requisitos reales de sus tiendas) si existe; si no, la guía general
+        plan = (self._load_json("stat_plan.json") or {}).get("stat_plan") or self._load_json("training_path.json").get("stat_plan", [])
         for st in plan:
             cur = stats.get(st["stat"])
             if cur is None or cur < st["target"]:
@@ -6047,7 +6048,7 @@ class Bot:
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inshop():
-                self.mission = {"map": "Aresden Farm", "goal": [63, 67], "label": "Tienda (pociones)", "until": time.time() + 300}
+                self.mission = {"map": "Aresden Farm", "goal": [63, 67], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
                 while not inshop() and time.time() - t0 < 900 and self.alive and self.running:
                     time.sleep(0.3)
             if not inshop():
@@ -6556,7 +6557,7 @@ class Bot:
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inside():
-                self.mission = {"map": pl["map"], "goal": list(d), "label": "Herrero (reparar)", "until": time.time() + 300}
+                self.mission = {"map": pl["map"], "goal": list(d), "label": "Herrero (reparar)", "until": time.time() + 300, "enter": True, "hold": True}
                 while not inside() and time.time() - t0 < 900 and self.alive and self.running:
                     time.sleep(0.3)
             if not inside():
@@ -7487,9 +7488,22 @@ class Bot:
         if not self._same(cur, ms["map"]):
             self.log(f"Encargo: {ms.get('label')} → llegué a {cur} ({self.pos.get('x')},{self.pos.get('y')}).")
             self._release()
+            if ms.get("hold"):
+                # entré a un local para hacer algo con ventanas: me quedo quieto ya (si no, el paso siguiente me saca)
+                self._busy_ui = True
+                self._busy_t0 = None
+            if ms.get("enter"):
+                # el pj sigue caminando hacia el último click después de cruzar la puerta (y vuelve a salir):
+                # lo freno haciendo click donde está parado
+                try:
+                    cx_, cy_ = self._char()
+                    tw_, th_ = self._tile()
+                    winapi.click(*self.abs_pt(cx_ + tw_, cy_ + th_))
+                except Exception:
+                    pass
             self.mission_result = {"map": cur, "x": self.pos.get("x"), "y": self.pos.get("y"), "label": ms.get("label")}
             self.mission = None
-            return False
+            return bool(ms.get("hold"))  # con 'hold' corto la vuelta acá: si sigo, el viaje automático me saca del local
         if self.state != "seek":
             self._release()
             self.state, self.target = "seek", None
@@ -7497,6 +7511,21 @@ class Bot:
         if not mp or self.pos.get("x") is None or time.time() - self.pos.get("t", 0) > 5:
             return True
         g = tuple(ms["goal"])
+        if ms.get("enter") and max(abs(g[0] - self.pos["x"]), abs(g[1] - self.pos["y"])) <= 2:
+            # es una puerta: llegar al lado no alcanza, hay que pisarla. Hago click en la baldosa y, si no entro,
+            # voy probando las de alrededor (la puerta exacta cambia un poco de server a server)
+            now_ = time.time()
+            if now_ - ms.get("_ct", 0) > 1.3:
+                ms["_ct"] = now_
+                k = ms["_k"] = ms.get("_k", -1) + 1
+                ring = [(0, 0), (0, -1), (-1, 0), (1, 0), (-1, -1), (1, -1), (0, 1), (-1, 1), (1, 1), (0, -2)]
+                dx, dy = ring[(k // 2) % len(ring)]
+                tw, th = self._tile()
+                cx, cy = self._char()
+                self._release()
+                winapi.click(*self.abs_pt(cx + (g[0] + dx - self.pos["x"]) * tw, cy + (g[1] + dy - self.pos["y"]) * th))
+            self.stats["state"] = "encargo"
+            return True
         if max(abs(g[0] - self.pos["x"]), abs(g[1] - self.pos["y"])) <= 1 and not mp.tele[g[1], g[0]]:
             self._release()
             self.log(f"Encargo: llegué a {g}.")
