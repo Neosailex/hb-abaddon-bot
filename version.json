@@ -1,1 +1,1 @@
-{"version": 184, "notes": "Menos nidos a nivel bajo, se retira antes, una lectura fallida de la misión ya no lo manda a Aresden Farm, Enzu en Beginner Zone."}
+{"version": 185, "notes": "No vuelve a pedir una misión que ya tiene activa cuando no alcanza a leer el cartel."}

@@ -4946,9 +4946,12 @@ class Bot:
         cap = max(3.0, 0.10 * hpmax) if hpmax < 150 else 0.04 * hpmax
         now = time.time()
         best = None
+        last = getattr(self, "_q_last_seen", None)
         for q in self._quest_db().get("quests", []):
             if q.get("kind") != "kill" or lvl < int(q.get("level") or 1):
                 continue
+            if last and last[0] == q["name"] and now - last[1] < 1800:
+                continue  # la vi activa hace poco (sin terminar): el cartel no se leyó, no la voy a pedir de nuevo
             t_done = done.get(q["name"])
             if t_done:
                 rep = q.get("repeat_h")
@@ -5057,6 +5060,10 @@ class Bot:
                 self._q_scan_t = now
                 return False
         self.quest = hud
+        if hud and hud[1] < hud[2]:
+            qa = self._quest_active()
+            if qa:
+                self._q_last_seen = (qa[0]["name"], now)
         # 1) misión completa: voy a cobrar
         if hud and hud[2] > 0 and hud[1] >= hud[2]:
             qn = getattr(self, "_q_npc", None)
