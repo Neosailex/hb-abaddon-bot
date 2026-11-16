@@ -4355,6 +4355,8 @@ class Bot:
         return True
 
     def _town_need(self, why):
+        if any(k in str(why) for k in ("dejé de matar", "mataron", "arma")):
+            self._worn_suspect_until = time.time() + 900  # puede que el arma se haya salido: reviso una vez
         self._town_done = False
         self._town_until = time.time() + 900
         self._town_why = why
@@ -7762,9 +7764,16 @@ class Bot:
             if o.get("dur") == 0:
                 return ("broken", "está roto", it, slot, val)
             if slot in ("arma", "escudo"):
-                # puede ser el mismo que tenía puesto y se salió solo al romperse (ya reparado): me lo pongo por
-                # las dudas. Si tenía otro igual puesto, se intercambian y no pasa nada.
-                return ("equip", "igual al que tenía puesto: me lo pongo por si se había salido", it, slot, val)
+                # puede ser el mismo que tenía puesto y se salió solo al romperse (ya reparado). Solo me lo pongo si
+                # hay motivo para dudar (dejé de matar, me mataron) y una sola vez: si es un repuesto, cambiarlo en
+                # cada revisión es perder un minuto y arriesgar quedar sin arma.
+                now_ = time.time()
+                last_ = getattr(self, "_same_eq_t", 0)
+                if now_ < getattr(self, "_worn_suspect_until", 0) and (now_ - last_ > 600 or now_ - last_ < 15):
+                    if now_ - last_ > 600:
+                        self._same_eq_t = now_
+                    return ("equip", "igual al que tenía puesto: me lo pongo por si se había salido", it, slot, val)
+                return ("keep", "repuesto igual al que tengo puesto", it, slot, val)
             return ("keep", "es igual a lo que tengo puesto: no lo toco", it, slot, val)
         if slot == "arma" and not worn:
             if o.get("dur") == 0:
