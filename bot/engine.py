@@ -6844,7 +6844,21 @@ class Bot:
             if qa:
                 self._q_last_seen = (qa[0]["name"], now)
         # 1) misión completa: voy a cobrar
+        qf = self.__dict__.setdefault("_q_turn_fail", {})
+        if hud and hud[2] > 0 and hud[1] >= hud[2] and qf.get(hud[0], {}).get("until", 0) > now:
+            return False  # ya probé cobrarla y no pude: no me quedo dando vueltas, sigo cazando y pruebo más tarde
         if hud and hud[2] > 0 and hud[1] >= hud[2]:
+            # las misiones nunca bloquean la caza: 3 minutos para llegar y cobrar; si no sale, la dejo media hora
+            f_ = qf.setdefault(hud[0], {"t0": now, "n": 0, "until": 0})
+            if now - f_.get("seen", 0) > 120:
+                f_["t0"] = now
+            f_["seen"] = now
+            if now - f_["t0"] > 180 or f_["n"] >= 2:
+                f_.update(until=now + 1800, n=0, t0=now)
+                self.goto = None
+                self._q_npc = None
+                self.log(f"📜 No pude cobrar '{hud[0]}' (¿bolso lleno?): la dejo media hora y sigo cazando.")
+                return False
             qn = getattr(self, "_q_npc", None)
             if not qn or now - qn.get("t", 0) > 600 or qn.get("q") != hud[0]:
                 qn = self._quest_npc_db(hud[0]) or self._quest_where()
@@ -7019,6 +7033,10 @@ class Bot:
             if h2 and h2[1] >= h2[2] and h2[2] > 0:
                 self.log("📜 Apreté para cobrar pero la misión sigue sin cobrar; pruebo de nuevo en un rato.")
                 self._q_npc = None
+                try:
+                    self.__dict__.setdefault("_q_turn_fail", {}).setdefault(hud[0], {"t0": time.time(), "n": 0, "until": 0})["n"] += 1
+                except Exception:
+                    pass
                 return
             self.log(f"📜 Cobré la misión '{hud[0]}'.")
             if self.cfg.get("need_weapon") and el and pick and any(k in pick[0].lower() for k in ("dagger", "sword", "gladius", "falchion", "gauche", "axe")):

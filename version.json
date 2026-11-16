@@ -1,1 +1,1 @@
-{"version": 273, "notes": "Cuenta las pociones aunque el frasco quede tapado por una espada; no compra si el bolso esta lleno (deja 8 lugares)."}
+{"version": 274, "notes": "Misiones no bloquean la caza: si no puede cobrar en 3 min o 2 intentos, la deja media hora."}
