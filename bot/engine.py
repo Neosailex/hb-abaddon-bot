@@ -7011,15 +7011,22 @@ class Bot:
             time.sleep(0.3)
             im1 = self.screen.grab(self.rect)
             winapi.move(*self.abs_pt(o["x"], o["y"]))
-            time.sleep(0.8)
+            time.sleep(0.3)
+            # el cartelito sale SOSTENIENDO el clic sobre el objeto (sin mover el mouse: moverlo lo arrastraría)
+            winapi.left_down()
+            time.sleep(0.6)
             im2 = self.screen.grab(self.rect)
-            # el cartelito con el nombre es lo que cambió al pasar el mouse
+            winapi.left_up()
+            time.sleep(0.45)  # que no se junte con otro clic (doble clic = equipar)
+            # el cartelito con el nombre es lo que cambió al sostener el clic
             dif = (np.abs(im2.astype(int) - im1.astype(int)).max(axis=2) > 40).astype(np.uint8)
+            dif[max(0, int(pw[2] - 16 * ky)):int(pw[2] + 16 * ky), :] = 0  # el renglón 'Peso:' no es el cartelito
             dif[max(0, o["y"] - int(30 * ky)):o["y"] + int(30 * ky), max(0, o["x"] - int(30 * kx)):o["x"] + int(30 * kx)] = 0
             ys_, xs_ = np.nonzero(dif)
             tw_ = []
             if len(xs_) > 200:
                 tw_ = ocr.read_words(im2, {"x1": int(xs_.min()), "y1": int(ys_.min()), "x2": int(xs_.max()) + 1, "y2": int(ys_.max()) + 1}, scale=1.0)
+            tw_ = [w for w in tw_ if not w[0].strip().lower().startswith("peso")]
             if tw_:
                 try:
                     o.update(self._tip_parse(tw_, 10 * ky))
