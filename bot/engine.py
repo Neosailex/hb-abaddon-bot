@@ -1096,6 +1096,10 @@ class Bot:
         self._brain_step()
         self._close_junk_windows()
         self._maybe_gear()
+        try:
+            self._pits_scan()
+        except Exception:
+            pass
         if self._mission_step():
             return
         mem_ok = (cfg["mode"] not in ("pit", "templates") and cfg.get("memory", {}).get("hunt", True)
@@ -4208,6 +4212,145 @@ class Bot:
                 for t in new:
                     f.write(time.strftime("%H:%M:%S ") + t + "\n")
 
+    # ---- nidos del mapa: el minimapa del juego los dibuja (Ctrl+Z los muestra u oculta)
+    PIT_GUESS = (("Orc", lambda h, s_, v: 45 <= h <= 70 and s_ >= 150), ("Giant Scorpion", lambda h, s_, v: 16 <= h <= 30 and v >= 45),
+                 ("Giant Ant", lambda h, s_, v: h <= 18 and v < 45), ("Slime", lambda h, s_, v: 32 <= h <= 60 and s_ < 130))
+
+    def _pits(self, mk=None):
+        mk = mk or (self.pos.get("map") or "").strip().lower()
+        return ((self.world.learn.get("pits") or {}).get(mk) or {}).get("list") or []
+
+    def _pits_scan(self):
+        """Mapa de nidos sin caminarlo: saco el minimapa (mapa entero) con y sin nidos; lo que cambia son los nidos.
+        Cada mancha → una baldosa del mapa. De qué bicho es cada uno lo adivino por el color y lo confirmo al pasar.
+        Lo hago una vez por mapa (y lo repito cada semana), con el pj tranquilo."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.rect or self.pos.get("x") is None:
+            return False
+        now = time.time()
+        mk = (self.pos.get("map") or "").strip().lower()
+        m = self.world.map_for(self.pos.get("map") or "")
+        if not mk or not m or any(k in mk for k in ("shop", "blacksmith", "city", "ciudad", "hall", "warehouse")):
+            return False
+        cur = (self.world.learn.get("pits") or {}).get(mk)
+        if cur and now - cur.get("t", 0) < 7 * 86400:
+            return False
+        if now - getattr(self, "_pits_try", 0) < 600 or self.state != "seek" or getattr(self, "_busy_ui", False) or self._under_attack():
+            return False
+        px, py = self.pos["x"], self.pos["y"]
+        if any(max(abs(e[0] - px), abs(e[1] - py)) <= 5 for e in (self._oly_ents() or [])):
+            return False
+        self._pits_try = now
+        import cv2
+        kx, ky = self.rect[2] / 1919.0, self.rect[3] / 1080.0
+        S = 231.0 * ky
+        x0, y0 = 1447.0 * kx, 0.0
+        sc = S / float(max(m.w, m.h))
+        self._release()
+        self._busy_ui = True
+        toggled_mode = False
+        try:
+            def marker(img):
+                r_ = img[0:int(S + 30), int(x0 - 30):int(x0 + S + 30)].astype(int)
+                bl = (r_[:, :, 0] > 190) & (r_[:, :, 1] < 80) & (r_[:, :, 2] < 80)
+                ys, xs = np.nonzero(bl)
+                return (float(xs.mean()) + int(x0 - 30), float(ys.mean())) if len(xs) >= 6 else None
+            img_a = self.screen.grab(self.rect)
+            mkr = marker(img_a)
+            want = (x0 + px * sc, y0 + py * sc)
+            if not mkr or max(abs(mkr[0] - want[0]), abs(mkr[1] - want[1])) > 10 * ky:
+                winapi.press("CTRL+SHIFT+M")  # el minimapa estaba con zoom: lo paso a mapa entero
+                toggled_mode = True
+                time.sleep(1.0)
+                img_a = self.screen.grab(self.rect)
+                mkr = marker(img_a)
+            if not mkr or max(abs(mkr[0] - want[0]), abs(mkr[1] - want[1])) > 10 * ky:
+                self.log("🗺 No pude leer los nidos del minimapa (no ubico mi marca en el mapa entero). Pruebo más tarde.")
+                return False
+            # ajusto el corrimiento con mi propia posición (la marca azul soy yo)
+            x0 += mkr[0] - want[0]
+            y0 += mkr[1] - want[1]
+            winapi.press("CTRL+Z")
+            time.sleep(0.9)
+            img_b = self.screen.grab(self.rect)
+            winapi.press("CTRL+Z")
+            time.sleep(0.5)
+            xa, ya = int(round(x0)), max(0, int(round(y0)))
+            ra = img_a[ya:ya + int(S), xa:xa + int(S)].astype(int)
+            rb = img_b[ya:ya + int(S), xa:xa + int(S)].astype(int)
+            d = (np.abs(ra - rb).max(axis=2) > 28).astype(np.uint8)
+            d = cv2.morphologyEx(d, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
+            if d.sum() < 80:
+                self.log("🗺 El minimapa no cambió al mostrar/ocultar nidos: este mapa no tiene, o la tecla no respondió.")
+                self.world.learn.setdefault("pits", {})[mk] = {"t": now, "list": []}
+                return False
+            on = ra if ra[d > 0].max(axis=1).mean() <= rb[d > 0].max(axis=1).mean() else rb  # con nidos: manchas más oscuras
+            n, lab, st, cen = cv2.connectedComponentsWithStats(d)
+            pits = []
+            for i in range(1, n):
+                if st[i, 4] < 60 * ky * ky:
+                    continue
+                col = np.median(on[lab == i], axis=0)
+                h_, s_, v_ = [int(x) for x in cv2.cvtColor(np.uint8([[col]]), cv2.COLOR_BGR2HSV)[0][0]]
+                tx, ty = int(round(cen[i][0] / sc)), int(round(cen[i][1] / sc))
+                if max(abs(tx - px), abs(ty - py)) <= 3 and st[i, 4] < 140:
+                    continue  # mi propia marca moviéndose
+                g = next((nm for nm, f in self.PIT_GUESS if f(h_, s_, v_)), None)
+                pits.append({"x": tx, "y": ty, "r": int(round(max(st[i, 2], st[i, 3]) / sc / 2)), "hsv": [h_, s_, v_], "guess": g, "mob": None, "seen": {}})
+            self.world.learn.setdefault("pits", {})[mk] = {"t": now, "list": pits}
+            self.world.save()
+            self.log(f"🗺 Leí {len(pits)} nidos del minimapa de {self.pos.get('map')}: "
+                     + ", ".join(f"{p['guess'] or '¿?'} ({p['x']},{p['y']})" for p in pits) + ".")
+            return True
+        except Exception as e:
+            self.log(f"🗺 Error leyendo nidos del minimapa: {e!r}")
+            return False
+        finally:
+            if toggled_mode:
+                try:
+                    winapi.press("CTRL+SHIFT+M")
+                except Exception:
+                    pass
+            self._busy_ui = False
+
+    def _pits_tag(self, ents):
+        """Al pasar cerca de un nido anoto qué bichos vivos hay: así confirmo de qué es cada uno."""
+        now = time.time()
+        if now - getattr(self, "_pits_tag_t", 0) < 5 or self.pos.get("x") is None:
+            return
+        self._pits_tag_t = now
+        px, py = self.pos["x"], self.pos["y"]
+        for p in self._pits():
+            if max(abs(p["x"] - px), abs(p["y"] - py)) > 16:
+                continue
+            rr = max(8, int(p.get("r") or 8) + 3)
+            for e in ents:
+                if max(abs(e[0] - p["x"]), abs(e[1] - p["y"])) <= rr:
+                    nm = e[2].get("name")
+                    if nm and nm != "bicho":
+                        p["seen"][nm] = p["seen"].get(nm, 0) + 1
+            if p["seen"]:
+                top = max(p["seen"], key=p["seen"].get)
+                if p["seen"][top] >= 6 and p.get("mob") != top:
+                    p["mob"] = top
+                    self.log(f"🗺 Nido de ({p['x']},{p['y']}): confirmado, es de {top}.")
+
+    def _pit_pick(self):
+        """El nido que me conviene ahora: de un bicho que aguanto, con prioridad al de la misión y a los cercanos."""
+        px, py = self.pos["x"], self.pos["y"]
+        qm = self._quest_mob_names() or set()
+        now = time.time()
+        tried = self.__dict__.setdefault("_pit_tried", {})
+        best = None
+        for p in self._pits():
+            nm = p.get("mob") or p.get("guess")
+            dist = max(abs(p["x"] - px), abs(p["y"] - py))
+            if not nm or dist <= 10 or tried.get((p["x"], p["y"]), 0) > now or not self._can_face(nm):
+                continue
+            score = (2.0 if nm in qm else 1.0) * (1.3 if p.get("mob") else 1.0) / (1.0 + dist / 80.0)
+            if best is None or score > best[0]:
+                best = (score, p, nm)
+        return best
+
     def _hot_return(self, ents=None):
         """Sin nada vivo cerca, o más de 2 minutos y medio sin ganar experiencia: vuelvo al último lugar donde venía
         ganando (en vez de explorar o dar vueltas). True = estoy yendo."""
@@ -4245,6 +4388,31 @@ class Bot:
                         return True
             except Exception:
                 pass
+            # mi zona buena se secó o no tengo ninguna: voy al nido que más conviene (los saqué del minimapa)
+            try:
+                if dry and now - getattr(self, "_pit_go_t", 0) > 20:
+                    bp = self._pit_pick()
+                    if bp:
+                        _sc, p, nm = bp
+                        m = self.world.map_for(self.pos.get("map") or "")
+                        g = m.nearest_walkable(p["x"], p["y"], r=6) if m else None
+                        pg = getattr(self, "_pit_go", None)
+                        if not pg or pg["k"] != (p["x"], p["y"]):
+                            pg = self._pit_go = {"k": (p["x"], p["y"]), "t": now, "d": 999}
+                            self.log(f"🗺 Acá no gano experiencia: voy al nido de {nm} en ({p['x']},{p['y']}).")
+                        dcur = max(abs(p["x"] - px), abs(p["y"] - py))
+                        if dcur < pg["d"]:
+                            pg["d"], pg["t"] = dcur, now
+                        elif now - pg["t"] > 45:
+                            self.__dict__.setdefault("_pit_tried", {})[(p["x"], p["y"])] = now + 900  # no llego: lo dejo 15 minutos
+                            self._pit_go = None
+                            return False
+                        if g:
+                            self.stats["state"] = f"voy al nido de {nm} ({p['x']},{p['y']})"
+                            self._walk_to(m, (int(g[0]), int(g[1])), f"nido de {nm}")
+                            return True
+            except Exception:
+                pass
         else:
             self._hot_go = None
         return False
@@ -4256,6 +4424,14 @@ class Bot:
         ents = self._oly_ents()
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
+        try:
+            self._pits_tag(ents)
+            pg = getattr(self, "_pit_go", None)
+            if pg and max(abs(pg["k"][0] - px), abs(pg["k"][1] - py)) <= 10:
+                self.__dict__.setdefault("_pit_tried", {})[pg["k"]] = now + 600  # ya estoy acá: si se seca, el próximo es otro
+                self._pit_go, self._start_t_oly = None, now
+        except Exception:
+            pass
         if self._hot_return(ents):
             return True
         if not ents:
