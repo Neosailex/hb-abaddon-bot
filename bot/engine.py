@@ -1248,10 +1248,19 @@ class Bot:
         if words is None:
             words = ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.6)}, scale=1.0)
         tab = next((w for w in words if norm(w[0]).startswith(("pocion", "pocl", "pocio"))), None)
+        smith = False
+        if not tab:
+            # herrero: pestañas Armas / Armadura / Varios / Vender
+            tab = next((w for w in words if norm(w[0]) in ("armas", "arrnas") or norm(w[0]).startswith("armadur")), None)
+            smith = bool(tab)
         if not tab or not any(norm(v[0]).startswith(("vender", "varios", "undcr", "arios")) and abs(v[2] - tab[2]) < 15 for v in words):
             return False
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
-        winapi.click(*self.abs_pt(tab[1] + 166 * kx, tab[2] + 317 * ky), button="right")
+        if smith:
+            # la lista del herrero está llena de filas: el click derecho va al recuadro de abajo (no elige nada)
+            winapi.click(*self.abs_pt(tab[1] + 40 * kx, tab[2] + 520 * ky), button="right")
+        else:
+            winapi.click(*self.abs_pt(tab[1] + 166 * kx, tab[2] + 317 * ky), button="right")
         time.sleep(0.4)
         return True
 
@@ -1273,6 +1282,18 @@ class Bot:
             words = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": W, "y2": int(H * 0.85)}, scale=1.0)
         except Exception:
             return False
+        # ventana de Tienda abierta sin que nadie esté comprando: la cierro (abierta no deja caminar, y un clic
+        # perdido ahí adentro puede comprar cualquier cosa)
+        try:
+            alive = any(getattr(self, a, None) is not None and getattr(self, a).is_alive()
+                        for a in ("_shop_th", "_rep_th", "_gear_th", "_audit_th", "_town_th"))
+            if not alive and not getattr(self, "mission", None):
+                top = [w for w in words if w[2] < H * 0.6]
+                if self._close_shop_window(top):
+                    self.log("Cierro la ventana de Tienda que había quedado abierta.")
+                    return True
+        except Exception:
+            pass
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         txt = [(norm(w[0]), w) for w in words]
         # carteles peligrosos: '¿tirar este objeto?' / '¿cuánto oro tirar?' y elegir talento → siempre No/Cancelar
