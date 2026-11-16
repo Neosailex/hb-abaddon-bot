@@ -8624,6 +8624,27 @@ class Bot:
                 self._rep_last = now
             # aviso del juego, o dejé de matar de golpe (dos "no muere" seguidos): arma rota. Eso es urgente: sin arma
             # no se pelea, así que salgo aunque me estén pegando.
+            # pegado a un bicho hace más de 75 s sin matar nada: el arma se rompió (o no tengo). No espero 8 minutos:
+            # corto y voy al pueblo a reparar y ponérmela, sin pelear en el camino.
+            try:
+                adj_n = len(self._grid().adjacent())
+            except Exception:
+                adj_n = 0
+            if adj_n:
+                if not getattr(self, "_adj_since", 0):
+                    self._adj_since = now
+                self._adj_seen = now
+            elif now - getattr(self, "_adj_seen", 0) > 4:
+                self._adj_since = 0
+            a0 = getattr(self, "_adj_since", 0)
+            if (a0 and now - max(a0, getattr(self, "_last_kill_t", 0)) > 75 and self.running
+                    and now - getattr(self, "_nokill_town", 0) > 600 and getattr(self, "_town_done", True)):
+                self._nokill_town = now
+                self._adj_since = 0
+                self.log("🔧 Hace más de un minuto que le pego a un bicho y no muere: el arma no está o se rompió. Voy al pueblo a reparar y ponérmela.")
+                self._kite = None
+                self._town_need("dejé de matar")
+                return
             el = [t for t in getattr(self, "_elite_ts", []) if now - t < 240]
             lk = getattr(self, "_last_kill_t", 0)
             weak = (len(el) >= 2 and el[-1] > self._rep_last and lk < el[-2] and now - lk > 40
