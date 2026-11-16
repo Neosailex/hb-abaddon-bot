@@ -7094,10 +7094,21 @@ class Bot:
         slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
         val = int(it.get("dmg") or it.get("def") or 0)
         worn = (self.cfg.get("worn") or {}).get(slot)
+        if worn and not worn.get("ok"):
+            worn = None  # solo cuenta lo que comprobé que quedó puesto
+        full = (it.get("affix") + " " if it.get("affix") else "") + it["name"]
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         fam = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
         # lo que tiene bonus (nombre con prefijo) nunca se vende solo: eso lo decide Juan
         nosell = "keep" if it.get("affix") else "sell"
+        if worn and worn.get("name") == full:
+            return ("keep", "es igual a lo que tengo puesto: no lo toco", it, slot, val)
+        if slot == "arma" and not worn:
+            if o.get("dur") == 0:
+                return ("broken", "está roto", it, slot, val)
+            if int(it.get("level") or 0) > lvl:
+                return ("keep", f"pide nivel {it['level']}", it, slot, val)
+            return ("equip", "no tengo arma comprobada puesta: cualquiera es mejor que pegar a mano", it, slot, val)
         if slot == "arma" and fam and str(it.get("family") or "").lower() != fam:
             return (nosell, f"no es {fam} (mi talento)" + (f"; tiene bonus ({it['affix']}): lo guardo" if it.get("affix") else ""), it, slot, val)
         if worn and val <= int(worn.get("v", -1)):
@@ -7446,8 +7457,8 @@ class Bot:
             # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
             sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
                     and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
-            if not self.cfg.get("sell_olympia", True):
-                sell = []
+            if not self.cfg.get("sell_olympia", False):
+                sell = []  # apagado: vendió un arma que creía tener puesta (16/11). Hasta probar bien el equipado, no vende.
             if sell and tabp:
                 click(tabp[1] + 346 * kx, tabp[2])
                 time.sleep(1.0)
@@ -8199,7 +8210,11 @@ class Bot:
                 # paso el mouse por cada cosa (sin clic): el cartelito dice qué es. Solo me pongo lo que MEJORA lo puesto.
                 bag = self._oly_bag() or []
                 pick = None
-                for o in bag:
+
+                def _pri(o_):
+                    g_ = self._game_item(o_.get("name")) or {}
+                    return (0 if str(g_.get("family") or "").lower() == fam else 1, -int(g_.get("dmg") or g_.get("def") or 0))
+                for o in sorted(bag, key=_pri):
                     if o["kind"] != "item" or any(abs(o["x"] - p[0]) < 14 and abs(o["y"] - p[1]) < 14 for p in done):
                         continue
                     v, why, it, slot, val = self._bag_judge(o)
@@ -8214,22 +8229,38 @@ class Bot:
                     break
                 o, it, slot, val = pick
                 done.append((o["x"], o["y"]))
-                before = sum(i_.get("area", 0) for i_ in bag if i_["kind"] == "item")
                 x, y = self.abs_pt(o["x"], o["y"])
-                winapi.click(x, y)
-                time.sleep(0.09)
-                winapi.click(x, y)
-                time.sleep(1.1)
-                bag2 = self._oly_bag(names=False) or []
-                after = sum(i_.get("area", 0) for i_ in bag2 if i_["kind"] == "item")
-                if abs(after - before) > 60:  # cambió lo que hay suelto: el objeto salió del bolso (o entró el que tenía puesto)
-                    n += 1
-                    put.append(it["name"])
-                    worn[slot] = {"name": it["name"], "v": val}
-                    cfgmod.save(self.cfg)
-                    # en ese lugar ahora está lo que tenía puesto: olvido solo ese lugar y lo releo
+                okeq = False
+                for how in ("doble", "ctrl"):
+                    if how == "doble":
+                        winapi.click(x, y)
+                        time.sleep(0.12)
+                        winapi.click(x, y)
+                    else:
+                        winapi.key_down("CTRL")
+                        time.sleep(0.06)
+                        winapi.click(x, y)
+                        time.sleep(0.06)
+                        winapi.key_up("CTRL")
+                    time.sleep(1.2)
+                    # ¿se lo puso de verdad? En ese lugar ya no tiene que estar ESE objeto (puede haber quedado el
+                    # que tenía puesto: por eso miro el nombre, no el tamaño)
                     self._bag_mem = [m for m in (getattr(self, "_bag_mem", None) or [])
                                      if abs(m["rx"] - o.get("rx", 9999)) > 40 or abs(m["ry"] - o.get("ry", 9999)) > 40]
+                    bag2 = self._oly_bag() or []
+                    here = [b_ for b_ in bag2 if b_["kind"] == "item" and abs(b_["x"] - o["x"]) < 22 and abs(b_["y"] - o["y"]) < 22]
+                    same = [b_ for b_ in here if (self._game_item(b_.get("name")) or {}).get("name") == it["name"]
+                            and (self._game_item(b_.get("name")) or {}).get("affix") == it.get("affix")]
+                    if not same and (not here or all(b_.get("name") for b_ in here)):
+                        okeq = True
+                        break
+                if not okeq:
+                    left.append((it["name"], "no pude ponérmelo (probé doble clic y Ctrl+clic)"))
+                if okeq:
+                    n += 1
+                    put.append(it["name"])
+                    worn[slot] = {"name": (it.get("affix") + " " if it.get("affix") else "") + it["name"], "v": val, "ok": True}
+                    cfgmod.save(self.cfg)
             if left:
                 self.log("🎒 Dejo en el bolso: " + "; ".join(f"{a_} ({b_})" for a_, b_ in left[:5]) + ".")
             if put:

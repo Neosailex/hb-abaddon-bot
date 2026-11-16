@@ -1,1 +1,1 @@
-{"version": 266, "notes": "Oro bien leido; reconoce objetos con bonus (prefijos) y no los vende; se vuelve a poner el arma del talento."}
+{"version": 267, "notes": "No vende solo (apagado). Equipar: comprueba de verdad que quedo puesto (por nombre), prueba doble clic y Ctrl+clic. Sin arma comprobada, se pone cualquiera."}
