@@ -269,7 +269,7 @@ def to_data_url(img, quality=60, max_w=None):
     return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
 
 
-def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=None):
+def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=None, grid=None):
     """Dibuja lo que ve el bot sobre una copia de la pantalla (para la vista previa)."""
     if img is None:
         return None
@@ -292,6 +292,25 @@ def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, col, 1, cv2.LINE_AA)
     for it in items:
         cv2.rectangle(out, (it["x"] - it["w"] // 2, it["y"] - it["h"] // 2), (it["x"] + it["w"] // 2, it["y"] + it["h"] // 2), (0, 220, 0), 2)
+    if grid:
+        tw, th = int(grid["tw"]), int(grid["th"])
+        for x, y in grid.get("npcs", []):
+            cv2.rectangle(out, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), (230, 230, 230), 1)
+        for x, y in grid.get("players", []):
+            cv2.rectangle(out, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), (255, 140, 0), 2)
+            cv2.putText(out, "jugador", (x - tw // 2, y - th // 2 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 140, 0), 1, cv2.LINE_AA)
+        for x, y in grid.get("loot", []):
+            cv2.rectangle(out, (x - tw // 3, y - th // 3), (x + tw // 3, y + th // 3), (0, 220, 0), 2)
+        for m in sorted(grid.get("mobs", []), key=lambda m: -(m["n"] or 999)):
+            x, y = m["x"], m["y"]
+            if m["n"] == 1:
+                continue  # el 1 lo dibuja el seguimiento (rojo fuerte)
+            col, th_ = ((0, 60, 255), 2) if m["attack"] else ((0, 150, 220), 1)
+            cv2.rectangle(out, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), col, th_)
+            if m["n"]:
+                cv2.putText(out, str(m["n"]), (x - tw // 2 + 3, y - th // 2 + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.55, col, 2, cv2.LINE_AA)
+        import unicodedata as _ud
+        cv2.putText(out, "modo: " + _ud.normalize("NFKD", str(grid.get("mode", ""))).encode("ascii", "ignore").decode(), (12, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
     if track:
         import time as _t
         if _t.time() - track.get("t", 0) < 1.5:

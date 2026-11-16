@@ -9,6 +9,7 @@ import time
 from collections import deque
 
 from . import config as cfgmod
+from . import grid as gridmod
 from . import events as evmod
 from . import memory, ocr, secret, vision, winapi
 from . import world as worldmod
@@ -3908,10 +3909,18 @@ class Bot:
         except Exception:
             live_after = None
         ghosts = 0
+        allv, seen_all = [], set()
+        mypos = (self.pos.get("x"), self.pos.get("y"))
         for x, y, typ, st, oid in raw:
             if live_after is not None and int(oid) < live_after:
                 ghosts += 1
                 continue
+            if 0 < typ < 500 and (x, y) != (0, 0) and (typ, x, y) not in seen_all and (x, y) != mypos:
+                seen_all.add((typ, x, y))
+                c_ = crs.get(typ) or generic
+                kind_ = "mob" if c_ else ("player" if typ in gridmod.PLAYER_TYPES else "npc")
+                allv.append({"x": x, "y": y, "typ": typ, "kind": kind_, "cr": c_,
+                             "name": c_["name"] if c_ else ("jugador" if kind_ == "player" else f"npc {typ}")})
             cr = crs.get(typ) or generic
             # el campo "id" de Olympia cambia solo (es un contador): identifico al bicho por tipo y baldosa
             key = (typ, x, y)
@@ -3919,6 +3928,12 @@ class Bot:
                 continue
             seen.add(key)
             out.append((x, y, cr, key))
+        try:
+            self._grid_update(allv, now)
+        except Exception as e_:
+            if now - getattr(self, "_grid_err_t", 0) > 300:
+                self._grid_err_t = now
+                self.log(f"Grilla: error {e_!r}")
         self._oly_ghosts = ghosts
         if ghosts and not getattr(self, "_oly_ghost_said", False):
             self._oly_ghost_said = True
@@ -4207,6 +4222,70 @@ class Bot:
         except Exception as e:
             self.log(f"🔎 Error buscando bichos en memoria: {e!r}")
 
+    def _grid(self):
+        g = getattr(self, "grid", None)
+        if g is None:
+            g = self.grid = gridmod.Grid()
+        return g
+
+    def _grid_mode(self):
+        """En qué estoy: eso decide cómo leo la grilla."""
+        cur = (self.pos.get("map") or "").lower()
+        if getattr(self, "_busy_ui", False) or any(k in cur for k in ("shop", "blacksmith", "hall", "warehouse", "church", "tower")):
+            return "local"
+        if getattr(self, "_rest_since", 0) or getattr(self, "_kite", None):
+            return "descanso"
+        if getattr(self, "_loot_go", None):
+            return "recolección"
+        if (getattr(self, "goto", None) or getattr(self, "mission", None) or self._is_travelling() or self._in_town()
+                or getattr(self, "_hot_go", None) or getattr(self, "_pit_go", None)):
+            return "viaje"
+        mk = cur.strip()
+        if not (self.world.learn.get("oly_hot") or {}).get(mk):
+            return "zona nueva"
+        return "nido"
+
+    def _grid_update(self, allv, now):
+        """Refresco la grilla con lo vivo de esta lectura y saco las consecuencias: muertes (un bicho que seguía de
+        cerca dejó de estar vivo) y dónde cayó su botín."""
+        if self.pos.get("x") is None:
+            return
+        g = self._grid()
+        g.update((self.pos["x"], self.pos["y"]), (self.pos.get("map") or "").strip().lower(), allv, now)
+        g.mode = self._grid_mode()
+        self.stats["mode"] = g.mode
+        for tr in g.lost:
+            if now - tr.near_t < 3.0 and self.running:
+                self.stats["kills"] = self.stats.get("kills", 0) + 1
+                self._last_kill_t = now
+                self._oly_loot = (tr.x, tr.y, now)
+                try:
+                    self._zone_kill()
+                except Exception:
+                    pass
+                self.log(f"✝ {tr.name} muerto (kill #{self.stats['kills']}).")
+
+    def _grid_overlay(self):
+        """La grilla pasada a pantalla para la vista previa: lo que se ve es lo que el bot cree."""
+        g = getattr(self, "grid", None)
+        if not g or not g.me or self.pos.get("x") is None or time.time() - g.t > 1.5:
+            return None
+        cx, cy = self._char()
+        tw, th = self._tile()
+        px, py = self.pos["x"], self.pos["y"]
+        P = lambda x, y: (int(cx + (x - px) * tw), int(cy + (y - py) * th))
+        out = {"tw": tw, "th": th, "mode": g.mode, "mobs": [], "players": [], "npcs": [], "loot": []}
+        for tr in g.tracks.values():
+            x, y = P(tr.x, tr.y)
+            out["mobs"].append({"x": x, "y": y, "n": tr.n, "attack": tr.attack, "name": tr.name})
+        for p in g.players:
+            out["players"].append(P(p["x"], p["y"]))
+        for p in g.npcs:
+            out["npcs"].append(P(p["x"], p["y"]))
+        for it in g.loot:
+            out["loot"].append(P(it["x"], it["y"]))
+        return out
+
     def _loot_items_draw(self):
         d = getattr(self, "_loot_draw", None)
         return d["list"] if d and time.time() - d["t"] < 2.0 else ()
@@ -4263,6 +4342,10 @@ class Bot:
             cur[k] = (seen.get(k, (0, 0))[0] + 1, now)
         self._loot_seen = cur  # lo que no volvió a aparecer se olvida (números de daño, cosas que pasan)
         self._loot_draw = {"t": now, "list": [{"x": it["x"], "y": it["y"], "w": int(tw * 0.6), "h": int(th * 0.6)} for it in found]}
+        try:
+            self._grid().set_loot([{"x": k_[0], "y": k_[1], "kind": k_[2]} for k_ in cur])
+        except Exception:
+            pass
         for k in [k for k, v in tried.items() if v < now]:
             del tried[k]
         cand = [k for k, v in cur.items() if v[0] >= 2 and (k[0], k[1]) not in tried
@@ -4523,6 +4606,23 @@ class Bot:
         except Exception:
             pass
         try:
+            pl = [p for p in self._grid().players if max(abs(p["x"] - px), abs(p["y"] - py)) <= 7]
+            if pl and any(max(abs(o[0] - px), abs(o[1] - py)) <= 9 for o in ents):
+                self._pl_since = getattr(self, "_pl_since", 0) or now
+                if now - self._pl_since > 25 and now - getattr(self, "_pl_moved", 0) > 300:
+                    self._pl_moved, self._pl_since = now, 0
+                    tr_ = self.__dict__.setdefault("_pit_tried", {})
+                    for p_ in self._pits():
+                        if max(abs(p_["x"] - px), abs(p_["y"] - py)) <= 14:
+                            tr_[(p_["x"], p_["y"])] = now + 600
+                    self._hot_fail = now          # tampoco vuelvo a mi zona de siempre por un rato
+                    self._exp_gain_t, self._start_t_oly = 0, now - 1000   # cuenta como zona seca: elijo otro nido
+                    self.log("👥 Hay otro jugador cazando en este nido: me voy a otro.")
+            else:
+                self._pl_since = 0
+        except Exception:
+            pass
+        try:
             if self._loot_pass(ents):
                 return True
         except Exception as e_:
@@ -4623,49 +4723,27 @@ class Bot:
                 self.log(f"🪺 Solo veo slimes en nido (más de {allow} juntos): todavía no me da, busco sueltos.")
             return False
         e = min(ok, key=lambda e: d(e) + 3 * crowd(e))
-        # --- objetivo con seguimiento: una vez que elijo un bicho lo sigo por la grilla (se mueve él, me muevo yo,
-        # se corre la pantalla) hasta que muere o lo pierdo. El clic sale siempre de su baldosa de AHORA.
-        trk = getattr(self, "_trk", None)
-        if trk:
-            same = [o for o in ents if o[2]["name"] == trk["name"] and max(abs(o[0] - trk["x"]), abs(o[1] - trk["y"])) <= 2]
-            if same:
-                o = min(same, key=lambda o: max(abs(o[0] - trk["x"]), abs(o[1] - trk["y"])))
-                trk["x"], trk["y"], trk["seen"] = o[0], o[1], now
-                if d(o) <= 2:
-                    trk["near_t"] = now
-                if o[3] not in bad and (o in ok or d(o) <= 2) and now - trk["since"] < 90:
-                    e = o
-                else:
-                    self._trk = trk = None
-            elif now - trk["seen"] > 0.8:
-                # ya no está entre los vivos: si lo tenía al lado, lo maté
-                if now - trk.get("near_t", 0) < 3.0:
-                    self.stats["kills"] = self.stats.get("kills", 0) + 1
-                    self._last_kill_t = now
-                    self._oly_loot = (trk["x"], trk["y"], now)
-                    try:
-                        self._zone_kill()
-                    except Exception:
-                        pass
-                    self.log(f"✝ {trk['name']} muerto (kill #{self.stats['kills']}).")
-                self._trk = trk = None
-                self._trk_draw = None
-            else:
-                self._last_enemy = now
-                return True  # una lectura sin verlo: espero un instante sin cambiar de objetivo
-        if not trk:
-            trk = self._trk = {"name": e[2]["name"], "x": e[0], "y": e[1], "seen": now, "since": now,
-                               "near_t": now if d(e) <= 2 else 0, "adj": None}
-        # élite / no muere: cuento el tiempo que lo tengo pegado, siguiéndolo aunque se mueva
-        if d(e) <= 1:
-            trk["adj"] = trk.get("adj") or now
-            if now - trk["adj"] > self._oly_ttk(e[2]["name"]):
-                bad[e[3]] = now + 600
+        # --- cola de objetivos de la grilla: cada bicho vivo tiene su número y lo conserva aunque se mueva. El 1 es
+        # al que le pego; cuando muere, el 2 ya venía siendo seguido. El clic sale de su baldosa de AHORA.
+        g = self._grid()
+        okset = {(o[0], o[1]) for o in ok}
+        cap_n = self._group_cap(getattr(self, "_hunt_mob", None) or e[2]["name"])
+        q = g.rank(cap=cap_n, usable=lambda tr: (tr.x, tr.y) in okset and (tr.typ, tr.x, tr.y) not in bad,
+                   quest=self._quest_mob_names() or (), mode="nido",
+                   taken=lambda tr: g.player_near(tr.x, tr.y, 2))
+        q = [tr for tr in q if (tr.typ, tr.x, tr.y) not in bad]
+        if q:
+            tr = q[0]
+            e2 = next((o for o in ents if (o[0], o[1]) == (tr.x, tr.y) and o[2]["name"] == tr.name), None)
+            if e2:
+                e = e2
+            # élite / no muere: cuento el tiempo que lo tengo pegado, siguiéndolo aunque se mueva
+            if e2 and tr.adj_since and now - tr.adj_since > self._oly_ttk(tr.name):
                 for dx_ in (-1, 0, 1):
                     for dy_ in (-1, 0, 1):
-                        bad[(e[3][0], e[0] + dx_, e[1] + dy_)] = now + 600
-                self.log(f"👑 Ese {e[2]['name']} no muere: debe ser élite. Lo dejo y sigo con otro.")
-                self._trk = None
+                        bad[(tr.typ, tr.x + dx_, tr.y + dy_)] = now + 600
+                tr.adj_since = now
+                self.log(f"👑 Ese {tr.name} no muere: debe ser élite. Lo dejo y sigo con otro.")
                 self._release()
                 return False
         # élite: el slime común muere en 1-3 golpes; si a los 7 s de pegarle sigue vivo, es élite y lo dejo
@@ -9369,7 +9447,7 @@ class Bot:
                         mons = getattr(self, "_last_mons", []) if self.running else []
                         if self.running and not mons and self.target:
                             mons = [self.target]
-                        ov = vision.draw_overlay(img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None))
+                        ov = vision.draw_overlay(img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None), grid=self._grid_overlay())
                         url = vision.to_data_url(ov, int(self.cfg.get("preview_quality", 75)),
                                                  max_w=int(self.cfg.get("preview_width", 1280)))
                         self.preview = url
@@ -9398,7 +9476,7 @@ class Bot:
             mons = self._monsters()
         elif self.running:
             mons = getattr(self, "_last_mons", []) or ([self.target] if self.target else [])
-        ov = vision.draw_overlay(self.img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None))
+        ov = vision.draw_overlay(self.img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None), grid=self._grid_overlay())
         self.preview = vision.to_data_url(ov, 55, max_w=640)
 
     # ---------------------------------------------------------------- state
