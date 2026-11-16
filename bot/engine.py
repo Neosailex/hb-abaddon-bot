@@ -7357,6 +7357,8 @@ class Bot:
         if gt is None and getattr(self, "_gold_rel", None) is not None:
             d = None  # ya sé leer el número exacto: si esta vez no salió, me quedo con el último (no invento)
         last_g = getattr(self, "_gold", None)
+        if gt is None and d is not None and d < 1000 and (last_g is None or last_g >= 1000):
+            d = None  # número chico leído a ojo (el '7' de '7.6k'): sin el cartelito no le creo
         if d is not None and last_g and last_g >= 1000 and d < 0.2 * last_g and getattr(self, "_gold_low", None) != d:
             self._gold_low = d   # de miles a casi nada de golpe: casi seguro leí otro número; le creo si se repite
             d = None
@@ -8004,6 +8006,11 @@ class Bot:
             ws = words(grab())
             tabp = next((w for w in ws if norm(w[0]).startswith("poci") or norm(w[0]).startswith("pocl")), None)
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            if not tabp:
+                # la pestaña (letra gótica) no se leyó: la ubico por el primer renglón de la lista ('Health Potion')
+                hp_ = next((w for w in ws if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws)), None)
+                if hp_ and any(norm(v[0]) == "potion" and abs(v[2] - hp_[2]) < 8 for v in ws):
+                    tabp = ("Pociones", hp_[1] + 32 * kx, hp_[2] - 47 * ky)
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
             if not any(w[0].strip().startswith("Peso") for w in self._q_words(grab())):
                 winapi.press("F6")  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender
@@ -8042,8 +8049,8 @@ class Bot:
             except Exception as e:
                 self.log(f"🍖 No pude comprar comida: {e!r}")
             # 2) pociones: solo con el oro que sobra después de la reserva para equipo, y hasta 4
-            if getattr(self, "_gold", None) is None:
-                # no leí el oro en el bolso: la tienda lo dice al elegir algo ('Total 45 (tienes 7.781)')
+            if True:
+                # el oro exacto lo dice la tienda al elegir algo ('Total 45 (tienes 7.781)'): manda sobre lo leído en el bolso
                 try:
                     w0 = words(grab())
                     hp0 = next((w for w in w0 if norm(w[0]) == "health"), None)
@@ -8058,8 +8065,10 @@ class Bot:
                             m_ = _re.search(r"tienes\s*([\d\.\, ]+)", row_.lower())
                             dg = "".join(c for c in (m_.group(1) if m_ else "") if c.isdigit())
                             if dg:
+                                if getattr(self, "_gold", None) != int(dg):
+                                    self.log(f"🛒 Oro según la tienda: {int(dg)}.")
                                 self._gold = int(dg)
-                                self.log(f"🛒 Oro según la tienda: {self._gold}.")
+                                self._gold_low = None
                 except Exception:
                     pass
             gold = getattr(self, "_gold", None)
