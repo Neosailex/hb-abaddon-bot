@@ -6992,7 +6992,7 @@ class Bot:
                 continue
             m = next((m for m in mem if abs(m["rx"] - o["rx"]) <= 6 * kx and abs(m["ry"] - o["ry"]) <= 6 * ky
                       and abs(m["area"] - o["area"]) <= 0.12 * max(m["area"], 1)), None)
-            if m and m.get("name"):
+            if m and (m.get("ok") or time.time() - m.get("t", 0) < 3600):
                 o.update({k: m[k] for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str") if m.get(k) is not None})
                 o["known"] = True
                 hits += 1
@@ -7026,6 +7026,12 @@ class Bot:
             # el cartelito con el nombre es lo que cambió al sostener el clic
             dif = (np.abs(im2.astype(int) - im1.astype(int)).max(axis=2) > 40).astype(np.uint8)
             dif[max(0, int(pw[2] - 16 * ky)):int(pw[2] + 16 * ky), :] = 0  # el renglón 'Peso:' no es el cartelito
+            # el cartelito sale pegado al objeto (abajo a la derecha): lo demás que cambió (chat, misiones) no cuenta
+            keep = np.zeros_like(dif)
+            ya, yb = max(0, int(o["y"] - 40 * ky)), int(o["y"] + 230 * ky)
+            xa, xb = max(0, int(o["x"] - 60 * kx)), int(o["x"] + 560 * kx)
+            keep[ya:yb, xa:xb] = 1
+            dif = dif * keep
             dif[max(0, o["y"] - int(30 * ky)):o["y"] + int(30 * ky), max(0, o["x"] - int(30 * kx)):o["x"] + int(30 * kx)] = 0
             ys_, xs_ = np.nonzero(dif)
             tw_ = []
@@ -7046,8 +7052,9 @@ class Bot:
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
         if names:
             try:
-                self._bag_mem_save([{k: o.get(k) for k in ("rx", "ry", "area", "name", "dur", "dur_max", "dmg", "def", "lvl", "str")}
-                                    for o in out if o["kind"] == "item" and o.get("name")])
+                self._bag_mem_save([dict({k: o.get(k) for k in ("rx", "ry", "area", "name", "dur", "dur_max", "dmg", "def", "lvl", "str")},
+                                         ok=bool(self._game_item(o.get("name"))), t=int(time.time()))
+                                    for o in out if o["kind"] == "item"])
             except Exception:
                 pass
         return out
@@ -7057,7 +7064,8 @@ class Bot:
         if m is None:
             try:
                 with open(os.path.join(cfgmod.profile_dir(self.cfg), "bolso.json"), encoding="utf-8") as f:
-                    m = json.load(f).get("items") or []
+                    d_ = json.load(f)
+                    m = (d_.get("items") or []) if d_.get("v") == 2 else []
             except Exception:
                 m = []
             self._bag_mem = m
@@ -7067,7 +7075,7 @@ class Bot:
         self._bag_mem = items
         try:
             with open(os.path.join(cfgmod.profile_dir(self.cfg), "bolso.json"), "w", encoding="utf-8") as f:
-                json.dump({"t": int(time.time()), "items": items}, f, ensure_ascii=False)
+                json.dump({"v": 2, "t": int(time.time()), "items": items}, f, ensure_ascii=False)
         except Exception:
             pass
 
@@ -7106,6 +7114,12 @@ class Bot:
             else:
                 lines.append([w[2], [w]])
         txt = [" ".join(v[0] for v in sorted(l[1], key=lambda v: v[1])) for l in lines]
+        is_stat = lambda t: any(k in t.lower() for k in ("durab", "(end)", "daño", "(dmg)", "nivel", "(lvl)", "fuerza", "(str)", "defensa", "(def)"))
+        first = next((i for i, t in enumerate(txt) if is_stat(t)), None)
+        if first is not None and first > 0:
+            txt = txt[first - 1:]  # el nombre es el renglón de arriba del primer dato; lo de más arriba es otra cosa
+        elif first == 0:
+            txt = [""] + txt
         out = {"name": txt[0].strip()} if txt else {}
         for t in txt[1:]:
             low = t.lower()
