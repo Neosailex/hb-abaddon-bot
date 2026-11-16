@@ -4805,6 +4805,7 @@ class Bot:
         okk = lambda k, v: ((fresh and max(abs(k[0] - kl[0]), abs(k[1] - kl[1])) <= 3 and v[0] >= 2)
                             or (k[2].startswith("poci") and v[0] >= 3))
         cand = [k for k, v in cur.items() if okk(k, v) and (k[0], k[1]) not in tried
+                and not ("man" in k[2] and not self.cfg.get("loot_mana", False))  # las de maná no las uso: solo llenan el bolso
                 and max(abs(k[0] - px), abs(k[1] - py)) <= int(reach or self.cfg.get("loot_reach", 7))
                 and not any((e[0], e[1]) == (k[0], k[1]) for e in ents)]
         if not cand:
@@ -7873,6 +7874,8 @@ class Bot:
                                                      "coal", "mithral", "gold", "clay", "pumpkin", "radish", "mushroom", "garlic")):
                 return ("keep", "material valioso: lo decide Juan", it, None, 0)
             return ("sell", "material de botín", it, None, 0)
+        if "mana potion" in str(it.get("name") or "").lower() and int(((getattr(self, "_stats_vals", None) or {}).get("MAG")) or 10) <= 15:
+            return ("sell", "poción de maná: un guerrero no la usa y ocupa lugar", it, None, 0)
         if it.get("type") != 1 or not it.get("slot"):
             return ("other", "no es equipo", it, None, 0)
         slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
