@@ -7595,6 +7595,19 @@ class Bot:
                     self.log(f"🧪 Me quedan {n}{'+' if getattr(self, '_pots_unknown', False) else ''} pociones de vida.")
                 self._left = {"pot": n, "meat": 99}
         n = getattr(self, "_left", {}).get("pot")
+        # compré y el contador no subió: o el bolso está lleno o no estoy viendo el frasco. No vuelvo a la tienda
+        # cada 15 minutos para nada: después de dos veces seguidas, dejo de ir por pociones 45 minutos.
+        bc = getattr(self, "_buy_chk", None)
+        if bc and n is not None and 5 < now - bc["t"] < 240:
+            self._buy_chk = None
+            if n <= bc["have"] + bc["n"] // 2:
+                self._buy_nochg = getattr(self, "_buy_nochg", 0) + 1
+                if self._buy_nochg >= 2:
+                    self._buy_nochg = 0
+                    self._pot_stuck_until = now + 2700
+                    self.log("🛒 Compro pociones y el contador no sube (bolso lleno o frasco tapado): no vuelvo a la tienda por pociones durante 45 minutos.")
+            else:
+                self._buy_nochg = 0
         lim = 0 if getattr(self, "_pots_unknown", False) else int(self.cfg.get("buy_pots_below", 3))
         gold = getattr(self, "_gold", None)
         afford = gold is not None and self._pot_budget(gold, n or 0) >= (1 if not n else 3)
@@ -7602,7 +7615,7 @@ class Bot:
         if now - getattr(self, "_shop_last", 0) < 900:
             return
         hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and (gold or 0) >= 30
-        if not hungry and (n is None or n > lim or not afford):
+        if not hungry and (n is None or n > lim or not afford or now < getattr(self, "_pot_stuck_until", 0)):
             return
         self._shop_last = now
         self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
@@ -7758,6 +7771,7 @@ class Bot:
             time.sleep(1.5)
             self.log(f"🛒 Compré {n} pociones de vida (tenía {gold} de oro).")
             self._left = {"pot": (have or 0) + n, "meat": 99}
+            self._buy_chk = {"t": time.time(), "have": have or 0, "n": n}
             self._pots_unknown = False
             self._pots_t = 0
             tienda = next((w for w in words(grab()) if norm(w[0]) == "tienda"), None)
