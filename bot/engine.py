@@ -4169,8 +4169,13 @@ class Bot:
         d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
         adj = [e for e in ents if d(e) <= 1]
         if not adj:
-            if now - getattr(self, "_hit_t", 0) < 2.5 and not any(d(e) <= 3 for e in ents) and now - getattr(self, "_rfx_def", 0) > 2.0:
-                self._rfx_def = now  # me pegan y no veo quién: pego alrededor
+            # me pegan y no veo quién: pego alrededor, pero solo con una baja de vida de verdad (no el ruido de la
+            # barra) y como mucho 3 veces cada medio minuto: no me quedo clavado pegándole al aire
+            h_ = [v for t, v in getattr(self, "_hp_hist", []) if now - t < 3]
+            real = len(h_) >= 2 and max(h_) - h_[-1] >= 8
+            dl = [t for t in getattr(self, "_rfx_defs", []) if now - t < 30]
+            if real and not any(d(e) <= 3 for e in ents) and len(dl) < 3 and (not dl or now - dl[-1] > 2.0):
+                self._rfx_defs = dl + [now]
                 self._defend()
                 return True
             return False
