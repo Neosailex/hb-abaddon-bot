@@ -1,1 +1,1 @@
-{"version": 252, "notes": "Arma rota: lo detecta por el aviso del juego (cada 4 s) o porque deja de matar, y va al herrero aunque le esten pegando."}
+{"version": 253, "notes": "Revisa el bolso (F6) pasando el mouse por cada objeto: lee nombre, danio y durabilidad. Algo en 0 = va al herrero."}

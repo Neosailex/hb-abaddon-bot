@@ -1101,6 +1101,10 @@ class Bot:
         self._strategy()
         self._maybe_shop()
         self._maybe_repair()
+        try:
+            self._maybe_audit()
+        except Exception:
+            pass
         self._brain_step()
         self._close_junk_windows()
         self._maybe_gear()
@@ -6881,14 +6885,101 @@ class Bot:
             tw_ = []
             if len(xs_) > 200:
                 tw_ = ocr.read_words(im2, {"x1": int(xs_.min()), "y1": int(ys_.min()), "x2": int(xs_.max()) + 1, "y2": int(ys_.max()) + 1}, scale=1.0)
-            tw_ = [w for w in tw_ if not w[0].strip().isdigit()]
             if tw_:
+                try:
+                    o.update(self._tip_parse(tw_, 10 * ky))
+                except Exception:
+                    pass
+            tw_ = [w for w in tw_ if not w[0].strip().isdigit()]
+            if tw_ and not o.get("name"):
                 top = min(w[2] for w in tw_)
                 o["name"] = " ".join(w[0] for w in sorted([w for w in tw_ if w[2] - top < 10 * ky], key=lambda w: w[1]))
             if any(k in o["name"].lower() for k in ("potion", "poción", "pocion")):
                 o["kind"] = "pot"
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
         return out
+
+    @staticmethod
+    def _tip_parse(ws, tol=10):
+        """Cartelito de un objeto (mouse encima, sin clic): nombre arriba y debajo sus datos.
+        'Durabilidad (End): 0 / 700' -> dur 0, dur_max 700. Sirve en cualquier server con este cliente."""
+        import re
+        fix = str.maketrans({"O": "0", "o": "0", "I": "1", "l": "1", "S": "5", "B": "8"})
+        lines = []
+        for w in sorted(ws, key=lambda w: (w[2], w[1])):
+            if lines and abs(w[2] - lines[-1][0]) < tol:
+                lines[-1][1].append(w)
+            else:
+                lines.append([w[2], [w]])
+        txt = [" ".join(v[0] for v in sorted(l[1], key=lambda v: v[1])) for l in lines]
+        out = {"name": txt[0].strip()} if txt else {}
+        for t in txt[1:]:
+            low = t.lower()
+            tail = t.split(":", 1)[1] if ":" in t else t
+            nums = [int(n) for n in re.findall(r"\d+", tail.split("(")[0].translate(fix))]
+            if ("durab" in low or "(end)" in low) and len(nums) >= 2:
+                out["dur"], out["dur_max"] = nums[0], nums[1]
+            elif ("daño" in low or "dmg" in low or "dano" in low) and nums:
+                out["dmg"] = nums[0]
+            elif ("nivel" in low or "(lvl)" in low) and nums:
+                out["lvl"] = nums[0]
+            elif ("fuerza" in low or "(str)" in low) and nums:
+                out["str"] = nums[0]
+            elif ("defensa" in low or "(def)" in low) and nums:
+                out["def"] = nums[0]
+        return out
+
+    def _maybe_audit(self):
+        """Cada tanto, parado y sin bichos cerca, abro el bolso (F6) y paso el mouse por cada cosa: el cartelito dice
+        qué es y cuánta durabilidad le queda. Algo en 0 = roto y suelto en el bolso: herrero ya."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.running or self.pos.get("x") is None:
+            return
+        if getattr(self, "mission", None) or getattr(self, "_busy_ui", False):
+            return
+        now = time.time()
+        every = 300 if now - getattr(self, "_worn_seen", 0) < 600 else float(self.cfg.get("bag_audit_min", 20)) * 60
+        if now - getattr(self, "_audit_t", 0) < every:
+            return
+        for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th", "_audit_th"):
+            th = getattr(self, a, None)
+            if th is not None and th.is_alive():
+                return
+        if self.state == "attack" or self._under_attack() or self._fleeing():
+            return
+        px, py = self.pos["x"], self.pos["y"]
+        if any(max(abs(e[0] - px), abs(e[1] - py)) <= 6 for e in (self._oly_ents() or [])):
+            return
+        self._audit_t = now
+        self._audit_th = threading.Thread(target=self._bag_audit, daemon=True)
+        self._audit_th.start()
+
+    def _bag_audit(self):
+        self._busy_ui, self._busy_t0 = True, time.time()
+        try:
+            self._release()
+            img = self.screen.grab(self.rect)
+            opened = False
+            if not any(w[0].strip().startswith("Peso:") for w in self._q_words(img)):
+                winapi.press("F6")
+                time.sleep(0.9)
+                opened = True
+            bag = self._oly_bag() or []
+            if opened:
+                winapi.press("F6")
+                time.sleep(0.4)
+            info = [{k: o.get(k) for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str")} for o in bag if o["kind"] == "item" and o.get("name")]
+            self._bag_info = {"t": time.time(), "items": info}
+            gear = [i for i in info if i.get("dur_max")]
+            if gear:
+                self.log("🎒 Bolso: " + ", ".join(f"{i['name']} {i['dur']}/{i['dur_max']}" for i in gear) + ".")
+            broken = [i for i in gear if i["dur"] <= 0]
+            if broken and self._place("smith"):
+                self._worn_seen = time.time()
+                self.log(f"🔧 {broken[0]['name']} está roto (durabilidad 0) y suelto en el bolso: voy a repararlo y me lo vuelvo a poner.")
+        except Exception as e:
+            self.log(f"🎒 No pude revisar el bolso: {e!r}")
+        finally:
+            self._busy_ui = False
 
     # ---------------------------------------------------------------- economía
     def _eco_note(self, gold, approx=False):
@@ -8048,6 +8139,7 @@ class Bot:
                 return
             if worn and now - self._rep_last >= 300:
                 self._elite_ts = []
+                self._audit_t = now
                 self._rep_last = now
                 self._release()
                 why = "dejé de matar: se rompió el arma" if weak else "el juego avisó que algo se rompió"
