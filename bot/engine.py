@@ -8888,8 +8888,9 @@ class Bot:
                 return
             el = [t for t in getattr(self, "_elite_ts", []) if now - t < 240]
             lk = getattr(self, "_last_kill_t", 0)
-            weak = (len(el) >= 2 and el[-1] > self._rep_last and lk < el[-2] and now - lk > 40
-                    and now - getattr(self, "_weak_t", 0) > 1800)  # con un arma nueva (habilidad baja) también cuesta matar
+            # dos "no muere" seguidos NO alcanzan para decir que el arma se rompió (al llegar a un nido nuevo pasa
+            # siempre y lo sacaba de donde estaba cazando bien). Para eso está la regla de los 75 s pegado sin matar.
+            weak = False
             worn = self._worn_check() or weak or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
             if not worn and (self.state == "attack" or self._under_attack() or self._fleeing()):
                 return
