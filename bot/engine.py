@@ -5329,6 +5329,32 @@ class Bot:
             return self._exp_table()[sh["level"]] + int(sh["exp"])
         return sh.get("exp_total") if sh else None
 
+    def _hot_note(self, gain):
+        """Gané experiencia acá: este lugar pasa a ser (o sigue siendo) mi zona buena del mapa."""
+        try:
+            if self.pos.get("x") is None:
+                return
+            mk = (self.pos.get("map") or "").strip().lower()
+            hx, hy = int(self.pos["x"]), int(self.pos["y"])
+            hot = self.world.learn.setdefault("oly_hot", {})
+            h = hot.get(mk)
+            now = time.time()
+            if h and max(abs(h["x"] - hx), abs(h["y"] - hy)) <= 14:
+                h["exp"] = h.get("exp", 0) + gain
+                h["x"], h["y"], h["t"] = int(round(0.9 * h["x"] + 0.1 * hx)), int(round(0.9 * h["y"] + 0.1 * hy)), now
+            else:
+                # estoy ganando en otro lado: si lo sostengo un rato, la zona buena se muda acá
+                c = self.__dict__.setdefault("_hot_cand", {"x": hx, "y": hy, "exp": 0, "t": now})
+                if max(abs(c["x"] - hx), abs(c["y"] - hy)) > 14 or now - c["t"] > 300:
+                    c.update(x=hx, y=hy, exp=0)
+                c["exp"] += gain
+                c["t"] = now
+                if not h or c["exp"] >= 1500:
+                    hot[mk] = {"x": c["x"], "y": c["y"], "t": now, "exp": c["exp"]}
+                    self._hot_cand = None
+        except Exception:
+            pass
+
     def _exp_table(self):
         """{nivel: experiencia total al empezar ese nivel}, de exp_table.json en la carpeta del server (sale de la
         wiki del server). Vacío si no hay: ahí me arreglo con lo que lea de la ficha."""
@@ -5388,7 +5414,12 @@ class Bot:
             # el ruido de un par de píxeles no cuenta como bajar; una baja de verdad (morir quita experiencia) sí
             if v < st["max"] and st["max"] - v <= 0.004 * need:
                 v = st["max"]
+            gain = v - st["max"]
             st["max"] = v
+            if 0 < gain <= 0.1 * need and st.get("seen"):
+                self._exp_gain_t = now
+                self._hot_note(gain)
+            st["seen"] = True
             self._exp_now = {"exp": v, "need": need, "pct": round(100.0 * v / need, 2), "t": now}
             try:
                 self._exp_update(self._exp_now["pct"])  # lo que muestra la pantalla del bot: el mismo % que el juego
