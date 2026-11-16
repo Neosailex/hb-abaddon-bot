@@ -4378,6 +4378,9 @@ class Bot:
             going = False
         if going and now - pp[1] < 2.5:
             return False
+        lg_ = getattr(self, "_loot_go", None)
+        if lg_ and lg_.get("blind") and now - lg_["t"] < 2.5 and (self.bars.get("hp") or 100) >= 45:
+            return False  # estoy dando el paso para levantar lo que cayó: vuelvo a pegar enseguida
         hp = self.bars.get("hp")
         st = self.__dict__.setdefault("_rfx", {"t0": now, "hp0": hp, "last": 0})
         if now - st["last"] > 4:
@@ -4545,6 +4548,7 @@ class Bot:
                 self.stats["kills"] = self.stats.get("kills", 0) + 1
                 self._last_kill_t = now
                 self._oly_loot = (tr.x, tr.y, now)
+                self._kill_pick = (tr.x, tr.y, now, tr.name)
                 try:
                     self._zone_kill()
                 except Exception:
@@ -4585,10 +4589,13 @@ class Bot:
         px, py = self.pos["x"], self.pos["y"]
         tried = self.__dict__.setdefault("_loot_tried", {})
         go = getattr(self, "_loot_go", None)
-        if any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents):
+        hp_ = self.bars.get("hp")
+        adj_ = any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents)
+        blind_go = bool(go and go.get("blind"))
+        if adj_ and not blind_go and not self._kill_pick_ready(now, px, py, hp_):
             if go:
                 self._loot_go = None
-            return False  # con un bicho pegado, primero el bicho
+            return False  # con un bicho pegado, primero el bicho (salvo lo que acaba de caer acá al lado)
         cx, cy = self._char()
         tw, th = self._tile()
 
@@ -4604,19 +4611,39 @@ class Bot:
             if arrived or now - go["t"] > go.get("max", 5.0):
                 tried[(go["x"], go["y"])] = now + (120 if arrived else 60)
                 self._loot_go = None
+                got = []
                 if arrived:
                     self.stats["loot"] = self.stats.get("loot", 0) + 1
                     time.sleep(0.35)
                     try:
-                        self._loot_note()
+                        got = [t for t in (self._loot_note() or []) if "dquiri" in t]
                     except Exception:
                         pass
+                if go.get("blind"):
+                    # aprendo: con este bicho, ¿cuántas veces había algo donde cayó?
+                    lb = self.world.learn.setdefault("loot_blind", {}).setdefault(go.get("mob") or "?", {"n": 0, "ok": 0})
+                    lb["n"] += 1
+                    lb["ok"] += 1 if got else 0
                 return False
             if now - go["click"] > 1.0:
                 go["click"] = now
                 click_tile(go["x"], go["y"])
             self.stats["state"] = f"levanto {go['kind']} ({go['x']},{go['y']})"
             return True
+        # recién maté algo acá al lado: voy a su baldosa con Shift+clic aunque no vea nada (el equipo tirado no lo
+        # distingo por color). Si había algo, lo agarro.
+        if self._kill_pick_ready(now, px, py, hp_):
+            kp = self._kill_pick
+            self._kill_pick = None
+            self._loot_go = {"x": kp[0], "y": kp[1], "kind": "lo que dejó el " + str(kp[3]), "t": now, "click": now,
+                             "max": 2.5 + 1.0 * max(abs(kp[0] - px), abs(kp[1] - py)), "blind": True, "mob": kp[3]}
+            if (kp[0], kp[1]) == (px, py):
+                self._loot_go["max"] = 0.6
+            click_tile(kp[0], kp[1])
+            self.stats["state"] = f"levanto lo que cayó ({kp[0]},{kp[1]})"
+            return True
+        if adj_:
+            return False
         if now - getattr(self, "_loot_scan_t", 0) < 0.6:
             return False
         self._loot_scan_t = now
@@ -4655,6 +4682,24 @@ class Bot:
         self.stats["state"] = f"levanto {k[2]} ({k[0]},{k[1]})"
         return True
 
+    def _kill_pick_ready(self, now, px, py, hp):
+        """¿Hay una muerte mía reciente, cerca, que valga la pena ir a levantar ya?"""
+        kp = getattr(self, "_kill_pick", None)
+        if not kp or not self.cfg.get("loot_blind", True):
+            return False
+        if now - kp[2] > 6 or max(abs(kp[0] - px), abs(kp[1] - py)) > 2:
+            self._kill_pick = None
+            return False
+        if hp is not None and hp < 45:
+            return False  # con poca vida no me distraigo
+        bs = getattr(self, "_bag_slots", None)
+        if bs and now - bs[2] < 1800 and bs[0] >= bs[1]:
+            return False  # bolso lleno: no entra nada
+        lb = (self.world.learn.get("loot_blind") or {}).get(kp[3])
+        if lb and lb["n"] >= 40 and lb["ok"] < 0.06 * lb["n"]:
+            return False  # con este bicho casi nunca cae nada: no pierdo el paso
+        return now - getattr(self, "_loot_blind_t", 0) > 1.0
+
     def _loot_note(self):
         """Después de levantar algo leo los mensajes del juego (abajo a la izquierda) y guardo los nuevos en
         data/botin.log: de ahí sale qué cae y cómo lo nombra el juego."""
@@ -4676,6 +4721,7 @@ class Bot:
             with open(os.path.join(cfgmod.DATA, "botin.log"), "a", encoding="utf-8") as f:
                 for t in new:
                     f.write(time.strftime("%H:%M:%S ") + t + "\n")
+        return new
 
     # ---- nidos del mapa: el minimapa del juego los dibuja (Ctrl+Z los muestra u oculta)
     PIT_GUESS = (("Orc", lambda h, s_, v: 45 <= h <= 70 and s_ >= 150), ("Giant Scorpion", lambda h, s_, v: 16 <= h <= 30 and v >= 45),
@@ -7651,6 +7697,12 @@ class Bot:
             if line != getattr(self, "_bag_line", None):
                 self._bag_line = line
                 self.log(line)
+            try:
+                hun_ = getattr(self, "_hunger", None)
+                if hun_ is not None and hun_ >= int(self.cfg.get("eat_above", 50)):
+                    self._eat_food()
+            except Exception as e_:
+                self.log(f"🍖 No pude comer: {e_!r}")
             if equip:
                 self._reequip_loose(max_n=len(equip) + 2)
             elif opened:
@@ -8059,33 +8111,44 @@ class Bot:
         self._oly_bag(names=False)
 
     def _eat_food(self):
-        """Me como lo que acabo de comprar: es el objeto nuevo del bolso (doble click por cada unidad)."""
+        """Como lo que tenga de comida en el bolso (lo busco por nombre con el cartelito): doble clic por unidad."""
         fp = getattr(self, "_food_pending", None)
-        if not fp:
-            return
         self._food_pending = None
+        hun = getattr(self, "_hunger", None)
+        if not fp and not (hun is not None and hun >= int(self.cfg.get("eat_above", 50))):
+            return
+        opened = False
         if not any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
             winapi.press("F6")
             time.sleep(0.9)
-        self._bag_scan = None
-        self._oly_bag(names=False)
-        sc = getattr(self, "_bag_scan", None) or {}
-        kx = self.rect[2] / 1920.0
-        new = [i for i in sc.get("items", []) if not any(abs(i["cx"] - b[0]) < 22 * kx and abs(i["cy"] - b[1]) < 22 * kx for b in fp["before"])]
-        if not new:
-            self.log("🍖 Compré comida pero no la encuentro en el bolso: la busco en la próxima pasada.")
+            opened = True
+        bag = self._oly_bag() or []
+        food = None
+        for o in bag:
+            if o["kind"] != "item":
+                continue
+            g_ = self._game_item(o.get("name")) or {}
+            nm = (g_.get("name") or o.get("name") or "").lower()
+            if (g_.get("type") == 7 and "potion" not in nm) or any(k in nm for k in ("baguette", "meat", "bread", "pan ", "carne")):
+                food = (o, g_.get("name") or o.get("name"))
+                break
+        if not food:
+            if fp:
+                self.log("🍖 Compré comida pero no la encuentro en el bolso (no leí su nombre): pruebo en la próxima revisión.")
         else:
-            it = min(new, key=lambda i: i["area"])  # la comida es chica; si hay dos cosas nuevas, la más chica
-            x, y = self.abs_pt(it["x"], it["y"])
-            for _ in range(fp["n"]):
+            o, nm = food
+            n = int(fp["n"]) if fp else 3
+            x, y = self.abs_pt(o["x"], o["y"])
+            for _ in range(max(1, min(n, 5))):
                 winapi.click(x, y)
-                time.sleep(0.09)
+                time.sleep(0.12)
                 winapi.click(x, y)
                 time.sleep(0.8)
-            self.log(f"🍖 Comí {fp['n']} de {fp['what']}.")
+            self.log(f"🍖 Comí {nm} (hambre {hun if hun is not None else '?'}%).")
             self._hunger = None
             self._census_t = 0  # releo la ficha para ver cómo quedó el hambre
-        if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+            self._bag_mem = []
+        if opened and any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
             winapi.press("F6")
             time.sleep(0.4)
 
