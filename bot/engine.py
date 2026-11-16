@@ -7529,6 +7529,23 @@ class Bot:
                 time.sleep(0.12)
                 winapi.click(x, y)
                 time.sleep(0.6)
+                # lo apilado (ej. Slime Jelly x3) pregunta '¿Cuántos vender?' con la cantidad disponible ya puesta:
+                # confirmo con el botón 'Vender' del cartel (el que tiene 'Cancelar' al lado)
+                try:
+                    nq = lambda t: "".join(c for c in t.lower() if c.isalnum())
+                    wq = words(grab())
+                    cq = next((w for w in wq if nq(w[0]).startswith(("disponible", "cuantos", "cuántos"))), None)
+                    if cq:
+                        can = next((w for w in wq if nq(w[0]) == "cancelar" and 0 < w[2] - cq[2] < 220 * ky), None)
+                        bq = can and next((w for w in wq if nq(w[0]) == "vender" and abs(w[2] - can[2]) < 12 * ky and w[1] < can[1]), None)
+                        if bq:
+                            click(bq[1], bq[2])
+                            time.sleep(0.7)
+                        elif can:
+                            click(can[1], can[2])  # no ubico el botón: cancelo y no dejo el cartel abierto
+                            time.sleep(0.5)
+                except Exception:
+                    pass
         winapi.move(*self.abs_pt(int(tabp[1] + 300 * kx), int(tabp[2] - 60 * ky)))
         time.sleep(0.5)
 
@@ -7782,6 +7799,9 @@ class Bot:
                 self._audit_t = time.time() - float(self.cfg.get("bag_audit_min", 20)) * 60 + 600
                 return
             opened = True
+            if not self.running:
+                winapi.press("F6")  # me apagaron mientras abría el bolso: lo cierro y no toco nada más
+                return
             items = [o for o in bag if o["kind"] == "item"]
             jd = [(o, self._bag_judge(o)) for o in items]
             self._bag_info = {"t": time.time(), "items": [dict({k: o.get(k) for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str")}, verdict=j[0], why=j[1]) for o, j in jd]}
