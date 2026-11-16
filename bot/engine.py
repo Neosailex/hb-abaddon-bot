@@ -1123,6 +1123,10 @@ class Bot:
                 return
             if not self._fleeing() and self._goto_spot():
                 return
+        # venía ganando experiencia en otro lado y acá no pasa nada: vuelvo ahí antes que explorar
+        if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
+                and not focused and not self._under_attack() and self._hot_return()):
+            return
         # Olympia: mapa sin relevar → lo recorro entero (solo peleo si me atacan)
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
                 and not focused and self._explore_step()):
@@ -4181,11 +4185,13 @@ class Bot:
         except Exception as e:
             self.log(f"🔎 Error buscando bichos en memoria: {e!r}")
 
-    def _oly_step(self):
-        """Elijo un bicho de la lista de memoria: si está en pantalla le pego; si no, camino hasta él."""
-        if self.pos.get("x") is None or time.time() - self.pos.get("t", 0) > 5:
+    def _hot_return(self, ents=None):
+        """Sin nada vivo cerca, o más de 2 minutos y medio sin ganar experiencia: vuelvo al último lugar donde venía
+        ganando (en vez de explorar o dar vueltas). True = estoy yendo."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or self.pos.get("x") is None:
             return False
-        ents = self._oly_ents()
+        if ents is None:
+            ents = self._oly_ents()
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
         dry = now - max(getattr(self, "_exp_gain_t", 0), getattr(self, "_start_t_oly", now)) > 150
@@ -4201,7 +4207,10 @@ class Bot:
                     m = self.world.map_for(self.pos.get("map") or "")
                     g = m.nearest_walkable(h["x"], h["y"], r=5) if m else None
                     if g:
-                        st_ = self.__dict__.setdefault("_hot_go", {"t": now, "d": 999})
+                        st_ = getattr(self, "_hot_go", None)
+                        if not st_:
+                            st_ = self._hot_go = {"t": now, "d": 999}
+                            self.log(f"🎯 Acá no estoy ganando experiencia: vuelvo a mi zona buena ({h['x']},{h['y']}).")
                         dcur = max(abs(h["x"] - px), abs(h["y"] - py))
                         if dcur < st_["d"]:
                             st_["d"], st_["t"] = dcur, now
@@ -4215,6 +4224,17 @@ class Bot:
                 pass
         else:
             self._hot_go = None
+        return False
+
+    def _oly_step(self):
+        """Elijo un bicho de la lista de memoria: si está en pantalla le pego; si no, camino hasta él."""
+        if self.pos.get("x") is None or time.time() - self.pos.get("t", 0) > 5:
+            return False
+        ents = self._oly_ents()
+        px, py = self.pos["x"], self.pos["y"]
+        now = time.time()
+        if self._hot_return(ents):
+            return True
         if not ents:
             return False
         if self._oly_kite(ents):
