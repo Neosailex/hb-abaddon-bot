@@ -1278,6 +1278,17 @@ class Bot:
                 winapi.click(*self.abs_pt(tt[1] + 190 * kx, tt[2] - 80 * ky), button="right")  # probado: cierra la ventana
                 time.sleep(0.4)
                 return True
+            # sin nada elegido no hay 'Total' y los botones quedan grises: la reconozco por la columna de precios
+            # (4+ números uno abajo del otro, con el nombre a la izquierda) y cierro en el recuadro de abajo
+            col = self._shop_price_col(full)
+            if col:
+                winapi.click(*self.abs_pt(col[0] - 190 * kx, col[1] + 470 * ky), button="right")
+                time.sleep(0.6)
+                again = ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.9)}, scale=1.0)
+                if self._shop_price_col(again):
+                    winapi.click(*self.abs_pt(col[0] - 190 * kx, col[1] - 90 * ky), button="right")  # el título
+                    time.sleep(0.5)
+                return True
             return False
         if smith:
             # la lista del herrero está llena de filas: el click derecho va al recuadro de abajo (no elige nada)
@@ -1286,6 +1297,36 @@ class Bot:
             winapi.click(*self.abs_pt(tab[1] + 166 * kx, tab[2] + 317 * ky), button="right")
         time.sleep(0.4)
         return True
+
+    def _shop_price_col(self, words):
+        """Lista de una tienda: 4+ números alineados en columna, a un renglón de distancia, con texto a la
+        izquierda. Devuelve (x de la columna, y del primer renglón) o None."""
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        nums = [w for w in words if w[0].strip().isdigit() and w[2] < self.rect[3] * 0.62]
+        for w in nums:
+            col = sorted((v for v in nums if abs(v[1] - w[1]) < 22 * kx), key=lambda v: v[2])
+            if len(col) < 4:
+                continue
+            gaps = [b[2] - a[2] for a, b in zip(col, col[1:])]
+            if sum(1 for g_ in gaps if 18 * ky <= g_ <= 36 * ky) < 3:
+                continue
+            named = sum(1 for v in col if any(u[0].strip()[:1].isalpha() and abs(u[2] - v[2]) < 8 * ky
+                                              and 150 * kx < v[1] - u[1] < 480 * kx for u in words))
+            if named >= 3:
+                return (col[0][1], col[0][2])
+        return None
+
+    def _ui_clear(self):
+        """Antes de caminar: nada abierto (tienda o bolso). Con una ventana abierta el personaje no camina."""
+        try:
+            if self._close_shop_window():
+                self.log("Cierro la ventana de la tienda antes de salir.")
+                time.sleep(0.4)
+            if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+                winapi.press("F6")
+                time.sleep(0.4)
+        except Exception:
+            pass
 
     def _close_junk_windows(self):
         """Ventanas que el bot no usa (ej. 'Resumen de Muerte' de Olympia): las cierro con click derecho
@@ -1310,7 +1351,7 @@ class Bot:
         try:
             alive = any(getattr(self, a, None) is not None and getattr(self, a).is_alive()
                         for a in ("_shop_th", "_rep_th", "_gear_th", "_audit_th", "_town_th"))
-            if not alive and not getattr(self, "mission", None):
+            if not alive or getattr(self, "goto", None) or (getattr(self, "mission", None) and not self.mission.get("hold_ui")):
                 top = [w for w in words if w[2] < H * 0.6]
                 if self._close_shop_window(top):
                     self.log("Cierro la ventana de Tienda que había quedado abierta.")
@@ -5158,6 +5199,7 @@ class Bot:
                 self._oly_first = fe
         elif now - fe[e[3]] > self._oly_ttk(e[2]["name"]) and d(e) <= 1:
             bad[e[3]] = now + 600
+            fe[e[3]] = now  # si sigue pegado le vuelvo a pegar (regla de oro): el aviso sale una vez, no en cada vuelta
             # si me pasa seguido con el mismo bicho no son élites: es que tardo más en matarlo → le doy más tiempo
             el = self.__dict__.setdefault("_oly_elite", {}).setdefault(e[2]["name"], [])
             el[:] = [t for t in el if now - t < 900] + [now]
@@ -7943,6 +7985,9 @@ class Bot:
             tabp = next((w for w in ws if norm(w[0]).startswith("poci") or norm(w[0]).startswith("pocl")), None)
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
+            if not any(w[0].strip().startswith("Peso") for w in self._q_words(grab())):
+                winapi.press("F6")  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender
+                time.sleep(1.1)
             bag = self._oly_bag() or []
             # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
             sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
@@ -7965,6 +8010,26 @@ class Bot:
             except Exception as e:
                 self.log(f"🍖 No pude comprar comida: {e!r}")
             # 2) pociones: solo con el oro que sobra después de la reserva para equipo, y hasta 4
+            if getattr(self, "_gold", None) is None:
+                # no leí el oro en el bolso: la tienda lo dice al elegir algo ('Total 45 (tienes 7.781)')
+                try:
+                    w0 = words(grab())
+                    hp0 = next((w for w in w0 if norm(w[0]) == "health"), None)
+                    if hp0:
+                        click(hp0[1], hp0[2])
+                        time.sleep(0.9)
+                        w0 = words(grab())
+                        tn = next((w for w in w0 if "tienes" in norm(w[0])), None)
+                        if tn:
+                            import re as _re
+                            row_ = " ".join(v[0] for v in sorted((v for v in w0 if abs(v[2] - tn[2]) < 12 * ky and v[1] >= tn[1] - 5), key=lambda v: v[1]))
+                            m_ = _re.search(r"tienes\s*([\d\.\, ]+)", row_.lower())
+                            dg = "".join(c for c in (m_.group(1) if m_ else "") if c.isdigit())
+                            if dg:
+                                self._gold = int(dg)
+                                self.log(f"🛒 Oro según la tienda: {self._gold}.")
+                except Exception:
+                    pass
             gold = getattr(self, "_gold", None)
             have = getattr(self, "_left", {}).get("pot") or 0
             reserve = int(self.cfg.get("gold_reserve", 150))
@@ -8064,6 +8129,7 @@ class Bot:
                 self._eat_food()
             except Exception as e:
                 self.log(f"🍖 No pude comer: {e!r}")
+            self._ui_clear()
             self.mission = None
             self._busy_ui = False
             self._shop_last = time.time()
@@ -8593,6 +8659,7 @@ class Bot:
         inside = lambda: any(k in (self.pos.get("map") or "").lower() for k in pl["inside"])
         try:
             self.log("🔧 Voy al herrero a reparar el equipo" + (f" ({why})" if why else "") + ".")
+            self._ui_clear()
             t0 = time.time()
             d = pl["door"]
             far = self.pos.get("x") is None or max(abs(self.pos["x"] - d[0]), abs(self.pos["y"] - d[1] - 2)) > 4
@@ -8999,7 +9066,11 @@ class Bot:
             elif now - getattr(self, "_adj_seen", 0) > 4:
                 self._adj_since = 0
             a0 = getattr(self, "_adj_since", 0)
-            if (a0 and now - max(a0, getattr(self, "_last_kill_t", 0)) > 75 and self.running
+            try:
+                lim75 = max(75.0, 2.5 * max([self._oly_ttk(t_.name) for t_ in self._grid().adjacent()] or [0]))
+            except Exception:
+                lim75 = 75.0
+            if (a0 and now - max(a0, getattr(self, "_last_kill_t", 0)) > lim75 and self.running
                     and now - getattr(self, "_nokill_town", 0) > 600 and getattr(self, "_town_done", True)):
                 self._nokill_town = now
                 self._adj_since = 0
