@@ -4709,7 +4709,8 @@ class Bot:
                 continue
             if now < float(self.cfg.get("train_skill_until", 0) or 0) and nm != "Slime":
                 continue  # arma de otro tipo recién puesta: subo la habilidad con lo más fácil antes de ir a lo serio
-            score = (2.0 if nm in qm else 1.0) * (1.3 if p.get("mob") else 1.0) / (1.0 + dist / 80.0)
+            # el nido del bicho de la misión pesa mucho más: una misión de 200 orcos se hace en el nido de orcos
+            score = (5.0 if nm in qm else 1.0) * (1.3 if p.get("mob") else 1.0) / (1.0 + dist / 80.0)
             if best is None or score > best[0]:
                 best = (score, p, nm)
         return best
@@ -6555,9 +6556,13 @@ class Bot:
                 self.log("📜 Misiones: " + " · ".join(q["name"] + (" (lista para cobrar)" if q["done"] else f" {q['a']}/{q['b']}") for q in qs) + ".")
         if not qs:
             return None
-        done = next((q for q in qs if q["done"]), None)
+        # una misión lista que no puedo cobrar (vencida, o falló el cobro) no tapa a las demás: sigo con las otras
+        blocked = (self.__dict__.get("_q_turn_fail", {}).get("*", {}) or {}).get("until", 0) > time.time()
+        done = None if blocked else next((q for q in qs if q["done"]), None)
         if done:
             return done["name"], 1, 1
+        if blocked:
+            qs = [q for q in qs if not q["done"]] or qs
         db = self._quest_db().get("quests", [])
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
 
@@ -6848,6 +6853,21 @@ class Bot:
         if hud and hud[2] > 0 and hud[1] >= hud[2] and qf.get("*", {}).get("until", 0) > now:
             return False  # ya probé cobrarla y no pude: no me quedo dando vueltas, sigo cazando y pruebo más tarde
         if hud and hud[2] > 0 and hud[1] >= hud[2]:
+            # misión que ya me quedó chica (el juego no la paga pasado cierto nivel): no pierdo tiempo en cobrarla
+            try:
+                nz_ = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
+                lv_ = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
+                qd_ = next((q for q in self._quest_db().get("quests", [])
+                            if difflib.SequenceMatcher(None, nz_(q["name"]), nz_(hud[0])).ratio() >= 0.8), None)
+                if qd_ and qd_.get("max_level") and lv_ >= int(qd_["max_level"]):
+                    if not getattr(self, "_q_obs_said", False):
+                        self._q_obs_said = True
+                        self.log(f"📜 '{qd_['name']}' quedó vencida (se cobra hasta nivel {qd_['max_level']} y soy {lv_}): no la cobro más y sigo con las otras.")
+                    qf["*"] = {"t0": now, "n": 0, "until": now + 6 * 3600}
+                    self.goto = None
+                    return False
+            except Exception:
+                pass
             # las misiones nunca bloquean la caza: 3 minutos para llegar y cobrar; si no sale, la dejo media hora
             f_ = qf.setdefault("*", {"t0": now, "n": 0, "until": 0})
             if now - f_.get("seen", 0) > 120:
