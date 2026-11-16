@@ -7994,6 +7994,19 @@ class Bot:
         if worn and not worn.get("ok"):
             worn = None  # solo cuenta lo que comprobé que quedó puesto
         full = (it.get("affix") + " " if it.get("affix") else "") + it["name"]
+        if worn and str(worn.get("name") or "").startswith("?"):
+            # ese lugar lo equipó Juan a mano y no sé con qué. Lo único que vendo es lo viejo que conozco; cualquier
+            # otra pieza suelta de ese lugar es la de él que se salió (se rompió): se repara y me la vuelvo a poner.
+            junk = set(self.cfg.get("junk_equip") or ("Broad Sword", "Shirt(M)", "Magic Wand(MS0)", "Shoes", "Cap(M)", "Tunic(M)",
+                                                      "Knee Trousers(M)", "Wood Shield", "Targe Shield", "Scimitar", "Superior Scimitar",
+                                                      "Long Sword", "Short Sword", "Light Axe", "Superior Light Axe"))
+            if it["name"] in junk:
+                return ("keep" if it.get("affix") else "sell", "equipo viejo que ya no uso", it, slot, val)
+            if slot == "escudo":
+                return ("keep", "no sé si Juan me dejó con arma a dos manos: el escudo no lo toco", it, slot, val)
+            if o.get("dur") == 0:
+                return ("broken", "está roto", it, slot, val)
+            return ("equip", "es del equipo que me puso Juan y quedó suelto: me lo vuelvo a poner", it, slot, val)
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         fam = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
         # lo que tiene bonus (nombre con prefijo) nunca se vende solo: eso lo decide Juan
@@ -9854,6 +9867,8 @@ class Bot:
         pl = self._place("smith")
         if not pl or not items:
             return
+        if self.cfg.get("gear_hold"):
+            return  # Juan lo equipó a mano y todavía no sé qué tiene puesto: no compro nada que lo reemplace
         inside = lambda: any(k in (self.pos.get("map") or "").lower() for k in pl["inside"])
         bought = []
         try:

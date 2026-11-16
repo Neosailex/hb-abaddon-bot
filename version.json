@@ -1,1 +1,1 @@
-{"version": 316, "notes": "En la pantalla de ingreso se apaga sin hacer clic. Con el menú del juego abierto no hace ningún clic (no adivina botones). Ningún clic cae en la barra de abajo."}
+{"version": 317, "notes": "Respeta el equipo que puso Juan a mano: no lo vende ni lo reemplaza; si se sale por rotura, lo repara y se lo vuelve a poner. No compra equipo hasta saber qué tiene puesto."}
