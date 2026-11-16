@@ -1056,6 +1056,10 @@ class Bot:
                     self._do_stats()
             return
         self._timers()
+        try:
+            self._poison_check()
+        except Exception:
+            pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
         try:
             if cfg["mode"] == "auto" and not self._fleeing() and self._reflex():
@@ -4190,6 +4194,30 @@ class Bot:
             return {"map": self.pos.get("map"), "list": out[:80], "near": sum(1 for o in out if max(abs(o["x"] - px), abs(o["y"] - py)) <= 9)}
         except Exception:
             return None
+
+    def _poison_check(self):
+        """Envenenado (la barra de vida dice 'Envenenado'): la tecla 3 (poción verde) cura el veneno."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or self.img is None or getattr(self, "_busy_ui", False):
+            return
+        now = time.time()
+        if now - getattr(self, "_poi_t", 0) < 2.0:
+            return
+        self._poi_t = now
+        H, W = self.img.shape[:2]
+        kx, ky = W / 1920.0, H / 1080.0
+        try:
+            ws = ocr.read_words(self.img, {"x1": int(395 * kx), "y1": int(998 * ky), "x2": int(640 * kx), "y2": int(1038 * ky)}, scale=1.5)
+        except Exception:
+            return
+        if not any("enven" in w[0].lower() or "poison" in w[0].lower() for w in ws):
+            return
+        if now - getattr(self, "_poi_used", 0) < 6.0:
+            return
+        self._poi_used = now
+        winapi.press("3")
+        if now - getattr(self, "_poi_said", 0) > 120:
+            self._poi_said = now
+            self.log("🧪 Estoy envenenado: tomo la poción verde (tecla 3) para curarme.")
 
     def _town_block(self):
         """True = todavía no salgo a cazar: tengo que pasar por el pueblo (pociones, reparar, arma). Un jugador que
