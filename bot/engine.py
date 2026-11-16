@@ -1264,6 +1264,12 @@ class Bot:
                 winapi.click(*self.abs_pt(cp[1] - 250 * kx, cp[2] - 120 * ky), button="right")
                 time.sleep(0.4)
                 return True
+            # con el bolso lleno los botones quedan grises y no se leen: el renglón 'Total N (tienes M)' sí
+            tt = next((w for w in full if norm(w[0]).startswith("total")), None)
+            if tt and any("tienes" in norm(v[0]) and abs(v[2] - tt[2]) < 15 * ky for v in full):
+                winapi.click(*self.abs_pt(tt[1] + 190 * kx, tt[2] - 80 * ky), button="right")  # probado: cierra la ventana
+                time.sleep(0.4)
+                return True
             return False
         if smith:
             # la lista del herrero está llena de filas: el click derecho va al recuadro de abajo (no elige nada)

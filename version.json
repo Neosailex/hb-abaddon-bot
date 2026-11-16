@@ -1,1 +1,1 @@
-{"version": 281, "notes": "ARREGLO GRAVE: confundia el peso del recuadro de la tienda con el bolso y hacia clic en Max/Comprar. Ahora el bolso es solo Peso: a/b."}
+{"version": 282, "notes": "Cierra la ventana de Tienda aunque los botones esten grises (la reconoce por Total/tienes)."}
