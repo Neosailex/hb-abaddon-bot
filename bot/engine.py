@@ -7941,8 +7941,7 @@ class Bot:
                 tw_ = ocr.read_words(im_, {"x1": max(0, pt[0] - 60), "y1": max(0, pt[1] - 20), "x2": min(im_.shape[1], pt[0] + 420), "y2": min(im_.shape[0], pt[1] + 160)}, scale=1.0)
                 low_ = " ".join(w[0].lower() for w in tw_)
                 if "health" not in low_ or "potion" not in low_:
-                    total = 0
-                    sc["pots"]["vida"] = 0
+                    return None  # el frasco quedó tapado por otra cosa y el cartelito es de eso: no sé cuántas hay
             bs_ = getattr(self, "_bag_slots", None)
             if bs_ and total > bs_[0]:
                 return None  # más pociones que lugares ocupados: leí mal el número
@@ -8040,7 +8039,18 @@ class Bot:
             self._release()
             time.sleep(1.5)
             grab = lambda: self.screen.grab(self.rect)
-            words = lambda im: ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
+            def words(im):
+                # pantalla entera + la ventana de la tienda leída recortada (la lectura entera a veces pierde renglones)
+                full = ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.92)}, scale=1.0)
+                kx_, ky_ = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+                bx = {"x1": int(380 * kx_), "y1": int(160 * ky_), "x2": int(945 * kx_), "y2": int(930 * ky_)}
+                try:
+                    crop = ocr.read_words(im, bx, scale=1.0)
+                except Exception:
+                    crop = []
+                if not crop:
+                    return full
+                return [w for w in full if not (bx["x1"] <= w[1] <= bx["x2"] and bx["y1"] <= w[2] <= bx["y2"])] + list(crop)
             click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
             tw, th = self._tile()
             cx, cy = self._char()
@@ -8061,6 +8071,10 @@ class Bot:
                 hp_ = next((w for w in ws if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws)), None)
                 if hp_ and any(norm(v[0]) == "potion" and abs(v[2] - hp_[2]) < 8 for v in ws):
                     tabp = ("Pociones", hp_[1] + 32 * kx, hp_[2] - 47 * ky)
+                else:
+                    col_ = self._shop_price_col(ws)
+                    if col_:
+                        tabp = ("Pociones", col_[0] - 347 * kx, col_[1] - 47 * ky)
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
             if not bool(self._bag_open(grab())):
                 winapi.press("F6")  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender
