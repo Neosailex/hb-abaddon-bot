@@ -5167,6 +5167,11 @@ class Bot:
                 v = st["max"]
             st["max"] = v
             self._exp_now = {"exp": v, "need": need, "pct": round(100.0 * v / need, 2), "t": now}
+            try:
+                self._exp_update(self._exp_now["pct"])  # lo que muestra la pantalla del bot: el mismo % que el juego
+                self.progress["exp_num"], self.progress["exp_left"] = v, max(0, need - v)
+            except Exception:
+                pass
             return v + int(tb[int(lv)] if tb.get(int(lv)) is not None else (sh.get("exp_off") or 0))
         except Exception:
             return None
@@ -8990,6 +8995,7 @@ class Bot:
             "mem": self.mem.status if self._mem_on() else "apagada",
             "progress": {"level": self.cfg.get("travel", {}).get("my_level"), "exp": self.progress.get("exp"),
                          "rate": self.progress.get("rate"), "eta_min": self.progress.get("eta_min"),
+                         "exp_num": self.progress.get("exp_num"), "exp_left": self.progress.get("exp_left"),
                          "levelups": self.progress.get("levelups", 0)},
             "nav": {"status": self.nav["status"], "dest": self.nav["dest"]},
             "mobs": self._mobs_near_view(),
