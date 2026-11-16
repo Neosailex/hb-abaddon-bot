@@ -7874,6 +7874,26 @@ class Bot:
             if not sc:
                 return None
             total = sc["pots"]["vida"]
+            if sc.get("vida_hidden") and sc.get("vida_hidden_pt"):
+                # cantidad verde sin frasco a la vista: puede ser otra cosa apilada (varitas, partes de bichos).
+                # Lo compruebo con el cartelito: solo vale si dice Health Potion.
+                pt = sc["vida_hidden_pt"]
+                winapi.left_up()
+                winapi.move(*self.abs_pt(pt[0], pt[1]))
+                time.sleep(0.3)
+                winapi.left_down()
+                time.sleep(0.6)
+                im_ = self.screen.grab(self.rect)
+                winapi.left_up()
+                time.sleep(0.3)
+                tw_ = ocr.read_words(im_, {"x1": max(0, pt[0] - 60), "y1": max(0, pt[1] - 20), "x2": min(im_.shape[1], pt[0] + 420), "y2": min(im_.shape[0], pt[1] + 160)}, scale=1.0)
+                low_ = " ".join(w[0].lower() for w in tw_)
+                if "health" not in low_ or "potion" not in low_:
+                    total = 0
+                    sc["pots"]["vida"] = 0
+            bs_ = getattr(self, "_bag_slots", None)
+            if bs_ and total > bs_[0]:
+                return None  # más pociones que lugares ocupados: leí mal el número
             now_ = time.time()
             prev = (getattr(self, "_left", {}) or {}).get("pot")
             if sc["unknown"] and prev is not None and total >= 1 and prev >= total and now_ - getattr(self, "_pots_buy_t", 0) < 3600 \
@@ -7995,10 +8015,22 @@ class Bot:
             if not self.cfg.get("sell_olympia", True):
                 sell = []
             if sell and tabp:
-                try:
-                    self._oly_sell(sell, tabp, words, grab, click)
-                except Exception as e:
-                    self.log(f"🛒 No pude vender: {e!r}")
+                # de un montón apilado sale una unidad por doble clic: repito la venta hasta que no quede nada
+                # para vender (o deje de bajar el bolso), como mucho 8 vueltas
+                for _round in range(8):
+                    used0 = (getattr(self, "_bag_slots", None) or (None,))[0]
+                    try:
+                        self._oly_sell(sell, tabp, words, grab, click)
+                    except Exception as e:
+                        self.log(f"🛒 No pude vender: {e!r}")
+                        break
+                    time.sleep(0.6)
+                    bag = self._oly_bag() or []
+                    used1 = (getattr(self, "_bag_slots", None) or (None,))[0]
+                    sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
+                            and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
+                    if not sell or used0 is None or used1 is None or used1 >= used0:
+                        break
                 click(tabp[1], tabp[2])
                 time.sleep(1.0)
             self._oly_bag(names=False)  # leo el oro
@@ -8524,6 +8556,13 @@ class Bot:
                 owned = [idb[i["id"]]["name"] for i in inv if i["id"] in idb]
             elif cfgmod.server_slug(self.cfg) != "abaddon":
                 owned = list(self.cfg.get("owned_items") or [])  # pj de otro server: no heredo el equipo del de Abaddon
+                # lo que tengo puesto y comprobado también es mío: no lo compro de nuevo
+                for v_ in (self.cfg.get("worn") or {}).values():
+                    if isinstance(v_, dict) and v_.get("ok") and v_.get("name"):
+                        g_ = self._game_item(v_["name"]) or {}
+                        for nm_ in (g_.get("name"), v_["name"]):
+                            if nm_ and nm_ not in owned:
+                                owned.append(nm_)
             else:
                 owned = pj.get("owned", [])
             self._owned = owned

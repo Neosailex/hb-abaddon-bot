@@ -78,6 +78,7 @@ def scan(img, pw, words=(), readnum=None):
             v, o = max(vals, key=lambda t: t[0])
             out["pots"]["vida"] = v
             out["vida_hidden"] = True
+            out["vida_hidden_pt"] = (int(x1 + o[0] - 10 * kx), int(y1 + o[1] - 20 * ky))
             cv2.rectangle(taken, (o[0] - 2, o[1] - 2), (o[2] + 2, o[3] + 2), 1, -1)
     # 2) oro: el número en blanco que está pegado al montón de oro (el juego abrevia: '774', '2.6k', '1.2m').
     #    Los otros números blancos son cantidades de objetos apilados: no son oro.
