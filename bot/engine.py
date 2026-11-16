@@ -4506,6 +4506,22 @@ class Bot:
         # RABIA: rodeado (3+ pegados) no se sale caminando: darles la espalda es comer golpes gratis. Me planto y
         # les pego a todos los de alrededor, uno por uno hasta que caiga, tomando pociones. Solo me escapo si no
         # me quedan pociones y la vida está por el piso.
+        # enjambre que ya sé que me mata: si en 3 baldosas hay más de los que aprendí a aguantar y todavía no me
+        # cerraron (menos de 3 pegados), me voy YA. Plantarse sirve contra un grupo, no contra el nido entero.
+        try:
+            near3 = [e for e in ents if dist(e) <= 3]
+            if near3 and len(adj) < 3 and getattr(self, "_kite", None) is None and now > getattr(self, "_swarm_t", 0):
+                from collections import Counter
+                nm_, n_ = Counter(e[2]["name"] for e in near3).most_common(1)[0]
+                lvl_ = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+                cap_l = self.learner.crowd_cap(nm_, lvl_)
+                if cap_l and n_ > cap_l:
+                    self._swarm_t = now + 20
+                    self._kite_block = 0
+                    self.log(f"🏃 {n_} {nm_} juntos (aprendí que más de {cap_l} me matan): me voy antes de que me rodeen.")
+                    force = True
+        except Exception:
+            pass
         if len(adj) >= 3 and not (hp is not None and hp < 22 and pots_k < 1):
             if now > getattr(self, "_rabia_until", 0) and now - getattr(self, "_rabia_said", 0) > 30:
                 self._rabia_said = now
@@ -6852,13 +6868,8 @@ class Bot:
         if not k or k.get("n", 0) < 2:
             return False
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
-        try:
-            # si lo que me mató fue el montón (tengo anotado un tope de cuántos juntos), el bicho en sí no es el
-            # problema: lo sigo cazando, pero de a menos (por el borde del nido)
-            if self.learner.crowd_cap(mob, lvl):
-                return False
-        except Exception:
-            pass
+        # (probé seguir cazándolo "de a menos" cuando lo que mata es el montón: no sirve, el enjambre viene solo
+        # y me mató 4 veces más. Bicho que me mató dos veces no se busca hasta dos niveles más.)
         return lvl < int(k.get("lvl", 0)) + 2
 
     def _can_face(self, mob):
