@@ -3098,6 +3098,10 @@ class Bot:
         self._sheet_fail = 0
         self._stats_vals = dict(sh["stats"])
         t = self.cfg.setdefault("travel", {})
+        prev_l = int(t.get("my_level", 0) or 0)
+        if prev_l and lvl > prev_l + 1 and getattr(self, "_lvl_pend", None) != lvl:
+            self._lvl_pend = lvl  # salto de más de un nivel: puede ser mala lectura, espero a leerlo dos veces
+            return sh
         if int(t.get("my_level", 0) or 0) != lvl:
             if int(t.get("my_level", 0) or 0) < lvl:
                 self.log(f"⬆ Nivel {lvl} (leído en la ficha).")
@@ -4564,6 +4568,12 @@ class Bot:
             try:
                 mk = (self.pos.get("map") or "").strip().lower()
                 h = (self.world.learn.get("oly_hot") or {}).get(mk)
+                if h and max(abs(h["x"] - px), abs(h["y"] - py)) <= 8 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
+                    # llegué a mi zona buena y no hay nada: ya no es buena. La borro y voy a un nido ahora, sin esperar.
+                    del self.world.learn["oly_hot"][mk]
+                    self._hot_go = None
+                    self.log("🎯 Mi zona buena está vacía: la descarto y voy a un nido.")
+                    h, dry = None, True
                 if h and max(abs(h["x"] - px), abs(h["y"] - py)) > 8 and now - getattr(self, "_hot_fail", 0) > 300:
                     m = self.world.map_for(self.pos.get("map") or "")
                     g = m.nearest_walkable(h["x"], h["y"], r=5) if m else None
@@ -4585,7 +4595,7 @@ class Bot:
                 pass
             # mi zona buena se secó o no tengo ninguna: voy al nido que más conviene (los saqué del minimapa)
             try:
-                if dry and now - getattr(self, "_pit_go_t", 0) > 20:
+                if (dry or not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents)) and now - getattr(self, "_pit_go_t", 0) > 20:
                     bp = self._pit_pick()
                     if bp:
                         _sc, p, nm = bp
@@ -5587,6 +5597,8 @@ class Bot:
         try:
             if self.pos.get("x") is None:
                 return
+            if time.time() - getattr(self, "_last_kill_t", 0) > 20:
+                return  # la barra se movió sin que yo mate nada (relectura, subida de nivel): no es una zona
             mk = (self.pos.get("map") or "").strip().lower()
             hx, hy = int(self.pos["x"]), int(self.pos["y"])
             hot = self.world.learn.setdefault("oly_hot", {})
