@@ -4638,6 +4638,9 @@ class Bot:
                 self._last_kill_t = now
                 self._oly_loot = (tr.x, tr.y, now)
                 self._kill_pick = (tr.x, tr.y, now, tr.name)
+                # anotada (como en Abaddon): la baldosa de cada muerte queda en la lista para pasar a levantar
+                kq_ = [k_ for k_ in getattr(self, "_kill_q", []) if now - k_[2] < 120 and (k_[0], k_[1]) != (tr.x, tr.y)]
+                self._kill_q = (kq_ + [(tr.x, tr.y, now, tr.name)])[-14:]
                 try:
                     self._zone_kill()
                 except Exception:
@@ -4681,6 +4684,9 @@ class Bot:
         hp_ = self.bars.get("hp")
         adj_ = any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents)
         blind_go = bool(go and go.get("blind"))
+        if go and now < getattr(self, "_rabia_until", 0):
+            self._loot_go = go = None  # me rodearon yendo a levantar: primero pego
+            blind_go = False
         if adj_ and not blind_go and not self._kill_pick_ready(now, px, py, hp_):
             if go:
                 self._loot_go = None
@@ -4705,9 +4711,13 @@ class Bot:
                     self.stats["loot"] = self.stats.get("loot", 0) + 1
                     time.sleep(0.35)
                     try:
+                        self._loot_msgs = [t for t in getattr(self, "_loot_msgs", []) if "dquiri" not in t]  # dos 'Adquiriste 29 Gold' iguales son dos levantadas
                         got = [t for t in (self._loot_note() or []) if "dquiri" in t]
                     except Exception:
                         pass
+                    if got and go.get("blind") and now - getattr(self, "_got_said", 0) > 15:
+                        self._got_said = now
+                        self.log("🎒 Levanté: " + "; ".join(got)[:120])
                 if go.get("blind"):
                     # aprendo: con este bicho, ¿cuántas veces había algo donde cayó?
                     lb = self.world.learn.setdefault("loot_blind", {}).setdefault(go.get("mob") or "?", {"n": 0, "ok": 0})
@@ -4733,6 +4743,28 @@ class Bot:
             return True
         if adj_:
             return False
+        # PASADA DE LEVANTAR (la anotada): sin bichos pegados, paso por las baldosas donde murió algo en los últimos
+        # 2 minutos, la más cercana primero, con Shift+clic. No hace falta ver nada: si había algo, lo agarro.
+        kq = [k_ for k_ in getattr(self, "_kill_q", []) if now - k_[2] < 120]
+        bs_ = getattr(self, "_bag_slots", None)
+        if kq and self.cfg.get("loot_sweep", True) and (hp_ is None or hp_ >= 45) and not (bs_ and now - bs_[2] < 1800 and bs_[0] >= bs_[1]):
+            lbd = self.world.learn.get("loot_blind") or {}
+            ok_ = [k_ for k_ in kq if (k_[0], k_[1]) not in tried and max(abs(k_[0] - px), abs(k_[1] - py)) <= 8
+                   and not any((e[0], e[1]) == (k_[0], k_[1]) for e in ents)
+                   and not ((lbd.get(k_[3]) or {}).get("n", 0) >= 80 and (lbd.get(k_[3]) or {}).get("ok", 0) < 0.03 * (lbd.get(k_[3]) or {}).get("n", 0))]
+            if ok_:
+                kp = min(ok_, key=lambda k_: max(abs(k_[0] - px), abs(k_[1] - py)))
+                self._kill_q = [k_ for k_ in kq if k_ is not kp]
+                dist_ = max(abs(kp[0] - px), abs(kp[1] - py))
+                self._loot_go = {"x": kp[0], "y": kp[1], "kind": "lo que dejó el " + str(kp[3]), "t": now, "click": now,
+                                 "max": (0.6 if dist_ == 0 else 2.5 + 1.0 * dist_), "blind": True, "mob": kp[3]}
+                if now - getattr(self, "_sweep_said", 0) > 60:
+                    self._sweep_said = now
+                    self.log(f"🎒 Paso a levantar por donde cayeron {len(ok_)} bicho/s.")
+                click_tile(kp[0], kp[1])
+                self.stats["state"] = f"paso a levantar ({kp[0]},{kp[1]})"
+                return True
+            self._kill_q = [k_ for k_ in kq if (k_[0], k_[1]) not in tried]
         if now - getattr(self, "_loot_scan_t", 0) < 0.6:
             return False
         self._loot_scan_t = now
