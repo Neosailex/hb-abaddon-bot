@@ -184,10 +184,21 @@ class Api:
         if not mapname:
             self._bot.goto = None
             self._bot.log("🗺 Viaje del mapa cancelado.")
+            if getattr(self._bot, "_walk_only", False):
+                self._bot.stop("manual")
             return {"ok": True}
         self._bot.goto = {"map": str(mapname), "x": int(x), "y": int(y), "t": _t.time()}
         self._bot.log(f"🗺 Voy a {mapname} ({int(x)},{int(y)}) (clic en el mapa).")
-        return {"ok": True, "running": bool(self._bot.running)}
+        if not self._bot.running:
+            # bot apagado: lo prendo solo para caminar hasta ahí y se apaga al llegar
+            self._bot._walk_only = True
+            self._bot.start()
+            if self._bot.running:
+                self._bot._walk_only = True
+                self._bot.log("🗺 Bot apagado: camino hasta ahí y me vuelvo a apagar.")
+            else:
+                self._bot._walk_only = False
+        return {"ok": True, "running": True}
 
     # datos
     def db(self):

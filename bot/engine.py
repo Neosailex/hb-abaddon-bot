@@ -265,6 +265,11 @@ class Bot:
                 winapi.focus(self.hwnd)
 
     def stop(self, reason="manual"):
+        self._walk_only = False
+        try:
+            winapi.key_up("ALT")
+        except Exception:
+            pass
         if reason in ("se perdió la ventana del juego",) and self.running:
             self._resume_when_game = True
         if reason == "manual":
@@ -1072,6 +1077,16 @@ class Bot:
             if time.time() - getattr(self, "_rfx_err", 0) > 300:
                 self._rfx_err = time.time()
                 self.log(f"Regla de oro: error {e_!r}")
+        if getattr(self, "_walk_only", False):
+            # clic en el mapa con el bot apagado: solo camino hasta ahí (si me pegan, la regla de oro ya me defendió
+            # arriba) y me vuelvo a apagar. No cazo, no compro, no reviso nada.
+            if not getattr(self, "goto", None):
+                self._walk_only = False
+                self.log("🗺 Llegué (o se canceló el viaje): me vuelvo a apagar.")
+                self.stop("manual")
+                return
+            self._goto_step()
+            return
         sa = cfg.get("stats_auto", {})
         if sa.get("enabled") and time.time() - getattr(self, "_lvl_check", 0) > 8:
             self._lvl_check = time.time()
@@ -5256,7 +5271,31 @@ class Bot:
                 # pegado: el sprite del pj tapa al bicho y el clic izquierdo cae sobre mí. Con click derecho en
                 # modo ataque el juego pega en esa dirección sin caminar (wiki: Gameplay).
                 self._release()
-                winapi.click(*self.abs_pt(pt[0], pt[1] + int(th * 0.3)), button="right")
+                tx_, ty_ = pt[0], pt[1] + int(th * 0.3)
+                rab_ = now < getattr(self, "_rabia_until", 0)
+                crit_ = False
+                if rab_:
+                    # RABIA: la memoria marca a los bichos chicos corridos una baldosa, así que si hace 2,5 s que no
+                    # cae ninguno, un golpe de cada dos lo tiro barriendo las 8 baldosas de alrededor (primero donde
+                    # la memoria ve bichos). Y uso el golpe crítico (Alt) cada 1,5 s: pega más y alcanza 3 baldosas.
+                    self._rabia_n = getattr(self, "_rabia_n", 0) + 1
+                    if self._rabia_n % 2 == 0 and now - getattr(self, "_last_kill_t", 0) > 2.5:
+                        ring = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
+                        occ = [(o[0] - px, o[1] - py) for o in ents if max(abs(o[0] - px), abs(o[1] - py)) == 1]
+                        order = [r_ for r_ in ring if r_ in occ] + [r_ for r_ in ring if r_ not in occ]
+                        dx_, dy_ = order[(self._rabia_n // 2) % 8]
+                        tx_, ty_ = int(cx + dx_ * tw), int(cy + dy_ * th)
+                    crit_ = self.cfg.get("rabia_crit", True) and now - getattr(self, "_crit_t", 0) > 1.5
+                if crit_:
+                    self._crit_t = now
+                    winapi.key_down("ALT")
+                    time.sleep(0.05)
+                try:
+                    winapi.click(*self.abs_pt(tx_, ty_), button="right")
+                finally:
+                    if crit_:
+                        time.sleep(0.08)
+                        winapi.key_up("ALT")
                 self.state = "seek"
                 self._last_enemy = self._atk_t = now
                 self.stats["state"], self.stats["target"] = "atacando", e[2]["name"]
