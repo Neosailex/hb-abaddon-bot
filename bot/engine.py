@@ -5023,7 +5023,9 @@ class Bot:
             # voy con el viaje del mapa (el mismo del clic en el mapa: pelea si le pegan y sigue)
             p_ = qd["p"]
             d_ = max(abs(p_["x"] - px), abs(p_["y"] - py))
-            if not getattr(self, "goto", None) or d_ <= 12 or now - qd["t0"] > 480:
+            if d_ < qd["d"] - 2:
+                qd["d"], qd["t"] = d_, now
+            if not getattr(self, "goto", None) or d_ <= 12 or now - qd["t0"] > 1200 or now - qd["t"] > 120:
                 if d_ > 20:
                     self.log(f"📜 No llegué al nido de {qd['nm']} ({p_['x']},{p_['y']}): pruebo de nuevo en 10 minutos.")
                 else:

@@ -1,1 +1,1 @@
-{"version": 311, "notes": "La ida al nido de la misión ahora sale aunque esté peleando slimes (hasta 2 pegados) y usa el viaje del mapa."}
+{"version": 312, "notes": "La ida al nido de la misión tiene hasta 20 minutos mientras siga avanzando (corta si pasa 2 minutos sin acercarse)."}
