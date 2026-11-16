@@ -6880,9 +6880,23 @@ class Bot:
             g_ = gp or sc.get("gold_xy")
             out.append({"x": g_[0], "y": g_[1], "kind": "gold", "name": "Gold"})
         for it in sc["items"]:
-            out.append({"x": it["x"], "y": it["y"], "kind": "item", "name": "", "area": it["area"]})
+            out.append({"x": it["x"], "y": it["y"], "kind": "item", "name": "", "area": it["area"],
+                        "rx": int(it.get("cx", it["x"]) - pw[1]), "ry": int(it.get("cy", it["y"]) - pw[2])})
+        # memoria: la grilla del bolso se acuerda qué hay en cada lugar; solo leo (mouse encima) lo que no reconozco
+        mem = self._bag_mem_load()
+        hits = 0
         for o in out:
-            if o["kind"] == "gold":
+            if o["kind"] != "item":
+                continue
+            m = next((m for m in mem if abs(m["rx"] - o["rx"]) <= 6 * kx and abs(m["ry"] - o["ry"]) <= 6 * ky
+                      and abs(m["area"] - o["area"]) <= 0.12 * max(m["area"], 1)), None)
+            if m and m.get("name"):
+                o.update({k: m[k] for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str") if m.get(k) is not None})
+                o["known"] = True
+                hits += 1
+        self._bag_hits = (hits, sum(1 for o in out if o["kind"] == "item"))
+        for o in out:
+            if o["kind"] == "gold" or o.get("known"):
                 continue
             if not names:
                 continue
@@ -6911,7 +6925,54 @@ class Bot:
             if any(k in o["name"].lower() for k in ("potion", "poción", "pocion")):
                 o["kind"] = "pot"
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
+        if names:
+            try:
+                self._bag_mem_save([{k: o.get(k) for k in ("rx", "ry", "area", "name", "dur", "dur_max", "dmg", "def", "lvl", "str")}
+                                    for o in out if o["kind"] == "item" and o.get("name")])
+            except Exception:
+                pass
         return out
+
+    def _bag_mem_load(self):
+        m = getattr(self, "_bag_mem", None)
+        if m is None:
+            try:
+                with open(os.path.join(cfgmod.profile_dir(self.cfg), "bolso.json"), encoding="utf-8") as f:
+                    m = json.load(f).get("items") or []
+            except Exception:
+                m = []
+            self._bag_mem = m
+        return m
+
+    def _bag_mem_save(self, items):
+        self._bag_mem = items
+        try:
+            with open(os.path.join(cfgmod.profile_dir(self.cfg), "bolso.json"), "w", encoding="utf-8") as f:
+                json.dump({"t": int(time.time()), "items": items}, f, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _bag_judge(self, o):
+        """Qué hago con un objeto del bolso: ('equip'|'sell'|'keep'|'broken'|'other', motivo, ficha, casillero, valor)."""
+        it = self._game_item(o.get("name"))
+        if not it:
+            return ("other", "no lo reconozco", None, None, 0)
+        if it.get("type") != 1 or not it.get("slot"):
+            return ("other", "no es equipo", it, None, 0)
+        slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
+        val = int(it.get("dmg") or it.get("def") or 0)
+        worn = (self.cfg.get("worn") or {}).get(slot)
+        lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        fam = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
+        if slot == "arma" and fam and str(it.get("family") or "").lower() != fam:
+            return ("sell", f"no es {fam} (mi talento)", it, slot, val)
+        if worn and val <= int(worn.get("v", -1)):
+            return ("sell", f"no mejora lo puesto ({worn.get('name')})", it, slot, val)
+        if o.get("dur") == 0:
+            return ("broken", "está roto", it, slot, val)
+        if int(it.get("level") or 0) > lvl:
+            return ("keep", f"pide nivel {it['level']}", it, slot, val)
+        return ("equip", "mejora lo puesto" if worn else "no sé qué tengo puesto ahí: pruebo", it, slot, val)
 
     @staticmethod
     def _tip_parse(ws, tol=10):
@@ -6978,18 +7039,31 @@ class Bot:
                 time.sleep(0.9)
                 opened = True
             bag = self._oly_bag() or []
-            if opened:
+            items = [o for o in bag if o["kind"] == "item"]
+            jd = [(o, self._bag_judge(o)) for o in items]
+            self._bag_info = {"t": time.time(), "items": [dict({k: o.get(k) for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str")}, verdict=j[0], why=j[1]) for o, j in jd]}
+            nm = lambda o, j: (j[2]["name"] if j[2] else (o.get("name") or "?"))
+            broken = [nm(o, j) for o, j in jd if j[0] == "broken"]
+            equip = [nm(o, j) for o, j in jd if j[0] == "equip"]
+            sell = [nm(o, j) for o, j in jd if j[0] == "sell"]
+            self._bag_sell = sell
+            h = getattr(self, "_bag_hits", (0, 0))
+            pots = (getattr(self, "_bag_scan", None) or {}).get("pots") or {}
+            line = (f"🎒 Bolso ({h[0]}/{h[1]} de memoria): oro {getattr(self, '_gold', '?')}, pociones {pots.get('vida', '?')}"
+                    + (f"; rotos: {', '.join(broken)}" if broken else "")
+                    + (f"; para ponerme: {', '.join(equip)}" if equip else "")
+                    + (f"; para vender: {', '.join(sell)}" if sell else "") + ".")
+            if line != getattr(self, "_bag_line", None):
+                self._bag_line = line
+                self.log(line)
+            if equip:
+                self._reequip_loose(max_n=len(equip) + 2)
+            elif opened:
                 winapi.press("F6")
                 time.sleep(0.4)
-            info = [{k: o.get(k) for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str")} for o in bag if o["kind"] == "item" and o.get("name")]
-            self._bag_info = {"t": time.time(), "items": info}
-            gear = [i for i in info if i.get("dur_max")]
-            if gear:
-                self.log("🎒 Bolso: " + ", ".join(f"{i['name']} {i['dur']}/{i['dur_max']}" for i in gear) + ".")
-            broken = [i for i in gear if i["dur"] <= 0]
             if broken and self._place("smith"):
                 self._worn_seen = time.time()
-                self.log(f"🔧 {broken[0]['name']} está roto (durabilidad 0) y suelto en el bolso: voy a repararlo y me lo vuelvo a poner.")
+                self.log(f"🔧 {broken[0]} está roto (durabilidad 0) y suelto en el bolso: voy a repararlo.")
         except Exception as e:
             self.log(f"🎒 No pude revisar el bolso: {e!r}")
         finally:
@@ -7207,9 +7281,11 @@ class Bot:
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
             bag = self._oly_bag() or []
-            sell = [o for o in bag if o["kind"] == "item" and o["name"] and not any(k in o["name"].lower() for k in self.KEEP_WORDS)]
-            if not self.cfg.get("sell_olympia", False):
-                sell = []  # apagado hasta probarlo bien: leía mal los nombres y podía vender lo que no debía
+            # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
+            sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
+                    and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
+            if not self.cfg.get("sell_olympia", True):
+                sell = []
             if sell and tabp:
                 click(tabp[1] + 346 * kx, tabp[2])
                 time.sleep(1.0)
@@ -7219,6 +7295,7 @@ class Bot:
                 click(*(vb[1:3] if vb else (tabp[1] + 170 * kx, tabp[2] + 647 * ky)))
                 time.sleep(1.5)
                 self.log("🛒 Vendí: " + ", ".join(o["name"] for o in sell) + ".")
+                self._bag_mem = []
                 click(tabp[1], tabp[2])
                 time.sleep(1.0)
             self._oly_bag(names=False)  # leo el oro
@@ -7880,6 +7957,7 @@ class Bot:
                 winapi.click(*self.abs_pt(yes[1], yes[2]))
                 time.sleep(1.5)
                 self.log(f"🔧 Reparé todo el equipo" + (f" por {cost} de oro." if cost else "."))
+                self._bag_mem = []
             elif yes:
                 no = next((w for w in ws if norm(w[0]) == "no" and abs(w[2] - yes[2]) < 15), None)
                 if no:
@@ -7954,22 +8032,9 @@ class Bot:
                 for o in bag:
                     if o["kind"] != "item" or any(abs(o["x"] - p[0]) < 14 and abs(o["y"] - p[1]) < 14 for p in done):
                         continue
-                    it = self._game_item(o.get("name"))
-                    if not it or it.get("type") != 1 or not it.get("slot"):
-                        continue
-                    slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
-                    val = int(it.get("dmg") or it.get("def") or 0)
-                    why = None
-                    if o.get("dur") == 0:
-                        why = "está roto"
-                    elif int(it.get("level") or 0) > lvl:
-                        why = f"pide nivel {it['level']}"
-                    elif slot == "arma" and fam and str(it.get("family") or "").lower() != fam:
-                        why = f"no es {fam} (mi talento)"
-                    elif val <= int((worn.get(slot) or {}).get("v", -1)):
-                        why = f"no mejora lo que tengo puesto ({(worn.get(slot) or {}).get('name')})"
-                    if why:
-                        if it["name"] not in [l[0] for l in left]:
+                    v, why, it, slot, val = self._bag_judge(o)
+                    if v != "equip":
+                        if it and v != "other" and it["name"] not in [l[0] for l in left]:
                             left.append((it["name"], why))
                         done.append((o["x"], o["y"]))
                         continue
@@ -7992,6 +8057,9 @@ class Bot:
                     put.append(it["name"])
                     worn[slot] = {"name": it["name"], "v": val}
                     cfgmod.save(self.cfg)
+                    # en ese lugar ahora está lo que tenía puesto: olvido solo ese lugar y lo releo
+                    self._bag_mem = [m for m in (getattr(self, "_bag_mem", None) or [])
+                                     if abs(m["rx"] - o.get("rx", 9999)) > 40 or abs(m["ry"] - o.get("ry", 9999)) > 40]
             if left:
                 self.log("🎒 Dejo en el bolso: " + "; ".join(f"{a_} ({b_})" for a_, b_ in left[:5]) + ".")
             if put:
