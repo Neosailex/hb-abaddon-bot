@@ -4628,7 +4628,9 @@ class Bot:
             ents = self._oly_ents()
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
-        dry = now - max(getattr(self, "_exp_gain_t", 0), getattr(self, "_start_t_oly", now)) > 150
+        # "seco" = ni experiencia ni muertes en 2 min y medio (al subir de nivel la barra queda sin leer un rato:
+        # si estoy matando, no está seco)
+        dry = now - max(getattr(self, "_exp_gain_t", 0), getattr(self, "_last_kill_t", 0), getattr(self, "_start_t_oly", now)) > 150
         if not hasattr(self, "_start_t_oly"):
             self._start_t_oly = now
         if (not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents) or dry) \
@@ -4666,13 +4668,16 @@ class Bot:
             try:
                 if (dry or not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents)) and now - getattr(self, "_pit_go_t", 0) > 20:
                     bp = self._pit_pick()
+                    pg0 = getattr(self, "_pit_go", None)
+                    if pg0 and pg0.get("p") and now - pg0["t"] < 45 and self.__dict__.get("_pit_tried", {}).get(pg0["k"], 0) < now:
+                        bp = (0, pg0["p"], pg0["nm"])  # ya elegí un nido y voy avanzando: no cambio de idea en el camino
                     if bp:
                         _sc, p, nm = bp
                         m = self.world.map_for(self.pos.get("map") or "")
                         g = m.nearest_walkable(p["x"], p["y"], r=6) if m else None
                         pg = getattr(self, "_pit_go", None)
                         if not pg or pg["k"] != (p["x"], p["y"]):
-                            pg = self._pit_go = {"k": (p["x"], p["y"]), "t": now, "d": 999}
+                            pg = self._pit_go = {"k": (p["x"], p["y"]), "t": now, "d": 999, "p": p, "nm": nm}
                             self.log(f"🗺 Acá no gano experiencia: voy al nido de {nm} en ({p['x']},{p['y']}).")
                         dcur = max(abs(p["x"] - px), abs(p["y"] - py))
                         if dcur < pg["d"]:
