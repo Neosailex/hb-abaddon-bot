@@ -228,6 +228,7 @@ class Bot:
 
     # ----------------------------------------------------------- on / off
     def start(self):
+        self._manual_off = False
         with self.lock:
             if self.running:
                 return
@@ -265,6 +266,8 @@ class Bot:
     def stop(self, reason="manual"):
         if reason in ("se perdió la ventana del juego",) and self.running:
             self._resume_when_game = True
+        if reason == "manual":
+            self._manual_off = True
         with self.lock:
             was = self.running
             self.running = False
@@ -317,6 +320,10 @@ class Bot:
                 r = json.load(f)
             os.remove(resume_p)
             want_start = want_start or bool(r.get("running"))
+            if r.get("manual_off") and not r.get("running"):
+                want_start = False  # lo apagaste vos: no me prendo solo por actualizarme
+                self._manual_off = True
+                self.log("Me actualicé, pero me habías apagado a mano: sigo apagado hasta que me prendas (INSERT).")
         except Exception:
             pass
         last_id = None
@@ -454,7 +461,7 @@ class Bot:
         import json
         try:
             with open(os.path.join(cfgmod.DATA, "resume.json"), "w", encoding="utf-8") as f:
-                json.dump({"running": self.running}, f)
+                json.dump({"running": self.running, "manual_off": bool(getattr(self, "_manual_off", False))}, f)
         except Exception:
             pass
         self.stop("reinicio")
@@ -1141,7 +1148,8 @@ class Bot:
                 and (not focused or self._under_attack()) and self._oly_step()):
             return
         # me están pegando y no tengo la lista de bichos de la memoria: freno, busco quién es y le pego
-        if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing()
+        oly_live = cfgmod.server_slug(cfg) != "abaddon" and getattr(self, "_oly_said", False) and not cfg.get("vision_hunt", False)
+        if (not mem_ok and not oly_live and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing()
                 and (self.nav.get("walking") or self._is_travelling()) and self._under_attack()
                 and time.time() - getattr(self, "_hit_scan_t", 0) > 1.0):
             self._hit_scan_t = time.time()
@@ -1155,7 +1163,7 @@ class Bot:
                 return
             self._pit()  # no lo veo: pego alrededor una vez y sigo
         # mirar alrededor aunque esté viajando o explorando
-        if (not mem_ok and not focused and self.state == "seek" and self.nav.get("walking") and self.cfg.get("hover_confirm", True)
+        if (not mem_ok and not oly_live and not focused and self.state == "seek" and self.nav.get("walking") and self.cfg.get("hover_confirm", True)
                 and time.time() - getattr(self, "_last_scan", 0) > self.cfg.get("scan_while_walking_every", 2.0)):
             self._last_scan = time.time()
             self._release()
@@ -1184,6 +1192,15 @@ class Bot:
             self._pit()
         elif cfg["mode"] == "templates":
             self._hunt()
+        elif cfgmod.server_slug(cfg) != "abaddon" and getattr(self, "_oly_said", False) and not cfg.get("vision_hunt", False):
+            # tengo la lista de bichos vivos de la memoria: el buscador por imagen (marca como "monstruo" todo lo que
+            # se mueve: mi pj, el pasto) acá solo mete ruido y muertes falsas. No lo uso.
+            if self.state != "seek" or self.target:
+                self._release()
+                self.state, self.target, self._track = "seek", None, None
+            self._last_mons = []
+            if not self._hot_return():
+                self.stats["state"] = "buscando"
         else:
             self._auto()
 
@@ -4190,6 +4207,78 @@ class Bot:
         except Exception as e:
             self.log(f"🔎 Error buscando bichos en memoria: {e!r}")
 
+    def _loot_items_draw(self):
+        d = getattr(self, "_loot_draw", None)
+        return d["list"] if d and time.time() - d["t"] < 2.0 else ()
+
+    def _loot_pass(self, ents):
+        """Levanto lo que hay tirado cerca (pociones y oro: siempre convienen) cuando no tengo ningún bicho pegado.
+        Lo veo en pantalla, lo paso a la baldosa de la grilla y voy con Shift+clic. True = estoy en eso."""
+        if not self.cfg.get("loot_ground", True) or self.img is None:
+            return False
+        now = time.time()
+        px, py = self.pos["x"], self.pos["y"]
+        tried = self.__dict__.setdefault("_loot_tried", {})
+        go = getattr(self, "_loot_go", None)
+        if any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents):
+            if go:
+                self._loot_go = None
+            return False  # con un bicho pegado, primero el bicho
+        cx, cy = self._char()
+        tw, th = self._tile()
+
+        def click_tile(x, y):
+            self._release()
+            winapi.key_down("SHIFT")
+            time.sleep(0.04)
+            winapi.click(*self.abs_pt(int(cx + (x - px) * tw), int(cy + (y - py) * th)))
+            time.sleep(0.04)
+            winapi.key_up("SHIFT")
+        if go:
+            arrived = (px, py) == (go["x"], go["y"])
+            if arrived or now - go["t"] > 5.0:
+                tried[(go["x"], go["y"])] = now + (20 if arrived else 60)
+                self._loot_go = None
+                if arrived:
+                    self.stats["loot"] = self.stats.get("loot", 0) + 1
+                    time.sleep(0.35)
+                    try:
+                        self._loot_note()
+                    except Exception:
+                        pass
+                return False
+            if now - go["click"] > 1.0:
+                go["click"] = now
+                click_tile(go["x"], go["y"])
+            self.stats["state"] = f"levanto {go['kind']} ({go['x']},{go['y']})"
+            return True
+        if now - getattr(self, "_loot_scan_t", 0) < 0.6:
+            return False
+        self._loot_scan_t = now
+        found = vision.ground_loot(self.img, (cx, cy), (tw, th))
+        seen = self.__dict__.setdefault("_loot_seen", {})
+        cur = {}
+        for it in found:
+            k = (px + it["dx"], py + it["dy"], it["kind"])
+            cur[k] = (seen.get(k, (0, 0))[0] + 1, now)
+        self._loot_seen = cur  # lo que no volvió a aparecer se olvida (números de daño, cosas que pasan)
+        self._loot_draw = {"t": now, "list": [{"x": it["x"], "y": it["y"], "w": int(tw * 0.6), "h": int(th * 0.6)} for it in found]}
+        for k in [k for k, v in tried.items() if v < now]:
+            del tried[k]
+        cand = [k for k, v in cur.items() if v[0] >= 2 and (k[0], k[1]) not in tried
+                and max(abs(k[0] - px), abs(k[1] - py)) <= int(self.cfg.get("loot_reach", 7))
+                and not any((e[0], e[1]) == (k[0], k[1]) for e in ents)]
+        if not cand:
+            return False
+        k = min(cand, key=lambda k: max(abs(k[0] - px), abs(k[1] - py)))
+        self._loot_go = {"x": k[0], "y": k[1], "kind": k[2], "t": now, "click": now}
+        if now - getattr(self, "_loot_said", 0) > 20:
+            self._loot_said = now
+            self.log(f"🎒 Hay {len(cand)} cosa/s tirada/s cerca: levanto {k[2]} en ({k[0]},{k[1]}).")
+        click_tile(k[0], k[1])
+        self.stats["state"] = f"levanto {k[2]} ({k[0]},{k[1]})"
+        return True
+
     def _loot_note(self):
         """Después de levantar algo leo los mensajes del juego (abajo a la izquierda) y guardo los nuevos en
         data/botin.log: de ahí sale qué cae y cómo lo nombra el juego."""
@@ -4424,6 +4513,7 @@ class Bot:
         ents = self._oly_ents()
         px, py = self.pos["x"], self.pos["y"]
         now = time.time()
+        self._last_mons = []  # nada del buscador viejo por imagen en la vista previa
         try:
             self._pits_tag(ents)
             pg = getattr(self, "_pit_go", None)
@@ -4432,6 +4522,13 @@ class Bot:
                 self._pit_go, self._start_t_oly = None, now
         except Exception:
             pass
+        try:
+            if self._loot_pass(ents):
+                return True
+        except Exception as e_:
+            if now - getattr(self, "_loot_err_t", 0) > 300:
+                self._loot_err_t = now
+                self.log(f"🎒 Error levantando botín: {e_!r}")
         if self._hot_return(ents):
             return True
         if not ents:
@@ -9272,7 +9369,7 @@ class Bot:
                         mons = getattr(self, "_last_mons", []) if self.running else []
                         if self.running and not mons and self.target:
                             mons = [self.target]
-                        ov = vision.draw_overlay(img, self.cfg, mons, (), self.target, track=getattr(self, "_trk_draw", None))
+                        ov = vision.draw_overlay(img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None))
                         url = vision.to_data_url(ov, int(self.cfg.get("preview_quality", 75)),
                                                  max_w=int(self.cfg.get("preview_width", 1280)))
                         self.preview = url
@@ -9301,7 +9398,7 @@ class Bot:
             mons = self._monsters()
         elif self.running:
             mons = getattr(self, "_last_mons", []) or ([self.target] if self.target else [])
-        ov = vision.draw_overlay(self.img, self.cfg, mons, (), self.target, track=getattr(self, "_trk_draw", None))
+        ov = vision.draw_overlay(self.img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None))
         self.preview = vision.to_data_url(ov, 55, max_w=640)
 
     # ---------------------------------------------------------------- state

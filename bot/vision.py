@@ -303,6 +303,51 @@ def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=
     return out
 
 
+def ground_loot(img, char, tile):
+    """Cosas tiradas en el piso que siempre conviene levantar: pociones (vida/maná/energía) y oro. Las ubico por
+    color y forma (frasco chico con el cuello blanco; montoncito amarillo) y las paso a baldosas relativas al pj.
+    Devuelve [{'kind', 'x', 'y', 'dx', 'dy'}]."""
+    if img is None:
+        return []
+    H, W = img.shape[:2]
+    tw, th = tile
+    cx, cy = char
+    k = H / 1080.0
+    top = int(H * 0.885)
+    b, g, r = [img[:top, :, i].astype(int) for i in range(3)]
+    masks = {"poción de vida": (r > 120) & (g < 62) & (b < 62) & (r - g > 75),
+             "poción de maná": (b > 125) & (r < 70) & (g < 60) & (b - r > 75),
+             "poción de energía": (g > 130) & (r < 70) & (b < 70) & (g - r > 75),
+             "oro": (r > 130) & (g > 130) & (b < 70) & (r < 215) & (np.abs(r - g) < 25)}
+    out = []
+    for kind, m in masks.items():
+        m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+        n, lab, st, cen = cv2.connectedComponentsWithStats(m)
+        for i in range(1, n):
+            a, w, h = int(st[i, 4]), int(st[i, 2]), int(st[i, 3])
+            x, y = float(cen[i][0]), float(cen[i][1])
+            if x > 0.75 * W and y < 0.48 * H:
+                continue  # minimapa y cartel de misiones
+            if abs(x - cx) < tw * 0.8 and cy - 2.2 * th < y < cy + 0.6 * th:
+                continue  # mi propio personaje (ropa)
+            if kind == "oro":
+                if not (40 * k * k <= a <= 700 * k * k and 10 * k <= w <= 44 * k and 7 * k <= h <= 16 * k and a >= 0.35 * w * h):
+                    continue
+            else:
+                if not (10 * k * k <= a <= 200 * k * k and 4 * k <= w <= 18 * k and 3 * k <= h <= 22 * k):
+                    continue
+                x0, y0 = int(st[i, 0]), int(st[i, 1])
+                nb = img[max(0, y0 - int(12 * k)):y0 + h + 2, max(0, x0 - 3):x0 + w + 3].reshape(-1, 3).astype(int)
+                if int((nb.min(axis=1) > 150).sum()) < 8:
+                    continue  # sin el cuello blanco del frasco: es sangre, una capa, una barra de vida…
+            dx = int(round((x - cx) / tw))
+            dy = int(round((y + th * 0.15 - cy) / th))
+            if (dx, dy) == (0, 0):
+                continue
+            out.append({"kind": kind, "x": int(x), "y": int(y), "dx": dx, "dy": dy})
+    return out
+
+
 # ---------------------------------------------------------------- modo automático
 def small_gray(img, roi, scale=0.5):
     """Recorte de la zona de juego en gris y achicado (para detectar movimiento rápido)."""
