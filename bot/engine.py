@@ -1061,7 +1061,8 @@ class Bot:
             # servers sin memoria del pj: la ficha (F5) dice el nivel, la exp y si hay puntos por repartir
             if not indoors and not getattr(self, "mission", None) and self._census():
                 return
-        if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0:
+        if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0 \
+                and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or (self.bars.get("hp") or 100) < 50)):
             self._last_stats = time.time()
             self._stats_done = time.time()
             self._do_stats()
@@ -3117,7 +3118,7 @@ class Bot:
             ents = self._oly_ents() if self.pos.get("x") is not None else []
             px, py = self.pos.get("x"), self.pos.get("y")
             forced = getattr(self, "_census_t", 1) == 0 and (self.bars.get("hp") or 0) >= 60
-            if any(max(abs(e[0] - px), abs(e[1] - py)) <= (1 if forced else 4) for e in ents or []):
+            if any(max(abs(e[0] - px), abs(e[1] - py)) <= (2 if forced else 4) for e in ents or []):
                 return False  # con bichos cerca no abro ventanas (si subí de nivel alcanza con que no los tenga pegados)
         except Exception:
             pass
@@ -4185,6 +4186,28 @@ class Bot:
         except Exception as e:
             self.log(f"🔎 Error buscando bichos en memoria: {e!r}")
 
+    def _loot_note(self):
+        """Después de levantar algo leo los mensajes del juego (abajo a la izquierda) y guardo los nuevos en
+        data/botin.log: de ahí sale qué cae y cómo lo nombra el juego."""
+        img = self.screen.grab(self.rect)
+        H, W = img.shape[:2]
+        ws = ocr.read_words(img, {"x1": 0, "y1": int(H * 0.72), "x2": int(W * 0.62), "y2": int(H * 0.915)}, scale=1.0)
+        rows = {}
+        for w in ws:
+            rows.setdefault(round(w[2] / 12), []).append(w)
+        seen = self.__dict__.setdefault("_loot_seen", [])
+        new = []
+        for k in sorted(rows):
+            t = " ".join(v[0] for v in sorted(rows[k], key=lambda v: v[1])).strip()
+            if len(t) >= 6 and t not in seen:
+                new.append(t)
+                seen.append(t)
+        del seen[:-60]
+        if new:
+            with open(os.path.join(cfgmod.DATA, "botin.log"), "a", encoding="utf-8") as f:
+                for t in new:
+                    f.write(time.strftime("%H:%M:%S ") + t + "\n")
+
     def _hot_return(self, ents=None):
         """Sin nada vivo cerca, o más de 2 minutos y medio sin ganar experiencia: vuelvo al último lugar donde venía
         ganando (en vez de explorar o dar vueltas). True = estoy yendo."""
@@ -4253,6 +4276,10 @@ class Bot:
                 time.sleep(0.05)
                 winapi.key_up("SHIFT")
                 time.sleep(1.2)
+                try:
+                    self._loot_note()
+                except Exception:
+                    pass
                 return True
         bad = getattr(self, "_oly_bad", {})
         self._oly_bad = bad = {k: v for k, v in bad.items() if v > now}
