@@ -1364,7 +1364,7 @@ class Bot:
                     rest = [norm(x) for x in title.split()[1:]]
                     near = " ".join(t2 for t2, w2 in txt if abs(w2[2] - w[2]) < 15 and 0 <= w2[1] - w[1] < 400)
                     if all(r in near for r in rest):
-                        if first == "peso" and not w[0].strip().lower().startswith("peso"):
+                        if first == "peso" and not w[0].strip().startswith("Peso"):
                             continue  # 'peso' suelto (ej. 'c/u, peso 1' en la tienda): no es el bolso
                         if first == "peso":
                             # el bolso: con click derecho podría caer sobre un objeto (y el juego pregunta si
@@ -7120,9 +7120,10 @@ class Bot:
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
         img = self.screen.grab(self.rect)
         ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-        pw = next((w for w in ws if w[0].strip().lower().startswith("peso")), None)
+        pw = next((w for w in ws if w[0].strip().startswith("Peso")
+                   and ("/" in w[0] or any("/" in v[0] and abs(v[2] - w[2]) < 12 and 0 < v[1] - w[1] < 260 for v in ws))), None)
         if not pw:
-            return None
+            return None  # 'peso' suelto (el 'c/u, peso 10' de la tienda) NO es el bolso: ahí no se toca nada
         try:
             import re as _re
             row_ = " ".join(w[0] for w in sorted([w for w in ws if abs(w[2] - pw[2]) < 10 * ky and w[1] >= pw[1]], key=lambda w: w[1]))
@@ -7242,7 +7243,7 @@ class Bot:
             tw_ = []
             if len(xs_) > 200:
                 tw_ = ocr.read_words(im2, {"x1": int(xs_.min()), "y1": int(ys_.min()), "x2": int(xs_.max()) + 1, "y2": int(ys_.max()) + 1}, scale=1.0)
-            tw_ = [w for w in tw_ if not w[0].strip().lower().startswith("peso")]
+            tw_ = [w for w in tw_ if not w[0].strip().startswith("Peso")]
             if tw_:
                 try:
                     o.update(self._tip_parse(tw_, 10 * ky))
@@ -7516,7 +7517,7 @@ class Bot:
             bag = None
             for _try in range(3):
                 img = self.screen.grab(self.rect)
-                if any(w[0].strip().lower().startswith("peso") for w in self._q_words(img)):
+                if any(w[0].strip().startswith("Peso") for w in self._q_words(img)):
                     bag = self._oly_bag()
                     if bag is not None:
                         break
@@ -7532,7 +7533,7 @@ class Bot:
                 except Exception:
                     pass
                 try:
-                    if any(w[0].strip().lower().startswith("peso") for w in self._q_words(self.screen.grab(self.rect))):
+                    if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
                         winapi.press("F6")  # nunca lo dejo abierto
                 except Exception:
                     pass
@@ -7634,7 +7635,7 @@ class Bot:
     def _equip_from_bag(self, name):
         """Me pongo un objeto del bolso con Ctrl + click (wiki: equipa lo que se pueda equipar)."""
         img = self.screen.grab(self.rect)
-        if not any(w[0].strip().lower().startswith("peso") for w in self._q_words(img)):
+        if not any(w[0].strip().startswith("Peso") for w in self._q_words(img)):
             winapi.press("F6")
             time.sleep(0.9)
         bag = self._oly_bag() or []
@@ -7666,7 +7667,7 @@ class Bot:
 
         def peso(img):
             ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-            return next((w for w in ws if w[0].strip().lower().startswith("peso")), None)
+            return next((w for w in ws if w[0].strip().startswith("Peso")), None)
 
         img = self.screen.grab(self.rect)
         pw = peso(img)
@@ -7971,7 +7972,7 @@ class Bot:
         if not fp:
             return
         self._food_pending = None
-        if not any(w[0].strip().lower().startswith("peso") for w in self._q_words(self.screen.grab(self.rect))):
+        if not any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
             winapi.press("F6")
             time.sleep(0.9)
         self._bag_scan = None
@@ -7992,7 +7993,7 @@ class Bot:
             self.log(f"🍖 Comí {fp['n']} de {fp['what']}.")
             self._hunger = None
             self._census_t = 0  # releo la ficha para ver cómo quedó el hambre
-        if any(w[0].strip().lower().startswith("peso") for w in self._q_words(self.screen.grab(self.rect))):
+        if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
             winapi.press("F6")
             time.sleep(0.4)
 
@@ -8363,7 +8364,7 @@ class Bot:
         cx, cy = self._char()
         try:  # una ventana abierta (bolso, personaje) se come los clicks: las cierro antes
             ws0 = self._q_words(self.screen.grab(self.rect))
-            if any(w[0].strip().lower().startswith("peso") for w in ws0):
+            if any(w[0].strip().startswith("Peso") for w in ws0):
                 winapi.press("F6")
                 time.sleep(0.5)
             if any(norm(w[0]).startswith("estad") for w in ws0) and any(norm(w[0]).startswith("misiones") for w in ws0):
@@ -8517,7 +8518,7 @@ class Bot:
         moved = 0
         try:
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
-            if not any(w[0].strip().lower().startswith("peso") for w in self._q_words(self.screen.grab(self.rect))):
+            if not any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.9)
             for _ in range(3):
@@ -8549,7 +8550,7 @@ class Bot:
         comprado): doble click para ponérmelo. En este cliente, equipar desde el bolso manda al bolso lo que estaba
         puesto, así que hago como mucho 'max_n' cambios y no vuelvo a tocar el mismo lugar."""
         try:
-            if not any(w[0].strip().lower().startswith("peso") for w in self._q_words(self.screen.grab(self.rect))):
+            if not any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.9)
             self._bag_tidy()
@@ -8628,7 +8629,7 @@ class Bot:
                     cfgmod.save(self.cfg)
             except Exception:
                 pass
-            if any(w[0].strip().lower().startswith("peso") for w in self._q_words(self.screen.grab(self.rect))):
+            if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.4)
         except Exception as e:

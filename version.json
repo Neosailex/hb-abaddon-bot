@@ -1,1 +1,1 @@
-{"version": 280, "notes": "Reconoce la ventana de Tienda por el pie (Comprar + Max) y la cierra si quedo abierta."}
+{"version": 281, "notes": "ARREGLO GRAVE: confundia el peso del recuadro de la tienda con el bolso y hacia clic en Max/Comprar. Ahora el bolso es solo Peso: a/b."}
