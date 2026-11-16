@@ -1734,7 +1734,21 @@ class Bot:
             self.state, self.target = "seek", None
             self.log(f"¡{self._adjacent_mobs()} bichos encima y vida {hp:.0f}%! Me retiro antes de que me rodeen.")
             return False
-        if hp is not None and hp <= panic and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0) \
+        # con bichos pegados NO se huye ni se queda parado tomando: darles la espalda (o quedarse quieto) es morir.
+        # Tomo la poción y sigo pegando. Solo me voy si no me queda ninguna.
+        try:
+            adj_n_ = self._adjacent_mobs()
+        except Exception:
+            adj_n_ = 0
+        pots_n_ = (getattr(self, "_left", {}) or {}).get("pot")
+        stand_ = cfgmod.server_slug(cfg) != "abaddon" and adj_n_ >= 1 and pots_n_ != 0
+        if stand_:
+            self._flee_until = 0
+            if hp is not None and hp <= max(panic, int(cfg.get("hp_pot_fight_pct", 40))) and now - getattr(self, "_stand_pot_t", 0) > 1.3:
+                self._stand_pot_t = now
+                self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
+                self.stats["hp_pots"] += 1
+        if (not stand_) and hp is not None and hp <= panic and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0) \
                 and not (cfgmod.server_slug(cfg) != "abaddon" and "beginner" in (self.pos.get("map") or "").lower()):
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self._flee_until = now + cfg.get("flee_max_sec", 600)
@@ -1753,7 +1767,7 @@ class Bot:
             self.state, self.target = "seek", None
             self.log(f"¡Vida {hp:.0f}%! Me alejo a descansar.")
             return False
-        if hp is not None and hp <= panic:
+        if (not stand_) and hp is not None and hp <= panic:
             self.panic_count += 1
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self.stats["hp_pots"] += 1

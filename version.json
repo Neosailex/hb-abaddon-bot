@@ -1,1 +1,1 @@
-{"version": 299, "notes": "Rabia: sostiene cada dirección un golpe entero (cambiar de dirección cortaba el golpe) y no la interrumpe la alerta de 'no me muevo'."}
+{"version": 300, "notes": "Con bichos pegados y vida baja ya no se queda parado 'alejándose': toma la poción y sigue pegando. Solo huye si no le quedan pociones."}
