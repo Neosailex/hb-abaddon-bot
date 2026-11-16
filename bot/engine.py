@@ -4545,6 +4545,8 @@ class Bot:
             dist = max(abs(p["x"] - px), abs(p["y"] - py))
             if not nm or dist <= 10 or tried.get((p["x"], p["y"]), 0) > now or not self._can_face(nm):
                 continue
+            if now < float(self.cfg.get("train_skill_until", 0) or 0) and nm != "Slime":
+                continue  # arma de otro tipo recién puesta: subo la habilidad con lo más fácil antes de ir a lo serio
             score = (2.0 if nm in qm else 1.0) * (1.3 if p.get("mob") else 1.0) / (1.0 + dist / 80.0)
             if best is None or score > best[0]:
                 best = (score, p, nm)
@@ -7644,6 +7646,25 @@ class Bot:
         inv = self._inv_mem() or []
         return any(i["max"] >= 100 and 0 <= i["dur"] <= i["max"] * 0.12 for i in inv)
 
+    def _game_item(self, name):
+        """Objeto de la tabla del juego (items.dat de la instalación) por el nombre que leí en el cartelito."""
+        if not name:
+            return None
+        db = getattr(self, "_gitems", None)
+        if db is None:
+            try:
+                from . import gamedata
+                db = {"".join(c for c in v["name"].lower() if c.isalnum()): v for v in gamedata.load_items(self.world.game_dir).values()}
+            except Exception:
+                db = {}
+            self._gitems = db
+        k = "".join(c for c in str(name).lower() if c.isalnum())
+        if k in db:
+            return db[k]
+        import difflib
+        m = difflib.get_close_matches(k, list(db), n=1, cutoff=0.88)
+        return db[m[0]] if m else None
+
     def _items_db(self):
         """Tabla de items del juego: id -> datos (nombre, precio, requisitos, daño/defensa)."""
         d = getattr(self, "_idb", None)
@@ -7922,14 +7943,41 @@ class Bot:
                 winapi.press("F6")
                 time.sleep(0.9)
             self._bag_tidy()
-            done, n = [], 0
-            for _ in range(max_n):
-                img = self.screen.grab(self.rect)
-                bag = self._oly_bag(names=False) or []
-                cand = [o for o in bag if o["kind"] == "item" and not any(abs(o["x"] - p[0]) < 14 and abs(o["y"] - p[1]) < 14 for p in done)]
-                if not cand:
+            done, n, put, left = [], 0, [], []
+            worn = self.cfg.setdefault("worn", {})
+            lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+            fam = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
+            for _ in range(max(max_n, 6)):
+                # paso el mouse por cada cosa (sin clic): el cartelito dice qué es. Solo me pongo lo que MEJORA lo puesto.
+                bag = self._oly_bag() or []
+                pick = None
+                for o in bag:
+                    if o["kind"] != "item" or any(abs(o["x"] - p[0]) < 14 and abs(o["y"] - p[1]) < 14 for p in done):
+                        continue
+                    it = self._game_item(o.get("name"))
+                    if not it or it.get("type") != 1 or not it.get("slot"):
+                        continue
+                    slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
+                    val = int(it.get("dmg") or it.get("def") or 0)
+                    why = None
+                    if o.get("dur") == 0:
+                        why = "está roto"
+                    elif int(it.get("level") or 0) > lvl:
+                        why = f"pide nivel {it['level']}"
+                    elif slot == "arma" and fam and str(it.get("family") or "").lower() != fam:
+                        why = f"no es {fam} (mi talento)"
+                    elif val <= int((worn.get(slot) or {}).get("v", -1)):
+                        why = f"no mejora lo que tengo puesto ({(worn.get(slot) or {}).get('name')})"
+                    if why:
+                        if it["name"] not in [l[0] for l in left]:
+                            left.append((it["name"], why))
+                        done.append((o["x"], o["y"]))
+                        continue
+                    pick = (o, it, slot, val)
                     break
-                o = cand[0]
+                if not pick:
+                    break
+                o, it, slot, val = pick
                 done.append((o["x"], o["y"]))
                 before = sum(i_.get("area", 0) for i_ in bag if i_["kind"] == "item")
                 x, y = self.abs_pt(o["x"], o["y"])
@@ -7941,6 +7989,14 @@ class Bot:
                 after = sum(i_.get("area", 0) for i_ in bag2 if i_["kind"] == "item")
                 if abs(after - before) > 60:  # cambió lo que hay suelto: el objeto salió del bolso (o entró el que tenía puesto)
                     n += 1
+                    put.append(it["name"])
+                    worn[slot] = {"name": it["name"], "v": val}
+                    cfgmod.save(self.cfg)
+            if left:
+                self.log("🎒 Dejo en el bolso: " + "; ".join(f"{a_} ({b_})" for a_, b_ in left[:5]) + ".")
+            if put:
+                self.log("🛡 Me puse: " + ", ".join(put) + ".")
+                n = 0
             if n:
                 self.log(f"🛡 Me puse {n} objeto/s que estaban sueltos en el bolso.")
             try:
@@ -8155,7 +8211,8 @@ class Bot:
             # no se pelea, así que salgo aunque me estén pegando.
             el = [t for t in getattr(self, "_elite_ts", []) if now - t < 240]
             lk = getattr(self, "_last_kill_t", 0)
-            weak = len(el) >= 2 and el[-1] > self._rep_last and lk < el[-2] and now - lk > 40
+            weak = (len(el) >= 2 and el[-1] > self._rep_last and lk < el[-2] and now - lk > 40
+                    and now - getattr(self, "_weak_t", 0) > 1800)  # con un arma nueva (habilidad baja) también cuesta matar
             worn = self._worn_check() or weak or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
             if not worn and (self.state == "attack" or self._under_attack() or self._fleeing()):
                 return
@@ -8164,7 +8221,9 @@ class Bot:
                 self._audit_t = now
                 self._rep_last = now
                 self._release()
-                why = "dejé de matar: se rompió el arma" if weak else "el juego avisó que algo se rompió"
+                why = "dejé de matar: capaz se rompió el arma" if weak else "el juego avisó que algo se rompió"
+                if weak:
+                    self._weak_t = now
                 self._rep_th = threading.Thread(target=self._oly_repair_trip, args=(why,), daemon=True)
                 self._rep_th.start()
                 return
