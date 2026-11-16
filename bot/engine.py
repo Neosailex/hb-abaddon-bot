@@ -1056,6 +1056,14 @@ class Bot:
                     self._do_stats()
             return
         self._timers()
+        # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
+        try:
+            if cfg["mode"] == "auto" and not self._fleeing() and self._reflex():
+                return
+        except Exception as e_:
+            if time.time() - getattr(self, "_rfx_err", 0) > 300:
+                self._rfx_err = time.time()
+                self.log(f"Regla de oro: error {e_!r}")
         sa = cfg.get("stats_auto", {})
         if sa.get("enabled") and time.time() - getattr(self, "_lvl_check", 0) > 8:
             self._lvl_check = time.time()
@@ -4145,6 +4153,57 @@ class Bot:
         except Exception:
             return None
 
+    def _reflex(self):
+        """REGLA DE ORO (vale para todo modo, misión u orden, en cualquier juego): nunca me quedo quieto mientras
+        me pegan. Si tengo un bicho pegado y nadie le está pegando, le pego YO, sea cual sea (aunque lo haya
+        descartado por élite, por peligroso o porque iba de viaje). Si me castiga mucho, me escapo lejos."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or self.pos.get("x") is None or self.img is None:
+            return False
+        if time.time() - self.pos.get("t", 0) > 5 or getattr(self, "_kite", None) is not None:
+            return False
+        now = time.time()
+        if self._under_attack():
+            self._hit_t = now
+        ents = self._oly_ents() or []
+        px, py = self.pos["x"], self.pos["y"]
+        d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
+        adj = [e for e in ents if d(e) <= 1]
+        if not adj:
+            if now - getattr(self, "_hit_t", 0) < 2.5 and not any(d(e) <= 3 for e in ents) and now - getattr(self, "_rfx_def", 0) > 2.0:
+                self._rfx_def = now  # me pegan y no veo quién: pego alrededor
+                self._defend()
+                return True
+            return False
+        hp = self.bars.get("hp")
+        st = self.__dict__.setdefault("_rfx", {"t0": now, "hp0": hp, "last": 0})
+        if now - st["last"] > 4:
+            st.update(t0=now, hp0=hp)
+        st["last"] = now
+        lost = (st["hp0"] - hp) if (hp is not None and st["hp0"] is not None) else 0
+        hard = hp is not None and (hp < 30 or (lost >= 45 and now - st["t0"] < 20) or (now - st["t0"] > 45 and hp < 50))
+        if hard and now >= getattr(self, "_flee_block", 0) and now - getattr(self, "_rfx_fled", 0) > 30:
+            self._rfx_fled = now
+            st.update(t0=now, hp0=hp)
+            self.log(f"🏃 Me están castigando (vida {hp:.0f}%, perdí {max(0, lost):.0f} en {now - st['t0']:.0f} s): me escapo lejos.")
+            try:
+                return bool(self._oly_kite(ents, force=True))
+            except Exception:
+                return False
+        if now - getattr(self, "_atk_t", 0) < 1.2:
+            return False  # ya le estoy pegando
+        cur = getattr(self, "_oly_cur", None) or {}
+        e = next((o for o in adj if o[3] == cur.get("id")), None) or min(adj, key=d)
+        cx, cy = self._char()
+        tw, th = self._tile()
+        self._release()
+        winapi.click(*self.abs_pt(int(cx + (e[0] - px) * tw), int(cy + (e[1] - py) * th)), button="right")
+        self._atk_t = self._last_enemy = now
+        self.state = "seek"
+        self.stats["state"], self.stats["target"] = "me pegan: me defiendo", e[2]["name"]
+        self._trk_draw = {"x": int(cx + (e[0] - px) * tw), "y": int(cy + (e[1] - py) * th), "tw": tw, "th": th, "name": e[2]["name"], "t": now, "d": 1}
+        time.sleep(0.3)
+        return True
+
     def _oly_kite(self, ents, force=False):
         """Pelear como un jugador: si me rodean más de los que aguanto o me queda poca vida, me alejo del grupo
         (para el lado contrario a los bichos) hasta que nadie me siga, descanso hasta 85% y vuelvo.
@@ -4338,7 +4397,7 @@ class Bot:
             winapi.key_up("SHIFT")
         if go:
             arrived = (px, py) == (go["x"], go["y"])
-            if arrived or now - go["t"] > 5.0:
+            if arrived or now - go["t"] > go.get("max", 5.0):
                 tried[(go["x"], go["y"])] = now + (20 if arrived else 60)
                 self._loot_go = None
                 if arrived:
@@ -4372,16 +4431,19 @@ class Bot:
         for k in [k for k, v in tried.items() if v < now]:
             del tried[k]
         kl = getattr(self, "_oly_loot", None)
-        if not kl or now - kl[2] > 25:
-            return False  # sin una muerte mía recién, no hay botín que buscar
-        cand = [k for k, v in cur.items() if v[0] >= 2 and (k[0], k[1]) not in tried
-                and max(abs(k[0] - kl[0]), abs(k[1] - kl[1])) <= 3
+        fresh = bool(kl) and now - kl[2] <= 25
+        # oro: solo donde cayó un bicho mío recién (lo amarillo suelto del mapa son flores). Pociones: el frasco con
+        # su pico blanco es inconfundible; alcanza con verlo 3 veces seguidas en la misma baldosa.
+        okk = lambda k, v: ((fresh and max(abs(k[0] - kl[0]), abs(k[1] - kl[1])) <= 3 and v[0] >= 2)
+                            or (k[2].startswith("poci") and v[0] >= 3))
+        cand = [k for k, v in cur.items() if okk(k, v) and (k[0], k[1]) not in tried
                 and max(abs(k[0] - px), abs(k[1] - py)) <= int(reach or self.cfg.get("loot_reach", 7))
                 and not any((e[0], e[1]) == (k[0], k[1]) for e in ents)]
         if not cand:
             return False
         k = min(cand, key=lambda k: max(abs(k[0] - px), abs(k[1] - py)))
-        self._loot_go = {"x": k[0], "y": k[1], "kind": k[2], "t": now, "click": now}
+        self._loot_go = {"x": k[0], "y": k[1], "kind": k[2], "t": now, "click": now,
+                         "max": 4.0 + 1.3 * max(abs(k[0] - px), abs(k[1] - py))}
         if now - getattr(self, "_loot_said", 0) > 20:
             self._loot_said = now
             self.log(f"🎒 Hay {len(cand)} cosa/s tirada/s cerca: levanto {k[2]} en ({k[0]},{k[1]}).")
@@ -4398,7 +4460,7 @@ class Bot:
         rows = {}
         for w in ws:
             rows.setdefault(round(w[2] / 12), []).append(w)
-        seen = self.__dict__.setdefault("_loot_seen", [])
+        seen = self.__dict__.setdefault("_loot_msgs", [])
         new = []
         for k in sorted(rows):
             t = " ".join(v[0] for v in sorted(rows[k], key=lambda v: v[1])).strip()
@@ -4831,7 +4893,7 @@ class Bot:
                 self._release()
                 winapi.click(*self.abs_pt(pt[0], pt[1] + int(th * 0.3)), button="right")
                 self.state = "seek"
-                self._last_enemy = now
+                self._last_enemy = self._atk_t = now
                 self.stats["state"], self.stats["target"] = "atacando", e[2]["name"]
                 time.sleep(0.35)
                 return True
@@ -6900,6 +6962,15 @@ class Bot:
                 continue
             if not names:
                 continue
+            try:
+                if cfgmod.server_slug(self.cfg) != "abaddon" and (self._grid().adjacent() or self._under_attack()):
+                    self.log("🎒 Me pegan con el bolso abierto: lo cierro y me defiendo.")
+                    winapi.press("F6")
+                    self._busy_ui = False
+                    self._audit_t = time.time() - float(self.cfg.get("bag_audit_min", 20)) * 60 + 120
+                    return None
+            except Exception:
+                pass
             winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
             time.sleep(0.3)
             im1 = self.screen.grab(self.rect)
@@ -7032,13 +7103,27 @@ class Bot:
         self._busy_ui, self._busy_t0 = True, time.time()
         try:
             self._release()
-            img = self.screen.grab(self.rect)
             opened = False
-            if not any(w[0].strip().startswith("Peso:") for w in self._q_words(img)):
+            bag = None
+            for _try in range(3):
+                img = self.screen.grab(self.rect)
+                if any(w[0].strip().lower().startswith("peso") for w in self._q_words(img)):
+                    bag = self._oly_bag()
+                    if bag is not None:
+                        break
                 winapi.press("F6")
-                time.sleep(0.9)
-                opened = True
-            bag = self._oly_bag() or []
+                opened = not opened
+                time.sleep(1.1)
+            if bag is None:
+                try:
+                    import cv2
+                    cv2.imwrite(os.path.join(cfgmod.DATA, "bolso_falla.jpg"), self.screen.grab(self.rect), [cv2.IMWRITE_JPEG_QUALITY, 75])
+                except Exception:
+                    pass
+                self.log("🎒 No pude abrir el bolso para revisarlo (guardé la captura). Pruebo de nuevo en 3 minutos.")
+                self._audit_t = time.time() - float(self.cfg.get("bag_audit_min", 20)) * 60 + 180
+                return
+            opened = True
             items = [o for o in bag if o["kind"] == "item"]
             jd = [(o, self._bag_judge(o)) for o in items]
             self._bag_info = {"t": time.time(), "items": [dict({k: o.get(k) for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str")}, verdict=j[0], why=j[1]) for o, j in jd]}
