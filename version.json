@@ -1,1 +1,1 @@
-{"version": 308, "notes": "No levanta pociones de maná (llenaban el bolso y no dejaban comprar las de vida) y vende las que tiene."}
+{"version": 309, "notes": "Vende las pociones de maná del bolso (confirmando el nombre en la lista de venta) y no confunde el bolso corrido con la lista de venta."}

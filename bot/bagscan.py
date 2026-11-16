@@ -67,6 +67,7 @@ def scan(img, pw, words=(), readnum=None):
         out["pots"][kind] += n
         c = (o[0] - int(10 * kx), o[1] - int(20 * ky))
         centers.append(c)
+        out.setdefault("pot_kinds", []).append(kind)
         cv2.circle(taken, c, int(15 * kx), 1, -1)
         cv2.rectangle(taken, (o[0] - 2, o[1] - 2), (o[2] + 2, o[3] + 2), 1, -1)
     # 1b) cantidad verde sin frasco a la vista: las cantidades verdes son siempre de pociones. Si no conté ninguna
@@ -130,6 +131,7 @@ def scan(img, pw, words=(), readnum=None):
                 continue  # resto de un frasco ya contado
             out["pots"][kind] += 1
             centers.append((int(cen[i][0]), int(cen[i][1])))
+            out.setdefault("pot_kinds", []).append(kind)
             continue
         if any(abs(cen[i][0] - c[0]) < 12 * kx and abs(cen[i][1] - c[1]) < 12 * ky for c in centers) and a < 220 * kx * ky:
             continue

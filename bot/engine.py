@@ -7700,6 +7700,16 @@ class Bot:
                                     for o in out if o["kind"] == "item"])
             except Exception:
                 pass
+        try:
+            # frascos azules (maná): los paso como objeto con nombre para que se puedan vender (la lista de venta
+            # confirma el nombre antes de vender: si no dice Mana Potion, no se vende)
+            if names:
+                for (x_, y_), kd_ in zip(sc.get("pot_xy") or [], sc.get("pot_kinds") or []):
+                    if kd_ == "maná":
+                        out.append({"x": int(x_), "y": int(y_), "kind": "item", "name": "Mana Potion", "area": 0,
+                                    "rx": int(x_ - pw[1]), "ry": int(y_ - pw[2])})
+        except Exception:
+            pass
         return out
 
     def _oly_sell(self, sell, tabp, words, grab, click):
@@ -7756,6 +7766,9 @@ class Bot:
         def listed():
             ws_ = words(grab())
             x_lo, x_hi = tabp[1] - 60 * kx, tabp[1] + 520 * kx
+            bh_ = getattr(self, "_bag_hdr_xy", None)
+            if bh_ and bh_[0] - 45 * kx > x_lo:
+                x_hi = min(x_hi, bh_[0] - 45 * kx)  # el bolso (se puede mover) no es parte de la lista de venta
             rows = {}
             for w in ws_:
                 if x_lo <= w[1] <= x_hi and tabp[2] + 35 * ky < w[2] < tabp[2] + 600 * ky:
