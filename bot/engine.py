@@ -1158,15 +1158,15 @@ class Bot:
                 pass
         # venía ganando experiencia en otro lado y acá no pasa nada: vuelvo ahí antes que explorar
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
-                and not focused and not self._under_attack() and self._hot_return()):
+                and not self._town_block() and not focused and not self._under_attack() and self._hot_return()):
             return
         # Olympia: mapa sin relevar → lo recorro entero (solo peleo si me atacan)
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
-                and not focused and self._explore_step()):
+                and not self._town_block() and not focused and self._explore_step()):
             return
         # Olympia: lista de bichos leída de la memoria (objetos del heap)
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
-                and (not focused or self._under_attack()) and self._oly_step()):
+                and not self._town_block() and (not focused or self._under_attack()) and self._oly_step()):
             return
         # me están pegando y no tengo la lista de bichos de la memoria: freno, busco quién es y le pego
         oly_live = cfgmod.server_slug(cfg) != "abaddon" and getattr(self, "_oly_said", False) and not cfg.get("vision_hunt", False)
@@ -1470,6 +1470,8 @@ class Bot:
                 self._killer_note()
             except Exception:
                 pass
+            if cfgmod.server_slug(self.cfg) != "abaddon":
+                self._town_need("me mataron")
             try:
                 mk = (self.pos.get("map") or "").strip().lower()
                 dm = self.world.learn.setdefault("deaths", {}).setdefault(mk, {"n": 0, "lvl": 0, "t": 0})
@@ -4152,6 +4154,78 @@ class Bot:
             return {"map": self.pos.get("map"), "list": out[:80], "near": sum(1 for o in out if max(abs(o["x"] - px), abs(o["y"] - py)) <= 9)}
         except Exception:
             return None
+
+    def _town_block(self):
+        """True = todavía no salgo a cazar: tengo que pasar por el pueblo (pociones, reparar, arma). Un jugador que
+        revive sin pociones y sin arma no vuelve corriendo al nido."""
+        if cfgmod.server_slug(self.cfg) == "abaddon":
+            return False
+        now = time.time()
+        if now > getattr(self, "_town_until", 0):
+            return False
+        th = getattr(self, "_town_th", None)
+        if th is None or not th.is_alive():
+            if getattr(self, "_town_done", True):
+                return False
+            if now - getattr(self, "_town_try", 0) > 20 and not getattr(self, "_busy_ui", False) and not getattr(self, "mission", None):
+                for a in ("_shop_th", "_rep_th", "_gear_th", "_audit_th"):
+                    t_ = getattr(self, a, None)
+                    if t_ is not None and t_.is_alive():
+                        return True
+                self._town_try = now
+                self._town_th = threading.Thread(target=self._town_routine, daemon=True)
+                self._town_th.start()
+        self.stats["state"] = "en el pueblo: me preparo antes de cazar"
+        return True
+
+    def _town_need(self, why):
+        self._town_done = False
+        self._town_until = time.time() + 900
+        self._town_why = why
+
+    def _town_routine(self):
+        try:
+            self.log(f"🏘 Antes de volver a cazar me preparo en el pueblo ({getattr(self, '_town_why', '')}): pociones, reparar y arma.")
+            self._release()
+            # 1) pociones (la tienda también lee el oro exacto)
+            if ((getattr(self, "_left", {}) or {}).get("pot") or 0) < 8:
+                self._shop_last = time.time()
+                self._oly_shop_trip()
+            # 2) herrero: reparar todo
+            self._rep_last = time.time()
+            self._oly_repair_trip("preparación")
+            # 3) bolso: ponerme lo que tenga (arma primero)
+            self._audit_t = time.time()
+            self._bag_audit()
+            # 4) sin arma comprobada: compro la mejor de mi talento que pueda usar y pagar
+            if not ((self.cfg.get("worn") or {}).get("arma") or {}).get("ok"):
+                it = self._best_weapon_buy()
+                if it:
+                    self.log(f"🛍 No tengo arma: compro {it['name']} ({it['price']} de oro).")
+                    self._gear_last = time.time()
+                    self._oly_buy_trip([it])
+                    self._bag_audit()
+                else:
+                    self.log("🛍 No tengo arma y no encuentro una de mi talento que pueda usar y pagar.")
+            self._town_done = True
+            self.log("🏘 Listo: vuelvo a cazar.")
+        except Exception as e:
+            self._town_done = True
+            self.log(f"🏘 Preparación en el pueblo: error {e!r}")
+        finally:
+            self._busy_ui = False
+            self.mission = None
+
+    def _best_weapon_buy(self):
+        cat = self._load_json("tiendas.json")
+        fam = str(cat.get("talent") or "").strip().lower()
+        lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        st_ = int((getattr(self, "_stats_vals", None) or {}).get("STR") or 0)
+        gold = getattr(self, "_gold", None) or 0
+        ok = [i for i in cat.get("items", []) if str(i.get("family") or "").lower() == fam and i.get("confirmed")
+              and i.get("shop") == "Blacksmith" and int(i.get("level") or 0) <= lvl and int(i.get("hands") or 1) == 1
+              and (not st_ or int(i.get("str") or 0) <= st_) and int(i.get("price") or 0) <= gold - 200]
+        return max(ok, key=lambda i: (float(i.get("avg") or 0), -int(i.get("price") or 0))) if ok else None
 
     def _reflex(self):
         """REGLA DE ORO (vale para todo modo, misión u orden, en cualquier juego): nunca me quedo quieto mientras
@@ -6987,8 +7061,8 @@ class Bot:
             if d is not None and last and len(str(d)) < len(str(last)) and str(last).endswith(str(d)):
                 d = None  # se comió la primera cifra (283 -> 83)
         # el número exacto lo da el cartelito del montón de oro ('8.493 Gold'): sostengo el clic sobre el montón
+        gt = None
         try:
-            gt = None
             rel = getattr(self, "_gold_rel", None)
             pts = []
             if rel:
@@ -7013,6 +7087,8 @@ class Bot:
                 sc["items"] = [it for it in sc["items"] if not (abs(it["x"] - seen_p[-1][0]) < 20 and abs(it["y"] - seen_p[-1][1]) < 20)]
         except Exception:
             pass
+        if gt is None and getattr(self, "_gold_rel", None) is not None:
+            d = None  # ya sé leer el número exacto: si esta vez no salió, me quedo con el último (no invento)
         last_g = getattr(self, "_gold", None)
         if d is not None and last_g and last_g >= 1000 and d < 0.2 * last_g and getattr(self, "_gold_low", None) != d:
             self._gold_low = d   # de miles a casi nada de golpe: casi seguro leí otro número; le creo si se repite
