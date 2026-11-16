@@ -1136,6 +1136,14 @@ class Bot:
                 return
             if not self._fleeing() and self._goto_spot():
                 return
+        # algo tirado al alcance y ningún bicho pegado: lo levanto (de viaje, solo lo que queda de paso)
+        if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
+                and cfgmod.server_slug(cfg) != "abaddon" and self.pos.get("x") is not None and not self._under_attack()):
+            try:
+                if self._loot_pass(self._oly_ents() or [], reach=(3 if focused else None)):
+                    return
+            except Exception:
+                pass
         # venía ganando experiencia en otro lado y acá no pasa nada: vuelvo ahí antes que explorar
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
                 and not focused and not self._under_attack() and self._hot_return()):
@@ -4290,7 +4298,7 @@ class Bot:
         d = getattr(self, "_loot_draw", None)
         return d["list"] if d and time.time() - d["t"] < 2.0 else ()
 
-    def _loot_pass(self, ents):
+    def _loot_pass(self, ents, reach=None):
         """Levanto lo que hay tirado cerca (pociones y oro: siempre convienen) cuando no tengo ningún bicho pegado.
         Lo veo en pantalla, lo paso a la baldosa de la grilla y voy con Shift+clic. True = estoy en eso."""
         if not self.cfg.get("loot_ground", True) or self.img is None:
@@ -4349,7 +4357,7 @@ class Bot:
         for k in [k for k, v in tried.items() if v < now]:
             del tried[k]
         cand = [k for k, v in cur.items() if v[0] >= 2 and (k[0], k[1]) not in tried
-                and max(abs(k[0] - px), abs(k[1] - py)) <= int(self.cfg.get("loot_reach", 7))
+                and max(abs(k[0] - px), abs(k[1] - py)) <= int(reach or self.cfg.get("loot_reach", 7))
                 and not any((e[0], e[1]) == (k[0], k[1]) for e in ents)]
         if not cand:
             return False
@@ -4548,7 +4556,7 @@ class Bot:
                         st_ = getattr(self, "_hot_go", None)
                         if not st_:
                             st_ = self._hot_go = {"t": now, "d": 999}
-                            self.log(f"🎯 Acá no estoy ganando experiencia: vuelvo a mi zona buena ({h['x']},{h['y']}).")
+                            self.log(f"🎯 {'Hace rato que no gano experiencia' if dry else 'No quedan bichos cerca'}: vuelvo a mi zona buena ({h['x']},{h['y']}).")
                         dcur = max(abs(h["x"] - px), abs(h["y"] - py))
                         if dcur < st_["d"]:
                             st_["d"], st_["t"] = dcur, now

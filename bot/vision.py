@@ -332,7 +332,7 @@ def ground_loot(img, char, tile):
     tw, th = tile
     cx, cy = char
     k = H / 1080.0
-    top = int(H * 0.885)
+    top = int(H * 0.84)  # más abajo están los mensajes del juego (amarillos) y el tablero: ahí no miro
     b, g, r = [img[:top, :, i].astype(int) for i in range(3)]
     masks = {"poción de vida": (r > 120) & (g < 62) & (b < 62) & (r - g > 75),
              "poción de maná": (b > 125) & (r < 70) & (g < 60) & (b - r > 75),
