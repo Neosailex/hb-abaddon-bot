@@ -4179,6 +4179,17 @@ class Bot:
                 self._defend()
                 return True
             return False
+        # si estoy yendo a algún lado (viaje al pueblo, encargo, huida) no me freno a pelear: caminar no es quedarse
+        # quieto. Solo peleo si me tienen trabado (no avancé en 2,5 s); si no, del nido no saldría nunca.
+        pp = getattr(self, "_rfx_pos", None)
+        if not pp or pp[0] != (px, py):
+            self._rfx_pos = pp = ((px, py), now)
+        try:
+            going = bool(getattr(self, "mission", None)) or self._is_travelling() or bool(self.nav.get("walking"))
+        except Exception:
+            going = False
+        if going and now - pp[1] < 2.5:
+            return False
         hp = self.bars.get("hp")
         st = self.__dict__.setdefault("_rfx", {"t0": now, "hp0": hp, "last": 0})
         if now - st["last"] > 4:
