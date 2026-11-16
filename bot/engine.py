@@ -4205,6 +4205,8 @@ class Bot:
                     self._gear_last = time.time()
                     self._oly_buy_trip([it])
                     self._bag_audit()
+                    if not ((self.cfg.get("worn") or {}).get("arma") or {}).get("ok"):
+                        self.__dict__.setdefault("_buy_failed", []).append(it["name"])
                 else:
                     self.log("🛍 No tengo arma y no encuentro una de mi talento que pueda usar y pagar.")
             self._town_done = True
@@ -4221,10 +4223,18 @@ class Bot:
         fam = str(cat.get("talent") or "").strip().lower()
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         st_ = int((getattr(self, "_stats_vals", None) or {}).get("STR") or 0)
+        if not st_:
+            try:
+                st_ = int(((self._sheet(7 * 24 * 3600) or {}).get("stats") or {}).get("STR") or 0)
+            except Exception:
+                st_ = 0
+        if not st_:
+            return None  # sin saber mi fuerza no compro un arma que capaz no puedo levantar
         gold = getattr(self, "_gold", None) or 0
         ok = [i for i in cat.get("items", []) if str(i.get("family") or "").lower() == fam and i.get("confirmed")
               and i.get("shop") == "Blacksmith" and int(i.get("level") or 0) <= lvl and int(i.get("hands") or 1) == 1
-              and (not st_ or int(i.get("str") or 0) <= st_) and int(i.get("price") or 0) <= gold - 200]
+              and int(i.get("str") or 0) <= st_ and int(i.get("price") or 0) <= gold - 200
+              and i["name"] not in getattr(self, "_buy_failed", [])]
         return max(ok, key=lambda i: (float(i.get("avg") or 0), -int(i.get("price") or 0))) if ok else None
 
     def _reflex(self):
@@ -7098,7 +7108,7 @@ class Bot:
             self._gold = d
             self._eco_note(d, approx)
         if gp or d is not None:
-            g_ = gp or sc.get("gold_xy")
+            g_ = gp or sc.get("gold_xy") or (getattr(self, "_gold_rel", None) and (int(pw[1] + self._gold_rel[0]), int(pw[2] + self._gold_rel[1]))) or (0, 0)
             out.append({"x": g_[0], "y": g_[1], "kind": "gold", "name": "Gold"})
         for it in sc["items"]:
             out.append({"x": it["x"], "y": it["y"], "kind": "item", "name": "", "area": it["area"],
