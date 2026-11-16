@@ -5063,6 +5063,16 @@ class Bot:
                     self.log(f"↪ No llego al {tr0.name} de ({tr0.x},{tr0.y}) en 3 s: paso al siguiente.")
                 self._release()
                 q = q[1:]
+        # rodeado: el objetivo es SIEMPRE uno de los que tengo pegados (aunque lo haya marcado élite o "no llego").
+        # Nunca apunto a uno de más lejos pasando por arriba de otro.
+        adjq = [t_ for t_ in g.tracks.values() if t_.dist(g.me) <= 1]
+        if adjq:
+            cur_ = next((t_ for t_ in adjq if t_.id == getattr(self, "_adj_tgt", None)), None)
+            first_ = cur_ or min(adjq, key=lambda t_: ((t_.typ, t_.x, t_.y) in bad, t_.adj_since or now, t_.id))
+            self._adj_tgt = first_.id
+            q = [first_] + [t_ for t_ in q if t_ is not first_]
+        else:
+            self._adj_tgt = None
         if not q and q_all and not any(tr.dist(g.me) <= 1 for tr in q_all):
             tr_ = min(q_all, key=lambda t_: t_.dist(g.me))
             m_ = self.world.map_for(self.pos.get("map") or "")
@@ -5076,11 +5086,19 @@ class Bot:
             if e2:
                 e = e2
             # élite / no muere: cuento el tiempo que lo tengo pegado, siguiéndolo aunque se mueva
-            if e2 and tr.adj_since and now - tr.adj_since > self._oly_ttk(tr.name):
+            # el reloj de "no muere" corre desde que LE PEGO a ese (no desde que lo tengo al lado esperando turno)
+            tc = getattr(self, "_tgt_clock", None)
+            if not tc or tc[0] != tr.id:
+                tc = self._tgt_clock = (tr.id, now)
+            if tr.dist(g.me) > 1:
+                tc = self._tgt_clock = (tr.id, now)
+            if e2 and tr.adj_since and now - tc[1] > self._oly_ttk(tr.name):
                 for dx_ in (-1, 0, 1):
                     for dy_ in (-1, 0, 1):
                         bad[(tr.typ, tr.x + dx_, tr.y + dy_)] = now + 600
                 tr.adj_since = now
+                self._tgt_clock = None
+                self._adj_tgt = None
                 self.__dict__.setdefault("_elite_ts", []).append(time.time())
                 self.log(f"👑 Ese {tr.name} no muere: debe ser élite. Lo dejo y sigo con otro.")
                 self._release()

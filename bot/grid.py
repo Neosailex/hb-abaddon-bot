@@ -125,17 +125,20 @@ class Grid:
             if not adj and usable and not usable(tr):
                 continue
             s = float(d)
-            if adj:
-                s -= 6            # el que tengo encima va primero
             if tr.id == self.target:
                 s -= 2.5          # no cambio de objetivo por nada
             if tr.name in quest and d <= 14:
                 s -= 2
-            s += 1.5 * max(0, self.crowd(tr) - cap)
-            if taken and taken(tr):
-                s += 8            # ya es de otro jugador
-            out.append((s, tr))
-        out.sort(key=lambda p: (p[0], p[1].id))
+            if not adj:
+                # el castigo por nido cargado o por ser de otro jugador vale para ELEGIR a quién ir a buscar; al
+                # que ya tengo pegado le pego igual
+                s += 1.5 * max(0, self.crowd(tr) - cap)
+                if taken and taken(tr):
+                    s += 8        # ya es de otro jugador
+            out.append((0 if adj else 1, s, tr))
+        # regla dura: primero SIEMPRE los que tengo alrededor (a 1 baldosa); recién después los de más lejos
+        out.sort(key=lambda p: (p[0], p[1], p[2].id))
+        out = [(p[1], p[2]) for p in out]
         for tr in self.tracks.values():
             tr.n, tr.attack = 0, False
         self.queue = [tr for _s, tr in out]

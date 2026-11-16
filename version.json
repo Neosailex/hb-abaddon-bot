@@ -1,1 +1,1 @@
-{"version": 284, "notes": "Detecta modo paz por el icono (gris) y pasa a modo ataque con TAB; sin falsa alarma de arma rota."}
+{"version": 285, "notes": "Grilla: primero SIEMPRE los bichos que tiene alrededor (a 1 baldosa); el reloj de no-muere corre desde que le pega."}
