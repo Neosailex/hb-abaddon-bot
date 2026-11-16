@@ -1080,6 +1080,21 @@ class Bot:
             self._mode_check()
         except Exception:
             pass
+        # pantalla de ingreso (sesión cerrada): ahí no se hace NINGÚN clic (Crear cuenta / Discord / Salir) ni se
+        # escribe nada. Me apago y aviso; la contraseña la pone Juan.
+        try:
+            if cfgmod.server_slug(cfg) != "abaddon" and time.time() - getattr(self, "_login_t", 0) > 6 and self.img is not None:
+                self._login_t = time.time()
+                H_, W_ = self.img.shape[:2]
+                wl = ocr.read_words(self.img, {"x1": int(W_ * 0.14), "y1": int(H_ * 0.52), "x2": int(W_ * 0.38), "y2": int(H_ * 0.90)}, scale=1.0)
+                tl = " ".join(w[0].lower() for w in wl)
+                if sum(k in tl for k in ("entrar", "crear cuenta", "recordar", "salir", "discord")) >= 3:
+                    self._release()
+                    self.log("⛔ El juego está en la pantalla de ingreso (sesión cerrada): me apago. Entrá vos y prendeme con INSERT.")
+                    self.stop("manual")
+                    return
+        except Exception:
+            pass
         # menú del juego abierto (ESC): tapa todo y un clic ahí abre Discord o cierra la sesión. Lo miro cada 5 s,
         # leyendo solo el centro de la pantalla, antes de cualquier clic.
         try:
@@ -1365,14 +1380,12 @@ class Bot:
             t = " ".join(norm(w[0]) for w in words)
             hits = sum(k in t for k in ("opciones", "discord", "ticket", "capturas", "sesión", "sesion", "noticias", "eventos"))
             if hits >= 3:
-                # probado: ESC no lo cierra; se cierra con el mismo botón que lo abre (el último de la barra de abajo)
-                kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+                # ESC mandado por el bot no lo cierra, y no estoy seguro de qué hace cada botón de la barra de abajo
+                # (uno puede cerrar la sesión). Con el menú abierto NO hago ningún clic: me quedo quieto y aviso.
                 self._release()
-                winapi.click(*self.abs_pt(int(1490 * kx), int(1035 * ky), bar=True))
-                time.sleep(0.6)
                 if time.time() - getattr(self, "_gm_said", 0) > 60:
                     self._gm_said = time.time()
-                    self.log("Cierro el menú del juego que había quedado abierto.")
+                    self.log("⛔ El menú del juego está abierto: no toco nada hasta que se cierre (un clic ahí abre Discord o cierra la sesión).")
                 return True
         except Exception:
             pass

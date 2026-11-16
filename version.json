@@ -1,1 +1,1 @@
-{"version": 315, "notes": "Cierra el menú del juego apenas lo ve (lo mira cada 5 s antes de cualquier clic). Arma: alcanza con 10% de mejora para comprarla (Claymore)."}
+{"version": 316, "notes": "En la pantalla de ingreso se apaga sin hacer clic. Con el menú del juego abierto no hace ningún clic (no adivina botones). Ningún clic cae en la barra de abajo."}
