@@ -189,9 +189,10 @@ class Learner:
             mob, n = max(mobs.items(), key=lambda kv: kv[1])
             same = [x for x in st["deaths"][-10:] if x.get("lvl", 0) >= lvl - 1 and x.get("mobs", {}).get(mob, 0) >= n]
             if len(same) >= 2 and n >= 2:
-                r = {"mob": mob, "max": n - 1, "until_lvl": lvl + 2}
+                # si me mataron con 17 encima, bajar a 16 no arregla nada: la mitad (mínimo 2)
+                r = {"mob": mob, "max": max(2, n // 2), "until_lvl": lvl + 2}
                 st["rules"] = [x for x in st["rules"] if x["mob"] != mob] + [r]
-                msg = f"📕 Aprendí: con {n} {mob} encima me matan a nivel {lvl}. Hasta nivel {lvl + 2} no me meto con más de {n - 1}."
+                msg = f"📕 Aprendí: con {n} {mob} encima me matan a nivel {lvl}. Hasta nivel {lvl + 2} no me meto con más de {max(2, n // 2)}."
                 b.log(msg)
                 self._note(msg)
                 self.brain.setdefault("lessons", []).append({"mob": mob, "crowd": n, "lvl": lvl,

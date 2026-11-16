@@ -6815,6 +6815,13 @@ class Bot:
         if not k or k.get("n", 0) < 2:
             return False
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        try:
+            # si lo que me mató fue el montón (tengo anotado un tope de cuántos juntos), el bicho en sí no es el
+            # problema: lo sigo cazando, pero de a menos (por el borde del nido)
+            if self.learner.crowd_cap(mob, lvl):
+                return False
+        except Exception:
+            pass
         return lvl < int(k.get("lvl", 0)) + 2
 
     def _can_face(self, mob):
