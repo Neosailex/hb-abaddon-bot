@@ -6845,11 +6845,11 @@ class Bot:
                 self._q_last_seen = (qa[0]["name"], now)
         # 1) misión completa: voy a cobrar
         qf = self.__dict__.setdefault("_q_turn_fail", {})
-        if hud and hud[2] > 0 and hud[1] >= hud[2] and qf.get(hud[0], {}).get("until", 0) > now:
+        if hud and hud[2] > 0 and hud[1] >= hud[2] and qf.get("*", {}).get("until", 0) > now:
             return False  # ya probé cobrarla y no pude: no me quedo dando vueltas, sigo cazando y pruebo más tarde
         if hud and hud[2] > 0 and hud[1] >= hud[2]:
             # las misiones nunca bloquean la caza: 3 minutos para llegar y cobrar; si no sale, la dejo media hora
-            f_ = qf.setdefault(hud[0], {"t0": now, "n": 0, "until": 0})
+            f_ = qf.setdefault("*", {"t0": now, "n": 0, "until": 0})
             if now - f_.get("seen", 0) > 120:
                 f_["t0"] = now
             f_["seen"] = now
@@ -7034,7 +7034,7 @@ class Bot:
                 self.log("📜 Apreté para cobrar pero la misión sigue sin cobrar; pruebo de nuevo en un rato.")
                 self._q_npc = None
                 try:
-                    self.__dict__.setdefault("_q_turn_fail", {}).setdefault(hud[0], {"t0": time.time(), "n": 0, "until": 0})["n"] += 1
+                    self.__dict__.setdefault("_q_turn_fail", {}).setdefault("*", {"t0": time.time(), "n": 0, "until": 0})["n"] += 1
                 except Exception:
                     pass
                 return
