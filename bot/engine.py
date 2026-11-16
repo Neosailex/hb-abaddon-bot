@@ -4266,7 +4266,7 @@ class Bot:
             ok = [e for e in ok if d(e) <= 1]  # relevando: solo me defiendo
         qm = self._quest_mob_names()
         if qm:
-            qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 30]
+            qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 14]
             if qok:
                 ok = qok  # misión activa: primero sus bichos
             elif not self._quest_strict():
@@ -5824,8 +5824,31 @@ class Bot:
             if not e or difflib.SequenceMatcher(None, norm(q["name"]), norm(e["name"])).ratio() < 0.75:
                 return True
             return all(self._can_face(o["mob"]) for o in e["objectives"] if o["mob"] != "*" and not o.get("elite"))
-        q = next((q for q in qs if doable(q)), qs[0])
-        return q["name"], q["a"], q["b"]
+        # entre las que puedo hacer, sigo la que viene avanzando; si la elegida lleva 8 minutos sin sumar, paso a otra
+        # (me pasó de perseguir orcos a los que no llegaba teniendo la de slimes al lado)
+        now = time.time()
+        pr = self.__dict__.setdefault("_q_prog2", {})
+        for q in qs:
+            p = pr.setdefault(q["name"], {"a": q["a"], "t": 0.0, "since": 0.0})
+            if q["a"] > p["a"]:
+                p["t"] = now
+            p["a"] = q["a"]
+        cand = [q for q in qs if doable(q)] or qs
+        cur = getattr(self, "_q_focus", None)
+        cq = next((q for q in cand if q["name"] == cur), None)
+        best = max(cand, key=lambda q: pr[q["name"]]["t"])
+        if cq is None or (now - max(pr[cur]["t"], pr[cur]["since"]) > 480):
+            # la que más recién avanzó; si ninguna avanzó, la siguiente de la lista
+            if pr[best["name"]]["t"] > 0 and best["name"] != cur:
+                cq = best
+            else:
+                i = cand.index(cq) if cq in cand else -1
+                cq = cand[(i + 1) % len(cand)]
+            pr[cq["name"]]["since"] = now
+            if cq["name"] != cur:
+                self._q_focus = cq["name"]
+                self.log(f"📜 Sigo la misión '{cq['name']}' ({cq['a']}/{cq['b']}).")
+        return cq["name"], cq["a"], cq["b"]
 
     def _reward_pick(self, opts):
         """Premio a elegir: lo más cómodo para un guerrero de espada a dos manos. opts = [(texto, x, y)]."""
