@@ -7248,6 +7248,12 @@ class Bot:
         # lo que tiene bonus (nombre con prefijo) nunca se vende solo: eso lo decide Juan
         nosell = "keep" if it.get("affix") else "sell"
         if worn and worn.get("name") == full:
+            if o.get("dur") == 0:
+                return ("broken", "está roto", it, slot, val)
+            if slot in ("arma", "escudo"):
+                # puede ser el mismo que tenía puesto y se salió solo al romperse (ya reparado): me lo pongo por
+                # las dudas. Si tenía otro igual puesto, se intercambian y no pasa nada.
+                return ("equip", "igual al que tenía puesto: me lo pongo por si se había salido", it, slot, val)
             return ("keep", "es igual a lo que tengo puesto: no lo toco", it, slot, val)
         if slot == "arma" and not worn:
             if o.get("dur") == 0:
@@ -8400,7 +8406,8 @@ class Bot:
                     if not same and (not here or all(b_.get("name") for b_ in here)):
                         okeq = True
                         break
-                if not okeq:
+                same_as_worn = (worn.get(slot) or {}).get("name") == (it.get("affix") + " " if it.get("affix") else "") + it["name"]
+                if not okeq and not same_as_worn:
                     left.append((it["name"], "no pude ponérmelo (probé doble clic y Ctrl+clic)"))
                 if okeq:
                     n += 1
