@@ -4763,6 +4763,7 @@ class Bot:
                     for dy_ in (-1, 0, 1):
                         bad[(tr.typ, tr.x + dx_, tr.y + dy_)] = now + 600
                 tr.adj_since = now
+                self.__dict__.setdefault("_elite_ts", []).append(time.time())
                 self.log(f"👑 Ese {tr.name} no muere: debe ser élite. Lo dejo y sigo con otro.")
                 self._release()
                 return False
@@ -4784,6 +4785,7 @@ class Bot:
                 el.clear()
                 self.log(f"🧠 Los {e[2]['name']} me llevan más de lo que pensaba: les doy hasta {int(tk[e[2]['name']])} s antes de dejarlos.")
             else:
+                self.__dict__.setdefault("_elite_ts", []).append(time.time())
                 self.log(f"👑 Ese {e[2]['name']} no muere: debe ser élite. Lo dejo y me alejo.")
             self._release()
             return False
@@ -7845,14 +7847,14 @@ class Bot:
     def _worn_check(self):
         """El juego avisa abajo a la izquierda cuando algo se rompió ('El objeto está desgastado'). Lo miro cada 20 s."""
         now = time.time()
-        if now - getattr(self, "_worn_chk", 0) < 20 or self.img is None:
+        if now - getattr(self, "_worn_chk", 0) < 4 or self.img is None:
             return False
         self._worn_chk = now
         try:
             H, W = self.img.shape[:2]
             ws = ocr.read_words(self.img, {"x1": 0, "y1": int(H * 0.80), "x2": int(W * 0.55), "y2": int(H * 0.915)}, scale=1.0)
             t = " ".join(w[0].lower() for w in ws)
-            if "desgastad" in t or "repáralo" in t or "reparalo" in t:
+            if any(k in t for k in ("desgast", "repáral", "reparal", "se rompi", "está roto", "esta roto", "agotad", "exhaust", "broken")):
                 self._worn_seen = now
                 return True
         except Exception:
@@ -8034,11 +8036,24 @@ class Bot:
                 if th is not None and th.is_alive():
                     return
             now = time.time()
-            if self.state == "attack" or self._under_attack() or self._fleeing():
-                return
             if not hasattr(self, "_rep_last"):
                 self._rep_last = now
-            worn = self._worn_check() or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
+            # aviso del juego, o dejé de matar de golpe (dos "no muere" seguidos): arma rota. Eso es urgente: sin arma
+            # no se pelea, así que salgo aunque me estén pegando.
+            el = [t for t in getattr(self, "_elite_ts", []) if now - t < 240]
+            lk = getattr(self, "_last_kill_t", 0)
+            weak = len(el) >= 2 and el[-1] > self._rep_last and lk < el[-2] and now - lk > 40
+            worn = self._worn_check() or weak or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
+            if not worn and (self.state == "attack" or self._under_attack() or self._fleeing()):
+                return
+            if worn and now - self._rep_last >= 300:
+                self._elite_ts = []
+                self._rep_last = now
+                self._release()
+                why = "dejé de matar: se rompió el arma" if weak else "el juego avisó que algo se rompió"
+                self._rep_th = threading.Thread(target=self._oly_repair_trip, args=(why,), daemon=True)
+                self._rep_th.start()
+                return
             if not hasattr(self, "_loose_ok"):
                 self._loose_ok = int(self.cfg.get("loose_ok", 0))
             loose = (getattr(self, "_bag_items", 0) or 0) > self._loose_ok and now - self._rep_last > 1800

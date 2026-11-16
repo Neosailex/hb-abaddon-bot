@@ -1,1 +1,1 @@
-{"version": 251, "notes": "Botin solo donde cayo un bicho mio; no va a la tienda por bolso cargado; Health Potion tapada por el chat; aprende que bicho lo mata."}
+{"version": 252, "notes": "Arma rota: lo detecta por el aviso del juego (cada 4 s) o porque deja de matar, y va al herrero aunque le esten pegando."}
