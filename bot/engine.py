@@ -4468,6 +4468,19 @@ class Bot:
         pots_k = (getattr(self, "_left", {}) or {}).get("pot") or 0
         dmg_k = (sum(float(e[2].get("dmg_avg") or 3.0) for e in adj) / len(adj)) if adj else None
         cap = self._group_cap(dmg=dmg_k) if adj else 2
+        # RABIA: rodeado (3+ pegados) no se sale caminando: darles la espalda es comer golpes gratis. Me planto y
+        # les pego a todos los de alrededor, uno por uno hasta que caiga, tomando pociones. Solo me escapo si no
+        # me quedan pociones y la vida está por el piso.
+        if len(adj) >= 3 and not (hp is not None and hp < 22 and pots_k < 1):
+            if now > getattr(self, "_rabia_until", 0) and now - getattr(self, "_rabia_said", 0) > 30:
+                self._rabia_said = now
+                self.log(f"😡 Rodeado por {len(adj)}: me planto y les pego a todos los de alrededor.")
+            self._rabia_until = now + 6
+            self._kite = None
+            self._kite_block = max(getattr(self, "_kite_block", 0), now + 8)
+            self._flee_block = max(getattr(self, "_flee_block", 0), now + 8)
+            self._flee_until = 0
+            return False
         k = getattr(self, "_kite", None)
         if k is not None and adj:
             # rodeado y sin poder salir (el camino está tapado): huir es comer golpes de espalda. Peleo.
@@ -4728,6 +4741,8 @@ class Bot:
         kp = getattr(self, "_kill_pick", None)
         if not kp or not self.cfg.get("loot_blind", True):
             return False
+        if now < getattr(self, "_rabia_until", 0):
+            return False  # rodeado: primero pego, lo del piso lo levanto cuando afloje
         if now - kp[2] > 6 or max(abs(kp[0] - px), abs(kp[1] - py)) > 2:
             self._kill_pick = None
             return False
@@ -4757,6 +4772,8 @@ class Bot:
             if len(t) >= 6 and t not in seen:
                 new.append(t)
                 seen.append(t)
+                if "hambrient" in t.lower():
+                    self._hunger = max(int(getattr(self, "_hunger", None) or 0), 75)  # 'Estás hambriento...': a comer
         del seen[:-60]
         if new:
             with open(os.path.join(cfgmod.DATA, "botin.log"), "a", encoding="utf-8") as f:
@@ -5179,7 +5196,7 @@ class Bot:
                 tc = self._tgt_clock = (tr.id, now)
             if tr.dist(g.me) > 1:
                 tc = self._tgt_clock = (tr.id, now)
-            if e2 and tr.adj_since and now - tc[1] > self._oly_ttk(tr.name):
+            if e2 and tr.adj_since and now - tc[1] > self._oly_ttk(tr.name) and now > getattr(self, "_rabia_until", 0):
                 for dx_ in (-1, 0, 1):
                     for dy_ in (-1, 0, 1):
                         bad[(tr.typ, tr.x + dx_, tr.y + dy_)] = now + 600
@@ -5197,6 +5214,8 @@ class Bot:
                 fe = {k: v for k, v in fe.items() if now - v < 60}
                 fe[e[3]] = now
                 self._oly_first = fe
+        elif now - fe[e[3]] > self._oly_ttk(e[2]["name"]) and d(e) <= 1 and now < getattr(self, "_rabia_until", 0):
+            fe[e[3]] = now  # en rabia no descarto a nadie: le sigo pegando
         elif now - fe[e[3]] > self._oly_ttk(e[2]["name"]) and d(e) <= 1:
             bad[e[3]] = now + 600
             fe[e[3]] = now  # si sigue pegado le vuelvo a pegar (regla de oro): el aviso sale una vez, no en cada vuelta
