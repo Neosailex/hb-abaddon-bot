@@ -4830,6 +4830,36 @@ class Bot:
                    quest=self._quest_mob_names() or (), mode="nido",
                    taken=lambda tr: g.player_near(tr.x, tr.y, 2))
         q = [tr for tr in q if (tr.typ, tr.x, tr.y) not in bad]
+        # el 1 de la cola tiene 3 segundos: si en ese tiempo no lo tengo pegado ni me acerqué (está detrás de una
+        # rampa, un cerco, agua), paso al 2, y así. Si no queda otro, voy hasta él por el camino del mapa.
+        skip = self.__dict__.setdefault("_tgt_skip", {})
+        for k_ in [k_ for k_, v_ in skip.items() if v_ < now]:
+            del skip[k_]
+        q_all = q
+        q = [tr for tr in q if tr.id not in skip]
+        if q:
+            tr0 = q[0]
+            dd = tr0.dist(g.me)
+            pr = getattr(self, "_tgt_prog", None)
+            if not pr or pr["id"] != tr0.id:
+                pr = self._tgt_prog = {"id": tr0.id, "best": dd, "t": now}
+            if dd <= 1 or dd < pr["best"]:
+                pr["best"], pr["t"] = min(dd, pr["best"]), now
+            elif now - pr["t"] > 3.0:
+                skip[tr0.id] = now + 20
+                self._tgt_prog = None
+                if now - getattr(self, "_skip_said", 0) > 30:
+                    self._skip_said = now
+                    self.log(f"↪ No llego al {tr0.name} de ({tr0.x},{tr0.y}) en 3 s: paso al siguiente.")
+                self._release()
+                q = q[1:]
+        if not q and q_all and not any(tr.dist(g.me) <= 1 for tr in q_all):
+            tr_ = min(q_all, key=lambda t_: t_.dist(g.me))
+            m_ = self.world.map_for(self.pos.get("map") or "")
+            if m_:
+                self.stats["state"] = f"rodeo hasta el {tr_.name} ({tr_.x},{tr_.y})"
+                self._walk_to(m_, (int(tr_.x), int(tr_.y)), tr_.name)
+                return True
         if q:
             tr = q[0]
             e2 = next((o for o in ents if (o[0], o[1]) == (tr.x, tr.y) and o[2]["name"] == tr.name), None)
