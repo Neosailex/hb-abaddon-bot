@@ -7521,10 +7521,14 @@ class Bot:
         winapi.left_up()
         for o in sell:
             x, y = self.abs_pt(o["x"], o["y"])
-            winapi.click(x, y)
-            time.sleep(0.12)
-            winapi.click(x, y)
-            time.sleep(0.7)
+            # equipo repetido (ej. 20 varitas compradas juntas) queda apilado en el mismo punto: cada doble clic
+            # saca el de arriba, así que insisto varias veces. Si abajo aparece otra cosa, la lista la delata y la saco.
+            reps = 5 if (self._game_item(o.get("name")) or {}).get("type") == 1 else 1
+            for _k in range(reps):
+                winapi.click(x, y)
+                time.sleep(0.12)
+                winapi.click(x, y)
+                time.sleep(0.6)
         winapi.move(*self.abs_pt(int(tabp[1] + 300 * kx), int(tabp[2] - 60 * ky)))
         time.sleep(0.5)
 
@@ -7551,7 +7555,7 @@ class Bot:
         def allowed(nm):
             k = norm(nm).rstrip(".")
             return any(k == w_ or (len(k) >= 8 and w_.startswith(k[:len(k)])) or difflib.SequenceMatcher(None, k, w_).ratio() >= 0.82 for w_ in want)
-        for _ in range(4):
+        for _ in range(8):
             ls, ws = listed()
             extra = [l for l in ls if not allowed(l[0])]
             if not extra:
