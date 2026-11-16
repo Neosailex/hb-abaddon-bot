@@ -7903,7 +7903,11 @@ class Bot:
         nosell = "keep" if it.get("affix") else "sell"
         if worn and worn.get("name") == full:
             if o.get("dur") == 0:
-                return ("broken", "está roto", it, slot, val)
+                if it.get("affix"):
+                    return ("keep", "repuesto roto con bonus: lo guardo", it, slot, val)
+                # tengo uno igual puesto y andando: el repuesto roto no se arregla con 'Reparar Todo' (solo arregla lo
+                # puesto) y me hacía ir al herrero una y otra vez. Lo vendo.
+                return ("sell", "repuesto roto de lo que ya tengo puesto", it, slot, val)
             if slot in ("arma", "escudo"):
                 # puede ser el mismo que tenía puesto y se salió solo al romperse (ya reparado). Solo me lo pongo si
                 # hay motivo para dudar (dejé de matar, me mataron) y una sola vez: si es un repuesto, cambiarlo en
