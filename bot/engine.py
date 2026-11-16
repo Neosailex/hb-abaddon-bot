@@ -4684,8 +4684,8 @@ class Bot:
         hp_ = self.bars.get("hp")
         adj_ = any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents)
         blind_go = bool(go and go.get("blind"))
-        if go and now < getattr(self, "_rabia_until", 0):
-            self._loot_go = go = None  # me rodearon yendo a levantar: primero pego
+        if go and now < getattr(self, "_rabia_until", 0) and now - go["t"] > 1.8:
+            self._loot_go = go = None  # rodeado: a lo sumo un paso de 1,8 s para levantar; después, a pegar
             blind_go = False
         if adj_ and not blind_go and not self._kill_pick_ready(now, px, py, hp_):
             if go:
@@ -4809,7 +4809,12 @@ class Bot:
         if not kp or not self.cfg.get("loot_blind", True):
             return False
         if now < getattr(self, "_rabia_until", 0):
-            return False  # rodeado: primero pego, lo del piso lo levanto cuando afloje
+            # rodeado: primero pego. Pero en un nido nunca afloja, así que con buena vida y como mucho cada 8 s me
+            # corro UNA baldosa a la muerte que tengo pegada (un segundo) y sigo pegando desde ahí.
+            if not (hp is not None and hp >= 60 and (now - getattr(self, "_rabia_pick_t", 0) > 8 or now - getattr(self, "_rabia_pick_t", 0) < 0.3)
+                    and max(abs(kp[0] - px), abs(kp[1] - py)) <= 1 and now - kp[2] <= 6):
+                return False
+            self._rabia_pick_t = now
         if now - kp[2] > 6 or max(abs(kp[0] - px), abs(kp[1] - py)) > 2:
             self._kill_pick = None
             return False
