@@ -1,1 +1,1 @@
-{"version": 279, "notes": "Cierra la ventana de Tienda del herrero si queda abierta (antes solo reconocia la de pociones)."}
+{"version": 280, "notes": "Reconoce la ventana de Tienda por el pie (Comprar + Max) y la cierra si quedo abierta."}

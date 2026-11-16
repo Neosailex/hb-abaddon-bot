@@ -1247,15 +1247,24 @@ class Bot:
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         if words is None:
             words = ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.6)}, scale=1.0)
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum() or c in "áé")
         tab = next((w for w in words if norm(w[0]).startswith(("pocion", "pocl", "pocio"))), None)
         smith = False
         if not tab:
             # herrero: pestañas Armas / Armadura / Varios / Vender
             tab = next((w for w in words if norm(w[0]) in ("armas", "arrnas") or norm(w[0]).startswith("armadur")), None)
             smith = bool(tab)
-        if not tab or not any(norm(v[0]).startswith(("vender", "varios", "undcr", "arios")) and abs(v[2] - tab[2]) < 15 for v in words):
-            return False
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        if not tab or not any(norm(v[0]).startswith(("vender", "varios", "undcr", "arios")) and abs(v[2] - tab[2]) < 15 for v in words):
+            # las pestañas (letra gótica) a veces no se leen: la ventana también se reconoce por el pie, que es
+            # letra común: 'Comprar' con 'Máx.' en el mismo renglón
+            full = ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.9)}, scale=1.0)
+            cp = next((w for w in full if norm(w[0]) == "comprar"), None)
+            if cp and any(norm(v[0]).startswith(("máx", "max")) and abs(v[2] - cp[2]) < 15 * ky and v[1] < cp[1] for v in full):
+                winapi.click(*self.abs_pt(cp[1] - 250 * kx, cp[2] - 120 * ky), button="right")
+                time.sleep(0.4)
+                return True
+            return False
         if smith:
             # la lista del herrero está llena de filas: el click derecho va al recuadro de abajo (no elige nada)
             winapi.click(*self.abs_pt(tab[1] + 40 * kx, tab[2] + 520 * ky), button="right")
