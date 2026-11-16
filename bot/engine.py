@@ -7818,7 +7818,17 @@ class Bot:
             if not menu:
                 self.log("🔧 No encontré al herrero.")
                 return
-            todo = next((w for w in menu if norm(w[0]) == "todo"), None) or next(w for w in menu if norm(w[0]).startswith("reparar"))
+            # siempre "Reparar Todo" (nunca "Reparar" a secas, que abre la lista de a un objeto)
+            todo = next((w for w in menu if "todo" in norm(w[0])), None)
+            if not todo:
+                reps = sorted((w for w in menu if norm(w[0]).startswith("repar")), key=lambda w: w[2])
+                if len(reps) >= 2:
+                    todo = reps[-1]  # la de abajo de las dos que dicen Reparar
+            if not todo:
+                self.log("🔧 No encontré 'Reparar Todo' en el menú del herrero: no toco nada y reintento en 5 minutos.")
+                self._rep_last = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 300)
+                winapi.press("ESC")
+                return
             winapi.click(*self.abs_pt(todo[1], todo[2]))
             time.sleep(1.8)
             ws = self._q_words(self.screen.grab(self.rect))
