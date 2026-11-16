@@ -1495,6 +1495,12 @@ class Bot:
         r = r or self.cfg.get("danger_radius_tiles", 35)
         return any(max(abs(x - z[1]), abs(y - z[2])) <= r for z in self._dangers(mapname))
 
+    def _pit_deadly(self, p, hours=8):
+        """¿Me mataron cerca de ese nido en las últimas horas? Entonces no voy (ni por misión ni por experiencia)."""
+        now = time.time()
+        return any(max(abs(p["x"] - z[1]), abs(p["y"] - z[2])) <= max(15, int(p.get("r", 15))) and now - z[3] < hours * 3600
+                   for z in self._dangers() if len(z) >= 4)
+
     def _mem_struct(self):
         """¿La estructura del pj alrededor de la posición es la que conozco (Abaddon)? Si el cliente es otro
         (Olympia) los desplazamientos no valen: no leo vida/nivel/stats de ahí para no tomar basura."""
@@ -5002,7 +5008,7 @@ class Bot:
         for p in self._pits():
             nm = p.get("mob") or p.get("guess")
             dist = max(abs(p["x"] - px), abs(p["y"] - py))
-            if not nm or dist <= 10 or tried.get((p["x"], p["y"]), 0) > now or not self._can_face(nm):
+            if not nm or dist <= 10 or tried.get((p["x"], p["y"]), 0) > now or not self._can_face(nm) or self._pit_deadly(p):
                 continue
             if now < float(self.cfg.get("train_skill_until", 0) or 0) and nm != "Slime":
                 continue  # arma de otro tipo recién puesta: subo la habilidad con lo más fácil antes de ir a lo serio
@@ -5054,7 +5060,10 @@ class Bot:
             cands = []
             for p in self._pits():
                 nm = p.get("mob") or p.get("guess")
-                if nm in qm and tried.get((p["x"], p["y"]), 0) < now and self._can_face(nm):
+                # ni a un nido donde me mataron hace poco, ni por un bicho que me lleva más de 25 s cada uno (una misión
+                # de 200 de esos no rinde: sigo subiendo con lo que mato rápido)
+                if nm in qm and tried.get((p["x"], p["y"]), 0) < now and self._can_face(nm) and not self._pit_deadly(p) \
+                        and float((self.world.learn.get("oly_ttk") or {}).get(nm, 0) or 0) < 25:
                     d_ = max(abs(p["x"] - px), abs(p["y"] - py))
                     if d_ > 25:
                         cands.append((0 if p.get("mob") else 1, d_, p, nm))
