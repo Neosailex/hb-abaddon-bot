@@ -1,1 +1,1 @@
-{"version": 284, "notes": "No se va al herrero por dos bichos que tardan en morir (falsa alarma de arma rota que lo sacaba del nido)."}
+{"version": 284, "notes": "Detecta modo paz por el icono (gris) y pasa a modo ataque con TAB; sin falsa alarma de arma rota."}

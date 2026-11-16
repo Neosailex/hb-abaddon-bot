@@ -892,6 +892,9 @@ class Bot:
         p = getattr(self, "_tab_pending", 0)
         if not p:
             return
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            self._tab_pending = 0  # en este cliente el modo se ve en el ícono: no toco TAB a ciegas
+            return
         now = time.time()
         if getattr(self, "_last_kill_t", 0) > p:
             self._tab_pending = 0
@@ -1058,6 +1061,7 @@ class Bot:
         self._timers()
         try:
             self._poison_check()
+            self._mode_check()
         except Exception:
             pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
@@ -4194,6 +4198,42 @@ class Bot:
             return {"map": self.pos.get("map"), "list": out[:80], "near": sum(1 for o in out if max(abs(o["x"] - px), abs(o["y"] - py)) <= 9)}
         except Exception:
             return None
+
+    def _mode_check(self):
+        """Modo ataque / modo paz: el ícono redondo del tablero es dorado en ataque y gris en paz. En paz el clic
+        derecho hace una reverencia en vez de pegar. Si está gris, TAB lo pasa a ataque."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or self.img is None or getattr(self, "_busy_ui", False):
+            return
+        now = time.time()
+        if now - getattr(self, "_mode_t", 0) < 3.0 or now < getattr(self, "_mode_wait", 0):
+            return
+        self._mode_t = now
+        H, W = self.img.shape[:2]
+        kx, ky = W / 1920.0, H / 1080.0
+        roi = self.img[int(1005 * ky):int(1065 * ky), int(1040 * kx):int(1105 * kx)]
+        if roi.size == 0:
+            return
+        b, g, r = [roi[:, :, i].astype(int) for i in range(3)]
+        gold = float(((r > 150) & (g > 110) & (b < 110)).mean())
+        if float(roi.max()) < 60:
+            return  # tablero tapado o pantalla negra: no opino
+        self.stats["combat_mode"] = "ataque" if gold >= 0.05 else "paz"
+        if gold >= 0.05:
+            self._mode_tries = 0
+            return
+        mp = (self.pos.get("map") or "").lower()
+        if any(k in mp for k in ("shop", "blacksmith", "hall", "warehouse")):
+            return
+        n = getattr(self, "_mode_tries", 0) + 1
+        self._mode_tries = n
+        if n > 3:
+            self._mode_tries = 0
+            self._mode_wait = now + 120
+            self.log("⚔ El ícono sigue gris después de 3 TAB: no insisto por 2 minutos.")
+            return
+        winapi.press("TAB")
+        self._mode_wait = now + 1.5
+        self.log("⚔ Estaba en modo paz (ícono gris): TAB para pasar a modo ataque.")
 
     def _poison_check(self):
         """Envenenado (la barra de vida dice 'Envenenado'): la tecla 3 (poción verde) cura el veneno."""
