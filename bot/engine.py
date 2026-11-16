@@ -7560,7 +7560,9 @@ class Bot:
             click(extra[0][1] + 20 * kx, extra[0][2])
             time.sleep(0.7)
         ls, ws = listed()
-        if not ls or any(not allowed(l[0]) for l in ls):
+        if not ls:
+            return False  # no quedó nada en la lista (ya no había nada en ese lugar del bolso)
+        if any(not allowed(l[0]) for l in ls):
             self.log("🛒 La lista de venta no coincide con lo que quería vender: no vendo nada.")
             for l in ls:
                 click(l[1] + 20 * kx, l[2])
@@ -7579,6 +7581,7 @@ class Bot:
         self.log("🛒 Vendí: " + ", ".join(l[0] for l in ls) + (f" (recibí {tot})" if tot else "") + ".")
         self._bag_mem = []
         self._bag_sell = []
+        return True
 
     def _gold_tip(self, pt):
         """Sostengo el clic en ese punto del bolso y leo el cartelito: si dice 'N Gold', devuelvo N."""
@@ -8097,19 +8100,27 @@ class Bot:
             if sell and tabp:
                 # de un montón apilado sale una unidad por doble clic: repito la venta hasta que no quede nada
                 # para vender (o deje de bajar el bolso), como mucho 8 vueltas
-                for _round in range(8):
-                    used0 = (getattr(self, "_bag_slots", None) or (None,))[0]
-                    try:
-                        self._oly_sell(sell, tabp, words, grab, click)
-                    except Exception as e:
-                        self.log(f"🛒 No pude vender: {e!r}")
+                t_sell = time.time()
+                for _round in range(6):
+                    sold_any = False
+                    # vueltas rápidas sobre los mismos lugares (de una pila sale una unidad por vez); la lista de
+                    # venta se revisa en cada una, así que si abajo aparece otra cosa no se vende
+                    for _fast in range(8):
+                        try:
+                            ok_ = self._oly_sell(sell, tabp, words, grab, click)
+                        except Exception as e:
+                            self.log(f"🛒 No pude vender: {e!r}")
+                            ok_ = False
+                        if not ok_:
+                            break
+                        sold_any = True
+                        time.sleep(0.5)
+                    if not sold_any or time.time() - t_sell > 300:
                         break
-                    time.sleep(0.6)
                     bag = self._oly_bag() or []
-                    used1 = (getattr(self, "_bag_slots", None) or (None,))[0]
                     sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
                             and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
-                    if not sell or used0 is None or used1 is None or used1 >= used0:
+                    if not sell:
                         break
                 click(tabp[1], tabp[2])
                 time.sleep(1.0)
@@ -8135,8 +8146,11 @@ class Bot:
                         if tn:
                             import re as _re
                             row_ = " ".join(v[0] for v in sorted((v for v in w0 if abs(v[2] - tn[2]) < 12 * ky and v[1] >= tn[1] - 5), key=lambda v: v[1]))
-                            m_ = _re.search(r"tienes\s*([\d\.\, ]+)", row_.lower())
+                            m_ = _re.search(r"tienes\s*(\d{1,3}(?:\s?[.,]\s?\d{3})+|\d+)", row_.lower())
                             dg = "".join(c for c in (m_.group(1) if m_ else "") if c.isdigit())
+                            lastg_ = getattr(self, "_gold", None)
+                            if dg and lastg_ and int(dg) > 5 * lastg_ + 2000:
+                                dg = ""  # salto imposible: leí de más (el ícono de la moneda como cifra)
                             if dg:
                                 if getattr(self, "_gold", None) != int(dg):
                                     self.log(f"🛒 Oro según la tienda: {int(dg)}.")

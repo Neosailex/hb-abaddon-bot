@@ -1,1 +1,1 @@
-{"version": 293, "notes": "La tienda se lee recortada (ubica las pestañas para vender) y no cuenta 0 pociones cuando el frasco está tapado."}
+{"version": 294, "notes": "Vende de corrido toda la pila (vueltas rápidas) y lee bien el oro de la tienda (no cuenta el ícono como cifra)."}
