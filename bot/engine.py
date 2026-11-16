@@ -4526,6 +4526,51 @@ class Bot:
                 self.log(f"🪺 Solo veo slimes en nido (más de {allow} juntos): todavía no me da, busco sueltos.")
             return False
         e = min(ok, key=lambda e: d(e) + 3 * crowd(e))
+        # --- objetivo con seguimiento: una vez que elijo un bicho lo sigo por la grilla (se mueve él, me muevo yo,
+        # se corre la pantalla) hasta que muere o lo pierdo. El clic sale siempre de su baldosa de AHORA.
+        trk = getattr(self, "_trk", None)
+        if trk:
+            same = [o for o in ents if o[2]["name"] == trk["name"] and max(abs(o[0] - trk["x"]), abs(o[1] - trk["y"])) <= 2]
+            if same:
+                o = min(same, key=lambda o: max(abs(o[0] - trk["x"]), abs(o[1] - trk["y"])))
+                trk["x"], trk["y"], trk["seen"] = o[0], o[1], now
+                if d(o) <= 2:
+                    trk["near_t"] = now
+                if o[3] not in bad and (o in ok or d(o) <= 2) and now - trk["since"] < 90:
+                    e = o
+                else:
+                    self._trk = trk = None
+            elif now - trk["seen"] > 0.8:
+                # ya no está entre los vivos: si lo tenía al lado, lo maté
+                if now - trk.get("near_t", 0) < 3.0:
+                    self.stats["kills"] = self.stats.get("kills", 0) + 1
+                    self._last_kill_t = now
+                    self._oly_loot = (trk["x"], trk["y"], now)
+                    try:
+                        self._zone_kill()
+                    except Exception:
+                        pass
+                    self.log(f"✝ {trk['name']} muerto (kill #{self.stats['kills']}).")
+                self._trk = trk = None
+                self._trk_draw = None
+            else:
+                self._last_enemy = now
+                return True  # una lectura sin verlo: espero un instante sin cambiar de objetivo
+        if not trk:
+            trk = self._trk = {"name": e[2]["name"], "x": e[0], "y": e[1], "seen": now, "since": now,
+                               "near_t": now if d(e) <= 2 else 0, "adj": None}
+        # élite / no muere: cuento el tiempo que lo tengo pegado, siguiéndolo aunque se mueva
+        if d(e) <= 1:
+            trk["adj"] = trk.get("adj") or now
+            if now - trk["adj"] > self._oly_ttk(e[2]["name"]):
+                bad[e[3]] = now + 600
+                for dx_ in (-1, 0, 1):
+                    for dy_ in (-1, 0, 1):
+                        bad[(e[3][0], e[0] + dx_, e[1] + dy_)] = now + 600
+                self.log(f"👑 Ese {e[2]['name']} no muere: debe ser élite. Lo dejo y sigo con otro.")
+                self._trk = None
+                self._release()
+                return False
         # élite: el slime común muere en 1-3 golpes; si a los 7 s de pegarle sigue vivo, es élite y lo dejo
         fe = getattr(self, "_oly_first", {})
         if e[3] not in fe:
@@ -4564,6 +4609,9 @@ class Bot:
             cx, cy = self._char()
             tw, th = self._tile()
             pt = (int(cx + (e[0] - px) * tw), int(cy + (e[1] - py) * th - th * 0.3))
+            # lo que muestra la vista previa: cuadrado rojo en la baldosa del bicho AHORA + su área de seguimiento
+            self._trk_draw = {"x": pt[0], "y": pt[1] + int(th * 0.3), "tw": tw, "th": th, "name": e[2]["name"], "t": now, "d": d(e)}
+            self.target = None
             if d(e) <= 1:
                 # pegado: el sprite del pj tapa al bicho y el clic izquierdo cae sobre mí. Con click derecho en
                 # modo ataque el juego pega en esa dirección sin caminar (wiki: Gameplay).
@@ -4574,8 +4622,12 @@ class Bot:
                 self.stats["state"], self.stats["target"] = "atacando", e[2]["name"]
                 time.sleep(0.35)
                 return True
-            self._engage(pt)
-            self.stats["target"] = e[2]["name"]
+            # a distancia: mantengo el clic SOBRE el bicho y lo voy corriendo con él en cada vuelta
+            self.state = "seek"
+            self._hold_on(pt[0], pt[1])
+            self._last_enemy = now
+            self.last_attack_click = now
+            self.stats["state"], self.stats["target"] = f"voy a un {e[2]['name']} ({e[0]},{e[1]})", e[2]["name"]
             return True
         if d(e) <= 120:
             m = self.world.map_for(self.pos.get("map") or "")
@@ -9220,7 +9272,7 @@ class Bot:
                         mons = getattr(self, "_last_mons", []) if self.running else []
                         if self.running and not mons and self.target:
                             mons = [self.target]
-                        ov = vision.draw_overlay(img, self.cfg, mons, (), self.target)
+                        ov = vision.draw_overlay(img, self.cfg, mons, (), self.target, track=getattr(self, "_trk_draw", None))
                         url = vision.to_data_url(ov, int(self.cfg.get("preview_quality", 75)),
                                                  max_w=int(self.cfg.get("preview_width", 1280)))
                         self.preview = url
@@ -9249,7 +9301,7 @@ class Bot:
             mons = self._monsters()
         elif self.running:
             mons = getattr(self, "_last_mons", []) or ([self.target] if self.target else [])
-        ov = vision.draw_overlay(self.img, self.cfg, mons, (), self.target)
+        ov = vision.draw_overlay(self.img, self.cfg, mons, (), self.target, track=getattr(self, "_trk_draw", None))
         self.preview = vision.to_data_url(ov, 55, max_w=640)
 
     # ---------------------------------------------------------------- state

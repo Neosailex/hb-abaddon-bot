@@ -269,7 +269,7 @@ def to_data_url(img, quality=60, max_w=None):
     return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
 
 
-def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None):
+def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=None):
     """Dibuja lo que ve el bot sobre una copia de la pantalla (para la vista previa)."""
     if img is None:
         return None
@@ -292,6 +292,14 @@ def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, col, 1, cv2.LINE_AA)
     for it in items:
         cv2.rectangle(out, (it["x"] - it["w"] // 2, it["y"] - it["h"] // 2), (it["x"] + it["w"] // 2, it["y"] + it["h"] // 2), (0, 220, 0), 2)
+    if track:
+        import time as _t
+        if _t.time() - track.get("t", 0) < 1.5:
+            x, y, tw, th = int(track["x"]), int(track["y"]), int(track["tw"]), int(track["th"])
+            # área de seguimiento (3x3 baldosas) fina, y la baldosa del bicho en rojo fuerte
+            cv2.rectangle(out, (x - tw * 3 // 2, y - th * 3 // 2), (x + tw * 3 // 2, y + th * 3 // 2), (0, 0, 200), 1)
+            cv2.rectangle(out, (x - tw // 2, y - th // 2), (x + tw // 2, y + th // 2), (0, 0, 255), 3)
+            cv2.putText(out, f'1 {track.get("name", "")}', (x - tw // 2, y - th // 2 - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
     return out
 
 
