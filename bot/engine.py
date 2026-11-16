@@ -972,6 +972,8 @@ class Bot:
         if now < getattr(self, "_rabia_until", 0) or now - getattr(self, "_last_kill_t", 0) < 40:
             stuck_pos = False  # plantado peleando (rabia) o matando: no es estar trabado
         no_exp = now - exp_t > float(self.cfg.get("no_exp_secs", 180)) and not self._is_travelling()
+        if now - getattr(self, "_last_kill_t", 0) < float(self.cfg.get("no_exp_secs", 180)):
+            no_exp = False  # estoy matando: que no lea la barra de experiencia no quiere decir que no gane
         if not (stuck_pos or no_exp):
             return False
         self._wd_pos_t = self._wd_exp_t = now
@@ -8087,6 +8089,12 @@ class Bot:
                 n = self._oly_pots()
             except Exception:
                 n = None
+            pe = getattr(self, "_pot_est", None)
+            if pe and now - pe[2] < 3 * 3600:
+                est = max(0, pe[0] - (int(self.stats.get("hp_pots", 0)) - pe[1]))
+                if n is None or n < est - 4:
+                    n = est  # el bolso muestra muchas menos de las que me dan las cuentas: frasco tapado
+                    self._pots_unknown = False
             if n is not None:
                 pu = self.__dict__.setdefault("_pot_use", {"t0": now, "used": 0})
                 prev = getattr(self, "_left", {}).get("pot")
@@ -8347,6 +8355,9 @@ class Bot:
             time.sleep(1.5)
             self.log(f"🛒 Compré {n} pociones de vida (tenía {gold} de oro).")
             self._left = {"pot": (have or 0) + n, "meat": 99}
+            # cuenta propia: lo que tenía + lo que compré, menos las que voy tomando. Vale más que el número leído
+            # a ojo en el bolso cuando el frasco queda tapado por otra cosa.
+            self._pot_est = ((have or 0) + n, int(self.stats.get("hp_pots", 0)), time.time())
             self._buy_chk = {"t": time.time(), "have": have or 0, "n": n}
             self._pots_unknown = False
             self._pots_t = 0
