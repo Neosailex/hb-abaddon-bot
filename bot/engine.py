@@ -1335,6 +1335,25 @@ class Bot:
                 return (col[0][1], col[0][2])
         return None
 
+    def _game_menu_close(self, words=None):
+        """'Menú del juego' abierto (Opciones, Tienda, Ticket, Discord, Cerrar sesión): un clic ahí adentro abre el
+        navegador o cierra la sesión. Lo cierro con ESC (la misma tecla que lo abre). True si estaba abierto."""
+        try:
+            norm = lambda t: "".join(c for c in t.lower() if c.isalnum() or c in "áéíóú")
+            if words is None:
+                img = self.screen.grab(self.rect)
+                words = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
+            t = " ".join(norm(w[0]) for w in words)
+            hits = sum(k in t for k in ("opciones", "discord", "ticket", "capturas", "sesión", "sesion", "noticias", "eventos"))
+            if hits >= 3:
+                winapi.press("ESC")
+                time.sleep(0.5)
+                self.log("Cierro el menú del juego que había quedado abierto (ESC).")
+                return True
+        except Exception:
+            pass
+        return False
+
     def _ui_clear(self):
         """Antes de caminar: nada abierto (tienda o bolso). Con una ventana abierta el personaje no camina."""
         try:
@@ -1365,6 +1384,8 @@ class Bot:
             words = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": W, "y2": int(H * 0.85)}, scale=1.0)
         except Exception:
             return False
+        if cfgmod.server_slug(self.cfg) != "abaddon" and self._game_menu_close(words):
+            return True
         # ventana de Tienda abierta sin que nadie esté comprando: la cierro (abierta no deja caminar, y un clic
         # perdido ahí adentro puede comprar cualquier cosa)
         try:
@@ -1836,6 +1857,12 @@ class Bot:
     def _drop_cursor_item(self):
         """Si no camino puede ser que haya ventanas abiertas tapando: las cierro con ESC y con sus botones."""
         try:
+            if cfgmod.server_slug(self.cfg) != "abaddon":
+                # en Olympia ESC ABRE el menú del juego (Opciones / Discord / Cerrar sesión): nunca lo aprieto a ciegas.
+                # Cierro lo que haya con sus propias teclas y, si el menú quedó abierto, lo cierro.
+                self._ui_clear()
+                self._game_menu_close()
+                return
             sc = self.rect[2] / 1280.0
             winapi.move(*self.abs_pt(640 * sc, 760 * sc))
             for _ in range(2):
@@ -9124,7 +9151,8 @@ class Bot:
             if not todo:
                 self.log("🔧 No encontré 'Reparar Todo' en el menú del herrero: no toco nada y reintento en 5 minutos.")
                 self._rep_last = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 300)
-                winapi.press("ESC")
+                if cfgmod.server_slug(self.cfg) == "abaddon":
+                    winapi.press("ESC")
                 return
             winapi.click(*self.abs_pt(todo[1], todo[2]))
             time.sleep(1.8)
@@ -9134,6 +9162,24 @@ class Bot:
                 time.sleep(1.5)
                 ws = self._q_words(self.screen.grab(self.rect))
                 q = next((w for w in ws if "reparar" in norm(w[0]) and w[2] < self.rect[3] * 0.3), None)
+            if not q:
+                # la lectura de pantalla entera pierde renglones según el fondo: leo recortada la zona del cartel
+                im_r = self.screen.grab(self.rect)
+                for sc_ in (1.0, 2.0):
+                    try:
+                        wr = ocr.read_words(im_r, {"x1": 0, "y1": 0, "x2": int(self.rect[2] * 0.6), "y2": int(self.rect[3] * 0.45)}, scale=sc_)
+                    except Exception:
+                        wr = []
+                    q = next((w for w in wr if "reparar" in norm(w[0]) and w[2] < self.rect[3] * 0.3), None)
+                    if q:
+                        ws = wr
+                        break
+                if not q:
+                    try:
+                        import cv2
+                        cv2.imwrite(os.path.join(cfgmod.DATA, "herrero_dbg.jpg"), im_r, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    except Exception:
+                        pass
             yes = next((w for w in ws if norm(w[0]) in ("sí", "si", "sl", "s1") and q and 0 < w[2] - q[2] < 200 and w[1] < self.rect[2] * 0.36), None)
             if q and not yes:
                 # el cartel está pero no leo el botón: 'Sí' queda siempre abajo a la izquierda del texto
@@ -9152,7 +9198,8 @@ class Bot:
                 self.log(f"🔧 Reparar cuesta {cost} y tengo {gold}: no me alcanza.")
                 return
             else:
-                self.log("🔧 No hay nada para reparar.")
+                self.log("🔧 No vi el cartel de 'Reparar todo' (o no había nada para reparar): guardé la captura. Reintento en 5 minutos.")
+                self._rep_retry = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 300)
             # solo me vuelvo a poner cosas si algo se había roto (lo roto se desequipa solo); un repuesto guardado no se toca
             lo = int(self.cfg.get("loose_ok", 0))
             if time.time() - getattr(self, "_worn_seen", 0) < 3600 or (getattr(self, "_bag_items", 0) or 0) > lo:
@@ -9163,7 +9210,8 @@ class Bot:
         finally:
             self.mission = None
             self._busy_ui = False
-            self._rep_last = time.time()
+            self._rep_last = getattr(self, "_rep_retry", None) or time.time()
+            self._rep_retry = None
 
     def _bag_tidy(self, force=False):
         """Separo lo que quedó encimado en el bolso (un frasco arriba del escudo recién comprado): arrastro el objeto
