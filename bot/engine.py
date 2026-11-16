@@ -5011,6 +5011,67 @@ class Bot:
                 best = (score, p, nm)
         return best
 
+    def _quest_drive(self, ents, px, py, now):
+        """La misión de matar N bichos se hace donde vive ese bicho. Si estoy lejos de su nido (cazando otra cosa
+        porque rinde), cada media hora voy derecho para allá sin frenarme por lo que haya en el camino (si me pegan,
+        la regla de oro me defiende). Al llegar sigo cazando normal. True = estoy yendo."""
+        if not self.cfg.get("quest_drive", True):
+            return False
+        qd = getattr(self, "_qdrive", None)
+        if any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents) or now < getattr(self, "_rabia_until", 0) \
+                or getattr(self, "_kite", None) is not None or self._town_block() or getattr(self, "mission", None) or getattr(self, "goto", None):
+            return False
+        hp = self.bars.get("hp")
+        if hp is not None and hp < 60:
+            return False
+        qm = self._quest_mob_names() or set()
+        if not qm:
+            self._qdrive = None
+            return False
+        tried = self.__dict__.setdefault("_pit_tried", {})
+        if qd is None:
+            if now - getattr(self, "_qdrive_last", 0) < 1800:
+                return False
+            if any(e[2]["name"] in qm and max(abs(e[0] - px), abs(e[1] - py)) <= 12 for e in ents):
+                return False  # ya tengo bichos de la misión acá
+            cands = []
+            for p in self._pits():
+                nm = p.get("mob") or p.get("guess")
+                if nm in qm and tried.get((p["x"], p["y"]), 0) < now and self._can_face(nm):
+                    d_ = max(abs(p["x"] - px), abs(p["y"] - py))
+                    if d_ > 25:
+                        cands.append((0 if p.get("mob") else 1, d_, p, nm))
+            if not cands:
+                self._qdrive_last = now - 1200  # reviso de nuevo en 10 minutos
+                return False
+            _c, d_, p, nm = min(cands, key=lambda c: (c[0], c[1]))
+            qd = self._qdrive = {"p": p, "nm": nm, "t0": now, "t": now, "d": d_}
+            self.log(f"📜 Voy al nido de {nm} en ({p['x']},{p['y']}) por la misión (a {d_} baldosas), sin frenar en el camino.")
+        p = qd["p"]
+        d_ = max(abs(p["x"] - px), abs(p["y"] - py))
+        if d_ <= 12 or any(e[2]["name"] in qm and max(abs(e[0] - px), abs(e[1] - py)) <= 6 for e in ents):
+            self._qdrive, self._qdrive_last = None, now
+            self._hot_fail = now  # no me vuelvo a la zona de antes apenas llego
+            self._exp_gain_t, self._start_t_oly = now, now
+            self.log(f"📜 Llegué a la zona de {qd['nm']}: cazo acá.")
+            return False
+        if d_ < qd["d"]:
+            qd["d"], qd["t"] = d_, now
+        elif now - qd["t"] > 50 or now - qd["t0"] > 420:
+            tried[(p["x"], p["y"])] = now + 3600
+            self._qdrive, self._qdrive_last = None, now
+            self.log(f"📜 No llego al nido de {qd['nm']} ({p['x']},{p['y']}): lo dejo una hora.")
+            return False
+        m = self.world.map_for(self.pos.get("map") or "")
+        g = m.nearest_walkable(p["x"], p["y"], r=6) if m else None
+        if not g:
+            tried[(p["x"], p["y"])] = now + 3600
+            self._qdrive, self._qdrive_last = None, now
+            return False
+        self.stats["state"] = f"voy al nido de {qd['nm']} por la misión ({p['x']},{p['y']})"
+        self._walk_to(m, (int(g[0]), int(g[1])), f"nido de {qd['nm']} (misión)")
+        return True
+
     def _hot_return(self, ents=None):
         """Sin nada vivo cerca, o más de 2 minutos y medio sin ganar experiencia: vuelvo al último lugar donde venía
         ganando (en vez de explorar o dar vueltas). True = estoy yendo."""
@@ -5104,6 +5165,13 @@ class Bot:
                 self._pit_go, self._start_t_oly = None, now
         except Exception:
             pass
+        try:
+            if self._quest_drive(ents, px, py, now):
+                return True
+        except Exception as e_:
+            if now - getattr(self, "_qd_err", 0) > 300:
+                self._qd_err = now
+                self.log(f"📜 Ida al nido de la misión: error {e_!r}")
         try:
             pl = [p for p in self._grid().players if max(abs(p["x"] - px), abs(p["y"] - py)) <= 7]
             if pl and any(max(abs(o[0] - px), abs(o[1] - py)) <= 9 for o in ents):
