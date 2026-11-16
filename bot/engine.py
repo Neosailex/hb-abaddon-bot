@@ -1455,6 +1455,10 @@ class Bot:
                 self.world.save()
             self.log(f"☠ Me mataron en {self.pos.get('map')} ({self.pos.get('x')},{self.pos.get('y')}). Anoto la zona como peligrosa y revivo.")
             try:
+                self._killer_note()
+            except Exception:
+                pass
+            try:
                 mk = (self.pos.get("map") or "").strip().lower()
                 dm = self.world.learn.setdefault("deaths", {}).setdefault(mk, {"n": 0, "lvl": 0, "t": 0})
                 dm["n"] = dm.get("n", 0) + 1 if time.time() - dm.get("t", 0) < 7200 else 1
@@ -4262,6 +4266,9 @@ class Bot:
         g.update((self.pos["x"], self.pos["y"]), (self.pos.get("map") or "").strip().lower(), allv, now)
         g.mode = self._grid_mode()
         self.stats["mode"] = g.mode
+        adj = sorted({tr.name for tr in g.tracks.values() if tr.dist(g.me) <= 1})
+        if adj:
+            self._last_adj = (adj, now)
         for tr in g.lost:
             if now - tr.near_t < 3.0 and self.running:
                 self.stats["kills"] = self.stats.get("kills", 0) + 1
@@ -4356,7 +4363,11 @@ class Bot:
             pass
         for k in [k for k, v in tried.items() if v < now]:
             del tried[k]
+        kl = getattr(self, "_oly_loot", None)
+        if not kl or now - kl[2] > 25:
+            return False  # sin una muerte mía recién, no hay botín que buscar
         cand = [k for k, v in cur.items() if v[0] >= 2 and (k[0], k[1]) not in tried
+                and max(abs(k[0] - kl[0]), abs(k[1] - kl[1])) <= 3
                 and max(abs(k[0] - px), abs(k[1] - py)) <= int(reach or self.cfg.get("loot_reach", 7))
                 and not any((e[0], e[1]) == (k[0], k[1]) for e in ents)]
         if not cand:
@@ -4720,6 +4731,7 @@ class Bot:
                         self.stats["state"] = f"voy hacia los {tgt[2]['name']} ({tgt[0]},{tgt[1]})"
                         self._walk_to(m, (int(dest[0]), int(dest[1])), tgt[2]["name"])
                         return True
+        ok = [e for e in ok if d(e) <= 1 or not self._killer(e[2]["name"])]  # al que me viene matando no lo busco
         if not ok and ok0 and hp_now < 85 and not any(d(e) <= 3 for e in ents):
             # hay bichos pero todos en grupo y estoy bajo de vida: descanso acá en vez de irme a explorar
             self._release()
@@ -6275,8 +6287,32 @@ class Bot:
                 q["done"] = True
         return [q for q in out if q["done"] or q["objs"]]
 
+    def _killer_note(self):
+        """Me mataron: anoto qué bichos tenía pegados. Con dos muertes del mismo, lo dejo hasta subir 2 niveles."""
+        la = getattr(self, "_last_adj", None)
+        if not la or time.time() - la[1] > 15 or cfgmod.server_slug(self.cfg) == "abaddon":
+            return
+        lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        kk = self.world.learn.setdefault("oly_killers", {})
+        for nm in la[0]:
+            k = kk.setdefault(nm, {"n": 0, "lvl": lvl})
+            k["n"] = k["n"] + 1 if k.get("lvl") == lvl or k["n"] < 2 else 1
+            k["lvl"] = lvl
+            if k["n"] == 2:
+                self.log(f"🧠 {nm} ya me mató 2 veces a nivel {lvl}: no lo busco hasta nivel {lvl + 2} (si me ataca, me defiendo).")
+        self.world.save()
+
+    def _killer(self, mob):
+        k = (self.world.learn.get("oly_killers") or {}).get(str(mob))
+        if not k or k.get("n", 0) < 2:
+            return False
+        lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        return lvl < int(k.get("lvl", 0)) + 2
+
     def _can_face(self, mob):
         """¿Ese bicho está a mi alcance hoy? (mismo criterio que para elegir zona de caza)"""
+        if self._killer(mob):
+            return False
         try:
             cr = next((c for c in self._creatures_db().values() if str(c.get("name", "")).lower() == str(mob).lower()), None)
             if not cr:
@@ -7014,7 +7050,7 @@ class Bot:
         if now - getattr(self, "_shop_last", 0) < 900:
             return
         hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and (gold or 0) >= 30
-        if not many and not hungry and (n is None or n > lim or not afford):
+        if not hungry and (n is None or n > lim or not afford):
             return
         self._shop_last = now
         self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
@@ -7121,6 +7157,13 @@ class Bot:
                 time.sleep(1.2)
                 ws = words(grab())
                 hp = next((w for w in ws if norm(w[0]) == "health" and not any(norm(v[0]) == "big" and abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in ws)), None)
+            if not hp:
+                big = [w for w in ws if norm(w[0]) == "big"]
+                bh = next((w for w in ws if norm(w[0]) == "health" and any(abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in big)), None)
+                bm = next((w for w in ws if norm(w[0]) == "mana" and any(abs(v[2] - w[2]) < 8 and v[1] < w[1] for v in big)), None)
+                if bh and bm and 30 < bm[2] - bh[2] < 90:
+                    b0 = min((v for v in big if abs(v[2] - bh[2]) < 8), key=lambda v: v[1])
+                    hp = ("health", b0[1], bh[2] - (bm[2] - bh[2]) // 2) + tuple(bh[3:])  # el chat la tapa: es la fila de arriba
             if not hp:
                 try:
                     import cv2
