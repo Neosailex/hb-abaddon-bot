@@ -5019,7 +5019,21 @@ class Bot:
         if not self.cfg.get("quest_drive", True):
             return False
         qd = getattr(self, "_qdrive", None)
-        if any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents) or now < getattr(self, "_rabia_until", 0) \
+        if qd is not None and qd.get("goto"):
+            # voy con el viaje del mapa (el mismo del clic en el mapa: pelea si le pegan y sigue)
+            p_ = qd["p"]
+            d_ = max(abs(p_["x"] - px), abs(p_["y"] - py))
+            if not getattr(self, "goto", None) or d_ <= 12 or now - qd["t0"] > 480:
+                if d_ > 20:
+                    self.log(f"📜 No llegué al nido de {qd['nm']} ({p_['x']},{p_['y']}): pruebo de nuevo en 10 minutos.")
+                else:
+                    self._hot_fail = now
+                    self._exp_gain_t, self._start_t_oly = now, now
+                    self.log(f"📜 Llegué a la zona de {qd['nm']}: cazo acá.")
+                self.goto = None
+                self._qdrive, self._qdrive_last = None, (now if d_ <= 20 else now - 1200)
+            return False
+        if sum(1 for e in ents if max(abs(e[0] - px), abs(e[1] - py)) <= 1) >= 3 or now < getattr(self, "_rabia_until", 0) \
                 or getattr(self, "_kite", None) is not None or self._town_block() or getattr(self, "mission", None) or getattr(self, "goto", None):
             return False
         hp = self.bars.get("hp")
@@ -5046,8 +5060,16 @@ class Bot:
                 self._qdrive_last = now - 1200  # reviso de nuevo en 10 minutos
                 return False
             _c, d_, p, nm = min(cands, key=lambda c: (c[0], c[1]))
-            qd = self._qdrive = {"p": p, "nm": nm, "t0": now, "t": now, "d": d_}
+            m0 = self.world.map_for(self.pos.get("map") or "")
+            g0 = m0.nearest_walkable(p["x"], p["y"], r=6) if m0 else None
+            if not g0:
+                tried[(p["x"], p["y"])] = now + 3600
+                return False
+            self._qdrive = {"p": p, "nm": nm, "t0": now, "t": now, "d": d_, "goto": True}
+            self.goto = {"map": self.pos.get("map"), "x": int(g0[0]), "y": int(g0[1]), "t": now}
+            self._hot_fail = now
             self.log(f"📜 Voy al nido de {nm} en ({p['x']},{p['y']}) por la misión (a {d_} baldosas), sin frenar en el camino.")
+            return False
         p = qd["p"]
         d_ = max(abs(p["x"] - px), abs(p["y"] - py))
         if d_ <= 12 or any(e[2]["name"] in qm and max(abs(e[0] - px), abs(e[1] - py)) <= 6 for e in ents):
@@ -5570,8 +5592,8 @@ class Bot:
             self.log("🗺 Cancelé el viaje del mapa: tardaba más de 30 min.")
             self.goto = None
             return False
-        if self._attacked_recently():
-            return False
+        if self._attacked_recently() and not (getattr(self, "_qdrive", None) and self._adjacent_mobs() < 3):
+            return False  # (yendo al nido de la misión no me freno por uno o dos bichos: sigo caminando)
         cur = self.pos["map"]
         label = f"{g['map']} ({g['x']},{g['y']})"
         if not self._same(cur, g["map"]):
