@@ -501,7 +501,14 @@ class Bot:
     def windows(self):
         return [t for _, t in winapi.list_windows()]
 
-    def abs_pt(self, x, y):
+    def abs_pt(self, x, y, bar=False):
+        # Olympia: la barra de abajo tiene botones (el de la derecha abre el menú del juego: Discord, Cerrar sesión).
+        # Ningún clic de caminar/pegar/levantar puede caer ahí: lo subo al borde del área de juego.
+        try:
+            if not bar and self.rect and cfgmod.server_slug(self.cfg) != "abaddon" and y > self.rect[3] * 0.905:
+                y = self.rect[3] * 0.905
+        except Exception:
+            pass
         return (self.rect[0] + int(x), self.rect[1] + int(y))
 
     # ---------------------------------------------------------------- loops
@@ -1073,6 +1080,18 @@ class Bot:
             self._mode_check()
         except Exception:
             pass
+        # menú del juego abierto (ESC): tapa todo y un clic ahí abre Discord o cierra la sesión. Lo miro cada 5 s,
+        # leyendo solo el centro de la pantalla, antes de cualquier clic.
+        try:
+            if cfgmod.server_slug(cfg) != "abaddon" and time.time() - getattr(self, "_gm_t", 0) > 5 and self.img is not None \
+                    and not getattr(self, "_busy_ui", False):
+                self._gm_t = time.time()
+                H_, W_ = self.img.shape[:2]
+                wg = ocr.read_words(self.img, {"x1": int(W_ * 0.36), "y1": int(H_ * 0.14), "x2": int(W_ * 0.64), "y2": int(H_ * 0.62)}, scale=1.0)
+                if self._game_menu_close(wg):
+                    return
+        except Exception:
+            pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
         try:
             if cfg["mode"] == "auto" and not self._fleeing() and self._reflex():
@@ -1346,9 +1365,14 @@ class Bot:
             t = " ".join(norm(w[0]) for w in words)
             hits = sum(k in t for k in ("opciones", "discord", "ticket", "capturas", "sesión", "sesion", "noticias", "eventos"))
             if hits >= 3:
-                winapi.press("ESC")
-                time.sleep(0.5)
-                self.log("Cierro el menú del juego que había quedado abierto (ESC).")
+                # probado: ESC no lo cierra; se cierra con el mismo botón que lo abre (el último de la barra de abajo)
+                kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+                self._release()
+                winapi.click(*self.abs_pt(int(1490 * kx), int(1035 * ky), bar=True))
+                time.sleep(0.6)
+                if time.time() - getattr(self, "_gm_said", 0) > 60:
+                    self._gm_said = time.time()
+                    self.log("Cierro el menú del juego que había quedado abierto.")
                 return True
         except Exception:
             pass

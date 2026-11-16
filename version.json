@@ -1,1 +1,1 @@
-{"version": 314, "notes": "Ya no aprieta ESC en Olympia (abría el menú del juego y un clic caía en Discord); si el menú queda abierto lo cierra. Herrero: lee el cartel de reparar recortado y no da por hecho que no había nada."}
+{"version": 315, "notes": "Cierra el menú del juego apenas lo ve (lo mira cada 5 s antes de cualquier clic). Arma: alcanza con 10% de mejora para comprarla (Claymore)."}

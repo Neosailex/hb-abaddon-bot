@@ -46,7 +46,9 @@ def gear_plan(cat, level, stats, owned, items_db=None, owned_bonus=None):
         cands = [i for i in cat.get("items", []) if i.get("slot") == slot and i.get("price", 0) > 0
                  and (slot not in ("arma", "arma2m") or i["name"] in wn) and "(W)" not in i["name"]]
         # una mejora tiene que valer la pena: al menos 25% mejor que lo que ya tengo (no gasto oro por 1 punto)
-        better = [i for i in cands if _score(i) > (mscore(have) * 1.25 if have else 0)]
+        # (el arma es lo primero: ahí alcanza con 10% mejor; en armadura sigue siendo 25%)
+        need = 1.10 if slot in ("arma", "arma2m") else 1.25
+        better = [i for i in cands if _score(i) > (mscore(have) * need if have else 0)]
         usable = [i for i in better if _can_use(i, level, stats)]
         nxt = max(usable, key=lambda i: (_score(i), -i["price"]), default=None)
         blocked = None
