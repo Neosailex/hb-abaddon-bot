@@ -969,6 +969,8 @@ class Bot:
         if getattr(self, "mission", None) or any(k in cur for k in ("shop", "blacksmith")):
             return False
         stuck_pos = now - pos_t > float(self.cfg.get("stuck_secs", 40)) and now - exp_t > float(self.cfg.get("stuck_secs", 40))
+        if now < getattr(self, "_rabia_until", 0) or now - getattr(self, "_last_kill_t", 0) < 40:
+            stuck_pos = False  # plantado peleando (rabia) o matando: no es estar trabado
         no_exp = now - exp_t > float(self.cfg.get("no_exp_secs", 180)) and not self._is_travelling()
         if not (stuck_pos or no_exp):
             return False
@@ -5278,14 +5280,16 @@ class Bot:
                     # RABIA: la memoria marca a los bichos chicos corridos una baldosa, así que si hace 2,5 s que no
                     # cae ninguno, un golpe de cada dos lo tiro barriendo las 8 baldosas de alrededor (primero donde
                     # la memoria ve bichos). Y uso el golpe crítico (Alt) cada 1,5 s: pega más y alcanza 3 baldosas.
-                    self._rabia_n = getattr(self, "_rabia_n", 0) + 1
-                    if self._rabia_n % 2 == 0 and now - getattr(self, "_last_kill_t", 0) > 2.5:
+                    # OJO: cambiar de dirección corta el golpe que está saliendo, así que cada dirección la sostengo
+                    # 1,6 s enteros (un golpe completo) antes de pasar a la siguiente.
+                    slot_ = int(now / 1.6)
+                    if slot_ % 2 == 1 and now - getattr(self, "_last_kill_t", 0) > 2.5:
                         ring = [(1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1)]
                         occ = [(o[0] - px, o[1] - py) for o in ents if max(abs(o[0] - px), abs(o[1] - py)) == 1]
-                        order = [r_ for r_ in ring if r_ in occ] + [r_ for r_ in ring if r_ not in occ]
-                        dx_, dy_ = order[(self._rabia_n // 2) % 8]
+                        order = [r_ for r_ in ring if r_ in occ] or ring
+                        dx_, dy_ = order[(slot_ // 2) % len(order)]
                         tx_, ty_ = int(cx + dx_ * tw), int(cy + dy_ * th)
-                    crit_ = self.cfg.get("rabia_crit", True) and now - getattr(self, "_crit_t", 0) > 1.5
+                    crit_ = self.cfg.get("rabia_crit", True) and now - getattr(self, "_crit_t", 0) > 3.2
                 if crit_:
                     self._crit_t = now
                     winapi.key_down("ALT")
