@@ -7096,10 +7096,12 @@ class Bot:
         worn = (self.cfg.get("worn") or {}).get(slot)
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         fam = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
+        # lo que tiene bonus (nombre con prefijo) nunca se vende solo: eso lo decide Juan
+        nosell = "keep" if it.get("affix") else "sell"
         if slot == "arma" and fam and str(it.get("family") or "").lower() != fam:
-            return ("sell", f"no es {fam} (mi talento)", it, slot, val)
+            return (nosell, f"no es {fam} (mi talento)" + (f"; tiene bonus ({it['affix']}): lo guardo" if it.get("affix") else ""), it, slot, val)
         if worn and val <= int(worn.get("v", -1)):
-            return ("sell", f"no mejora lo puesto ({worn.get('name')})", it, slot, val)
+            return (nosell, f"no mejora lo puesto ({worn.get('name')})" + (f"; tiene bonus ({it['affix']}): lo guardo" if it.get("affix") else ""), it, slot, val)
         if o.get("dur") == 0:
             return ("broken", "está roto", it, slot, val)
         if int(it.get("level") or 0) > lvl:
@@ -7130,7 +7132,7 @@ class Bot:
             low = t.lower()
             tail = t.split(":", 1)[1] if ":" in t else t
             nums = [int(n) for n in re.findall(r"\d+", tail.split("(")[0].translate(fix))]
-            if ("durab" in low or "(end)" in low) and len(nums) >= 2:
+            if ("durab" in low or "(end)" in low) and len(nums) >= 2 and "+" not in t:
                 out["dur"], out["dur_max"] = nums[0], nums[1]
             elif ("daño" in low or "dmg" in low or "dano" in low) and nums:
                 out["dmg"] = nums[0]
@@ -7895,9 +7897,17 @@ class Bot:
             except Exception:
                 db = {}
             self._gitems = db
-        k = "".join(c for c in str(name).lower() if c.isalnum())
+        norm = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
+        k = norm(name)
         if k in db:
             return db[k]
+        # objetos con bonus llevan palabras adelante ('Health Siphoning Superior Main Gauche', 'Strong Wood Shield'):
+        # busco el nombre de tabla más largo que quede al sacar palabras del principio
+        ws = str(name).split()
+        for i in range(1, len(ws)):
+            k2 = norm(" ".join(ws[i:]))
+            if len(k2) >= 4 and k2 in db:
+                return dict(db[k2], affix=" ".join(ws[:i]))
         import difflib
         m = difflib.get_close_matches(k, list(db), n=1, cutoff=0.88)
         return db[m[0]] if m else None
