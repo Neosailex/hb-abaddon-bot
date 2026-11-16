@@ -7300,8 +7300,18 @@ class Bot:
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
         img = self.screen.grab(self.rect)
         ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-        pw = next((w for w in ws if w[0].strip().startswith("Peso")
-                   and ("/" in w[0] or any("/" in v[0] and abs(v[2] - w[2]) < 12 and 0 < v[1] - w[1] < 260 for v in ws))), None)
+        # encabezado del bolso: 'Peso: 269/325 (50/50)'. El OCR a veces lee la barra como 1 o l, así que no la exijo:
+        # alcanza con 'Peso' en mayúscula, números a su derecha en el renglón y nada pegado a su izquierda (el
+        # 'c/u, peso 10' de la tienda va en minúscula y con texto antes)
+        def _hdr(w):
+            if not w[0].strip().startswith("Peso"):
+                return False
+            row = [v for v in ws if v is not w and abs(v[2] - w[2]) < 12 * ky]
+            if any(0 < w[1] - v[1] < 130 * kx for v in row):
+                return False
+            digs = sum(c.isdigit() for c in w[0]) + sum(sum(c.isdigit() for c in v[0]) for v in row if 0 < v[1] - w[1] < 300 * kx)
+            return digs >= 4
+        pw = next((w for w in ws if _hdr(w)), None)
         if not pw:
             return None  # 'peso' suelto (el 'c/u, peso 10' de la tienda) NO es el bolso: ahí no se toca nada
         try:
@@ -7310,6 +7320,11 @@ class Bot:
             m_ = _re.search(r"\((\d{1,2})\s*/\s*(\d{2})\)", row_.translate(str.maketrans({"O": "0", "o": "0", "l": "1", "I": "1"})))
             if m_ and int(m_.group(1)) <= int(m_.group(2)) <= 200:
                 self._bag_slots = (int(m_.group(1)), int(m_.group(2)), time.time())
+            else:
+                # barra leída como 1/l: '(50150)' o '(36l50)' → dos cifras, separador, dos cifras
+                m2_ = _re.search(r"\((\d{1,2})[1lI|/ ]\s*(\d{2})\)", row_)
+                if m2_ and int(m2_.group(1)) <= int(m2_.group(2)) <= 200:
+                    self._bag_slots = (int(m2_.group(1)), int(m2_.group(2)), time.time())
         except Exception:
             pass
         self._release()
@@ -8021,6 +8036,15 @@ class Bot:
                     and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
             if not self.cfg.get("sell_olympia", True):
                 sell = []
+            try:
+                its_ = [o for o in bag if o["kind"] == "item"]
+                self.log(f"🛒 En el bolso veo {len(its_)} objeto/s ({sum(1 for o in its_ if o.get('name'))} con nombre); para vender: "
+                         f"{', '.join(o.get('name') or '?' for o in sell) or 'nada'}{'' if tabp else ' (no ubico las pestañas)'}.")
+                if not sell or not tabp:
+                    import cv2
+                    cv2.imwrite(os.path.join(cfgmod.DATA, "tienda_dbg.jpg"), grab(), [cv2.IMWRITE_JPEG_QUALITY, 80])
+            except Exception:
+                pass
             if sell and tabp:
                 # de un montón apilado sale una unidad por doble clic: repito la venta hasta que no quede nada
                 # para vender (o deje de bajar el bolso), como mucho 8 vueltas

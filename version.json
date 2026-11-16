@@ -1,1 +1,1 @@
-{"version": 289, "notes": "El oro manda el de la tienda (no el leído a ojo en el bolso), y vende aunque no se lea la pestaña."}
+{"version": 291, "notes": "Reconoce el bolso abierto aunque el OCR lea mal la barra del encabezado (no lo veía en las tiendas y por eso no vendía)."}
