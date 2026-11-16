@@ -6975,7 +6975,12 @@ class Bot:
             last = getattr(self, "_gold", None)
             if d is not None and last and len(str(d)) < len(str(last)) and str(last).endswith(str(d)):
                 d = None  # se comió la primera cifra (283 -> 83)
+        last_g = getattr(self, "_gold", None)
+        if d is not None and last_g and last_g >= 1000 and d < 0.2 * last_g and getattr(self, "_gold_low", None) != d:
+            self._gold_low = d   # de miles a casi nada de golpe: casi seguro leí otro número; le creo si se repite
+            d = None
         if d is not None:
+            self._gold_low = None
             self._gold = d
             self._eco_note(d, approx)
         if gp or d is not None:

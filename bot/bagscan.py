@@ -65,21 +65,35 @@ def scan(img, pw, words=(), readnum=None):
         centers.append(c)
         cv2.circle(taken, c, int(15 * kx), 1, -1)
         cv2.rectangle(taken, (o[0] - 2, o[1] - 2), (o[2] + 2, o[3] + 2), 1, -1)
-    # 2) oro: el número en blanco (el juego abrevia: '774', '2.6k', '1.2m')
-    for w in words:
-        t = w[0].strip().lower().replace(",", ".")
+    # 2) oro: el número en blanco que está pegado al montón de oro (el juego abrevia: '774', '2.6k', '1.2m').
+    #    Los otros números blancos son cantidades de objetos apilados: no son oro.
+    inbox = sorted([w for w in words if x1 <= w[1] <= x2 and y1 <= w[2] <= y2], key=lambda w: (round(w[2] / (8 * ky)), w[1]))
+    toks = []
+    for w in inbox:
+        t = w[0].strip().lower().replace(",", ".").replace(" ", "")
+        if toks and abs(toks[-1][2] - w[2]) < 6 * ky and 0 <= w[1] - toks[-1][1] < 34 * kx and re.fullmatch(r"[\d.km]+", t) and re.fullmatch(r"[\d.]+", toks[-1][0]):
+            toks[-1] = (toks[-1][0] + t, (toks[-1][1] + w[1]) / 2.0, toks[-1][2])  # '8.' + '4k' partido por el OCR
+        else:
+            toks.append((t, w[1], w[2]))
+    cands = []
+    for t, wx, wy in toks:
         m = NUM_RE.fullmatch(t)
-        if not m or not (x1 <= w[1] <= x2 and y1 <= w[2] <= y2):
+        if not m:
             continue
-        px = img[max(0, int(w[2] - 9 * ky)):int(w[2] + 9 * ky), max(0, int(w[1] - 20 * kx)):int(w[1] + 20 * kx)].reshape(-1, 3).astype(int)
+        px = img[max(0, int(wy - 9 * ky)):int(wy + 9 * ky), max(0, int(wx - 20 * kx)):int(wx + 20 * kx)].reshape(-1, 3).astype(int)
         br = px[px.max(axis=1) > 110]
         if len(br) < 10 or ((br[:, 1] - br[:, 2]) > 40).mean() > 0.3:
             continue  # verde: es una cantidad de frascos, no el oro
-        out["gold"] = int(round(float(m.group(1)) * {"": 1, "k": 1000, "m": 1000000}[m.group(2)]))
-        out["gold_approx"] = bool(m.group(2))
-        out["gold_xy"] = (int(w[1]), int(w[2]))
-        cv2.rectangle(taken, (int(w[1] - x1 - 26 * kx), int(w[2] - y1 - 10 * ky)), (int(w[1] - x1 + 26 * kx), int(w[2] - y1 + 10 * ky)), 1, -1)
-        break
+        pile = img[max(0, int(wy - 50 * ky)):max(1, int(wy - 2 * ky)), max(0, int(wx - 62 * kx)):max(1, int(wx + 10 * kx))].reshape(-1, 3).astype(int)
+        cands.append((_colors(pile)["oro"], bool(m.group(2)), m, wx, wy))
+    if cands:
+        best = max(cands, key=lambda c: (c[0] >= 40, c[1], c[0]))
+        if best[0] >= 40 or best[1] or len(cands) == 1:
+            m, wx, wy = best[2], best[3], best[4]
+            out["gold"] = int(round(float(m.group(1)) * {"": 1, "k": 1000, "m": 1000000}[m.group(2)]))
+            out["gold_approx"] = bool(m.group(2))
+            out["gold_xy"] = (int(wx), int(wy))
+            cv2.rectangle(taken, (int(wx - x1 - 26 * kx), int(wy - y1 - 10 * ky)), (int(wx - x1 + 26 * kx), int(wy - y1 + 10 * ky)), 1, -1)
     # 3) lo demás: montón de oro, frascos sueltos sin número (hay uno solo) y objetos
     solid = ((mx > 90) & (taken == 0)).astype(np.uint8)
     solid = cv2.morphologyEx(solid, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
