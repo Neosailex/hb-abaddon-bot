@@ -4403,7 +4403,7 @@ class Bot:
         if go:
             arrived = (px, py) == (go["x"], go["y"])
             if arrived or now - go["t"] > go.get("max", 5.0):
-                tried[(go["x"], go["y"])] = now + (20 if arrived else 60)
+                tried[(go["x"], go["y"])] = now + (120 if arrived else 60)
                 self._loot_go = None
                 if arrived:
                     self.stats["loot"] = self.stats.get("loot", 0) + 1
@@ -7002,7 +7002,8 @@ class Bot:
                     self.log("🎒 Me pegan con el bolso abierto: lo cierro y me defiendo.")
                     winapi.press("F6")
                     self._busy_ui = False
-                    self._audit_t = time.time() - float(self.cfg.get("bag_audit_min", 20)) * 60 + 120
+                    self._audit_t = time.time() - float(self.cfg.get("bag_audit_min", 20)) * 60 + 600
+                    self._audit_abort = time.time()
                     return None
             except Exception:
                 pass
@@ -7146,6 +7147,8 @@ class Bot:
                     bag = self._oly_bag()
                     if bag is not None:
                         break
+                    if time.time() - getattr(self, "_audit_abort", 0) < 3:
+                        return  # me pegaron: ya cerré el bolso, sigo peleando
                 winapi.press("F6")
                 opened = not opened
                 time.sleep(1.1)
@@ -7160,8 +7163,9 @@ class Bot:
                         winapi.press("F6")  # nunca lo dejo abierto
                 except Exception:
                     pass
-                self.log("🎒 No pude abrir el bolso para revisarlo (guardé la captura). Pruebo de nuevo en 3 minutos.")
-                self._audit_t = time.time() - float(self.cfg.get("bag_audit_min", 20)) * 60 + 180
+                if time.time() - getattr(self, "_audit_abort", 0) > 15:
+                    self.log("🎒 No pude abrir el bolso para revisarlo (guardé la captura). Pruebo de nuevo en 10 minutos.")
+                self._audit_t = time.time() - float(self.cfg.get("bag_audit_min", 20)) * 60 + 600
                 return
             opened = True
             items = [o for o in bag if o["kind"] == "item"]
