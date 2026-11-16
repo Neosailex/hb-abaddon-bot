@@ -1322,7 +1322,7 @@ class Bot:
             if self._close_shop_window():
                 self.log("Cierro la ventana de la tienda antes de salir.")
                 time.sleep(0.4)
-            if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+            if bool(self._bag_open(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.4)
         except Exception:
@@ -7292,6 +7292,42 @@ class Bot:
     KEEP_WORDS = ("potion", "poción", "pocion", "gold", "oro", "ring", "anillo", "necklace", "collar", "ticket",
                   "scroll", "pergamino", "key", "llave", "baguette", "meat", "carne")
 
+    def _bag_open(self, img=None, words=None):
+        """¿Está el bolso abierto? Devuelve la palabra 'Peso:' de su encabezado, o None. El OCR de pantalla entera a
+        veces no lee ese renglón (según el fondo), así que si no aparece lo leo recortado donde lo vi la última vez."""
+        if img is None:
+            img = self.screen.grab(self.rect)
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+
+        def find(ws):
+            for w in ws:
+                if not w[0].strip().startswith("Peso"):
+                    continue
+                row = [v for v in ws if v is not w and abs(v[2] - w[2]) < 12 * ky]
+                if any(0 < w[1] - v[1] < 130 * kx for v in row):
+                    continue
+                digs = sum(c.isdigit() for c in w[0]) + sum(sum(c.isdigit() for c in v[0]) for v in row if 0 < v[1] - w[1] < 300 * kx)
+                if digs >= 4:
+                    return w
+            return None
+        if words is None:
+            try:
+                words = self._q_words(img)
+            except Exception:
+                words = []
+        pw = find(words)
+        if not pw:
+            hx, hy = getattr(self, "_bag_hdr_xy", None) or (1058 * kx, 436 * ky)
+            H, W = img.shape[:2]
+            box = {"x1": int(max(0, hx - 70 * kx)), "y1": int(max(0, hy - 45 * ky)), "x2": int(min(W, hx + 330 * kx)), "y2": int(min(H, hy + 45 * ky))}
+            try:
+                pw = find(ocr.read_words(img, box, scale=1.0))
+            except Exception:
+                pw = None
+        if pw:
+            self._bag_hdr_xy = (pw[1], pw[2])
+        return pw
+
     def _oly_bag(self, names=True):
         """Bolso abierto (F6): [{'name','x','y','kind'}] con lo que hay; kind = pot/gold/item. También deja
         self._gold con el oro leído. Pasa el mouse por cada cosa para leer el nombre en el cartelito."""
@@ -7300,18 +7336,18 @@ class Bot:
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
         img = self.screen.grab(self.rect)
         ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-        # encabezado del bolso: 'Peso: 269/325 (50/50)'. El OCR a veces lee la barra como 1 o l, así que no la exijo:
-        # alcanza con 'Peso' en mayúscula, números a su derecha en el renglón y nada pegado a su izquierda (el
-        # 'c/u, peso 10' de la tienda va en minúscula y con texto antes)
-        def _hdr(w):
-            if not w[0].strip().startswith("Peso"):
-                return False
-            row = [v for v in ws if v is not w and abs(v[2] - w[2]) < 12 * ky]
-            if any(0 < w[1] - v[1] < 130 * kx for v in row):
-                return False
-            digs = sum(c.isdigit() for c in w[0]) + sum(sum(c.isdigit() for c in v[0]) for v in row if 0 < v[1] - w[1] < 300 * kx)
-            return digs >= 4
-        pw = next((w for w in ws if _hdr(w)), None)
+        pw = self._bag_open(img, ws)
+        if pw:
+            # el contenido del bolso lo leo recortado (más estable que el renglón perdido en la pantalla entera)
+            try:
+                bx = {"x1": int(max(0, pw[1] - 45 * kx)), "y1": int(max(0, pw[2] - 16 * ky)),
+                      "x2": int(min(img.shape[1], pw[1] + 460 * kx)), "y2": int(min(img.shape[0], pw[2] + 360 * ky))}
+                wb = ocr.read_words(img, bx, scale=1.0)
+                if wb:
+                    ws = [w for w in ws if not (bx["x1"] <= w[1] <= bx["x2"] and bx["y1"] <= w[2] <= bx["y2"])] + list(wb)
+                    pw = next((w for w in wb if w[0].strip().startswith("Peso")), pw)
+            except Exception:
+                pass
         if not pw:
             return None  # 'peso' suelto (el 'c/u, peso 10' de la tienda) NO es el bolso: ahí no se toca nada
         try:
@@ -7714,7 +7750,7 @@ class Bot:
             bag = None
             for _try in range(3):
                 img = self.screen.grab(self.rect)
-                if any(w[0].strip().startswith("Peso") for w in self._q_words(img)):
+                if bool(self._bag_open(img)):
                     bag = self._oly_bag()
                     if bag is not None:
                         break
@@ -7730,7 +7766,7 @@ class Bot:
                 except Exception:
                     pass
                 try:
-                    if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+                    if bool(self._bag_open(self.screen.grab(self.rect))):
                         winapi.press("F6")  # nunca lo dejo abierto
                 except Exception:
                     pass
@@ -7838,7 +7874,7 @@ class Bot:
     def _equip_from_bag(self, name):
         """Me pongo un objeto del bolso con Ctrl + click (wiki: equipa lo que se pueda equipar)."""
         img = self.screen.grab(self.rect)
-        if not any(w[0].strip().startswith("Peso") for w in self._q_words(img)):
+        if not bool(self._bag_open(img)):
             winapi.press("F6")
             time.sleep(0.9)
         bag = self._oly_bag() or []
@@ -7869,8 +7905,7 @@ class Bot:
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
 
         def peso(img):
-            ws = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": img.shape[1], "y2": int(img.shape[0] * 0.92)}, scale=1.0)
-            return next((w for w in ws if w[0].strip().startswith("Peso")), None)
+            return self._bag_open(img)
 
         img = self.screen.grab(self.rect)
         pw = peso(img)
@@ -8027,7 +8062,7 @@ class Bot:
                 if hp_ and any(norm(v[0]) == "potion" and abs(v[2] - hp_[2]) < 8 for v in ws):
                     tabp = ("Pociones", hp_[1] + 32 * kx, hp_[2] - 47 * ky)
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
-            if not any(w[0].strip().startswith("Peso") for w in self._q_words(grab())):
+            if not bool(self._bag_open(grab())):
                 winapi.press("F6")  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender
                 time.sleep(1.1)
             bag = self._oly_bag() or []
@@ -8249,7 +8284,7 @@ class Bot:
         if not fp and not (hun is not None and hun >= int(self.cfg.get("eat_above", 50))):
             return
         opened = False
-        if not any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+        if not bool(self._bag_open(self.screen.grab(self.rect))):
             winapi.press("F6")
             time.sleep(0.9)
             opened = True
@@ -8279,7 +8314,7 @@ class Bot:
             self._hunger = None
             self._census_t = 0  # releo la ficha para ver cómo quedó el hambre
             self._bag_mem = []
-        if opened and any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+        if opened and bool(self._bag_open(self.screen.grab(self.rect))):
             winapi.press("F6")
             time.sleep(0.4)
 
@@ -8656,8 +8691,9 @@ class Bot:
         tw, th = self._tile()
         cx, cy = self._char()
         try:  # una ventana abierta (bolso, personaje) se come los clicks: las cierro antes
-            ws0 = self._q_words(self.screen.grab(self.rect))
-            if any(w[0].strip().startswith("Peso") for w in ws0):
+            im0_ = self.screen.grab(self.rect)
+            ws0 = self._q_words(im0_)
+            if self._bag_open(im0_, ws0):
                 winapi.press("F6")
                 time.sleep(0.5)
             if any(norm(w[0]).startswith("estad") for w in ws0) and any(norm(w[0]).startswith("misiones") for w in ws0):
@@ -8812,7 +8848,7 @@ class Bot:
         moved = 0
         try:
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
-            if not any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+            if not bool(self._bag_open(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.9)
             for _ in range(3):
@@ -8844,7 +8880,7 @@ class Bot:
         comprado): doble click para ponérmelo. En este cliente, equipar desde el bolso manda al bolso lo que estaba
         puesto, así que hago como mucho 'max_n' cambios y no vuelvo a tocar el mismo lugar."""
         try:
-            if not any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+            if not bool(self._bag_open(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.9)
             self._bag_tidy()
@@ -8923,7 +8959,7 @@ class Bot:
                     cfgmod.save(self.cfg)
             except Exception:
                 pass
-            if any(w[0].strip().startswith("Peso") for w in self._q_words(self.screen.grab(self.rect))):
+            if bool(self._bag_open(self.screen.grab(self.rect))):
                 winapi.press("F6")
                 time.sleep(0.4)
         except Exception as e:

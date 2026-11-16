@@ -1,1 +1,1 @@
-{"version": 291, "notes": "Reconoce el bolso abierto aunque el OCR lea mal la barra del encabezado (no lo veía en las tiendas y por eso no vendía)."}
+{"version": 292, "notes": "El bolso se reconoce leyendo su encabezado recortado (la lectura de pantalla entera fallaba según el fondo): vuelve a ver oro, pociones y qué vender."}
