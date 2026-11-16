@@ -6986,6 +6986,33 @@ class Bot:
             last = getattr(self, "_gold", None)
             if d is not None and last and len(str(d)) < len(str(last)) and str(last).endswith(str(d)):
                 d = None  # se comió la primera cifra (283 -> 83)
+        # el número exacto lo da el cartelito del montón de oro ('8.493 Gold'): sostengo el clic sobre el montón
+        try:
+            gt = None
+            rel = getattr(self, "_gold_rel", None)
+            pts = []
+            if rel:
+                pts.append((int(pw[1] + rel[0]), int(pw[2] + rel[1])))
+            if gp:
+                pts.append((int(gp[0]), int(gp[1])))
+            if sc.get("gold_xy"):
+                pts.append((int(sc["gold_xy"][0] - 17 * kx), int(sc["gold_xy"][1] - 25 * ky)))
+            pts += [(it["x"], it["y"]) for it in sorted(sc["items"], key=lambda i_: i_["area"])[:3] if it["area"] < 900 * kx * ky]
+            seen_p = []
+            for p_ in pts[:5]:
+                if any(abs(p_[0] - q[0]) < 12 and abs(p_[1] - q[1]) < 12 for q in seen_p):
+                    continue
+                seen_p.append(p_)
+                gt = self._gold_tip(p_)
+                if gt is not None:
+                    self._gold_rel = (p_[0] - pw[1], p_[1] - pw[2])
+                    break
+            if gt is not None:
+                d, approx = gt, False
+                self._gold_low = d  # lectura exacta: vale aunque haya bajado mucho
+                sc["items"] = [it for it in sc["items"] if not (abs(it["x"] - seen_p[-1][0]) < 20 and abs(it["y"] - seen_p[-1][1]) < 20)]
+        except Exception:
+            pass
         last_g = getattr(self, "_gold", None)
         if d is not None and last_g and last_g >= 1000 and d < 0.2 * last_g and getattr(self, "_gold_low", None) != d:
             self._gold_low = d   # de miles a casi nada de golpe: casi seguro leí otro número; le creo si se repite
@@ -7074,6 +7101,28 @@ class Bot:
             except Exception:
                 pass
         return out
+
+    def _gold_tip(self, pt):
+        """Sostengo el clic en ese punto del bolso y leo el cartelito: si dice 'N Gold', devuelvo N."""
+        import re
+        winapi.left_up()
+        winapi.move(*self.abs_pt(pt[0], pt[1]))
+        time.sleep(0.3)
+        winapi.left_down()
+        time.sleep(0.6)
+        im = self.screen.grab(self.rect)
+        winapi.left_up()
+        time.sleep(0.4)
+        H, W = im.shape[:2]
+        ws = ocr.read_words(im, {"x1": max(0, pt[0] - 60), "y1": max(0, pt[1] - 20), "x2": min(W, pt[0] + 420), "y2": min(H, pt[1] + 160)}, scale=1.0)
+        for w in ws:
+            if w[0].strip().lower() in ("gold", "oro"):
+                row = sorted([v for v in ws if abs(v[2] - w[2]) < 8 and v[1] < w[1]], key=lambda v: v[1])
+                t = "".join(v[0] for v in row).translate(str.maketrans({"O": "0", "o": "0", "l": "1", "I": "1", "S": "5", "B": "8"}))
+                dg = re.sub(r"[^0-9]", "", t)
+                if dg:
+                    return int(dg)
+        return None
 
     def _bag_mem_load(self):
         m = getattr(self, "_bag_mem", None)
