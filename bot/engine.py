@@ -8494,7 +8494,8 @@ class Bot:
                 txt = norm(" ".join(w[0] for w in sorted(box, key=lambda w: (round(w[2] / 9), w[1]))))
                 toks = [norm(t) for t in re.split(r"[\s()]+", it["name"]) if len(norm(t)) >= 2]
                 price_ok = str(int(it["price"])) in txt or str(int(it["price"])) in txt.replace("o", "0")
-                if not (all(t in txt for t in toks) and price_ok):
+                # la fila ya la elegí por nombre y precio exactos; si el recuadro solo deja leer el precio, alcanza
+                if not (price_ok and (all(t in txt for t in toks) or len(txt) < 24)):
                     self.log(f"🛍 Seleccioné una fila pero el recuadro no dice '{it['name']}' a {it['price']}: no compro (leí: {txt[:50]}).")
                     continue
                 cp = next((w for w in self._q_words(img) if norm(w[0]).startswith("comprar") and w[2] > t_ref[2] + 560 * ky), None)
