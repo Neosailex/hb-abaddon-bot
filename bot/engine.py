@@ -7234,6 +7234,88 @@ class Bot:
                 pass
         return out
 
+    def _oly_sell(self, sell, tabp, words, grab, click):
+        """Vender (como lo hace Juan): pestaña 'Vender' → doble clic en cada objeto del bolso (queda con recuadro
+        amarillo y aparece en la lista con su precio) → reviso que en la lista esté SOLO lo que quise vender (lo que
+        sobre lo saco con un clic) → 'Vender ítems'."""
+        import difflib
+        norm = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        ws = words(grab())
+        vt = next((w for w in ws if norm(w[0]) == "vender" and abs(w[2] - tabp[2]) < 15 * ky), None)
+        click(*(vt[1:3] if vt else (tabp[1] + 346 * kx, tabp[2])))
+        time.sleep(1.2)
+        ws = words(grab())
+        btn = next((w for w in ws if norm(w[0]) == "vender" and w[2] > tabp[2] + 300 * ky), None)
+        if not btn and not any(norm(w[0]).startswith("arrastra") for w in ws):
+            self.log("🛒 No se abrió la pestaña Vender: no toco nada (un doble clic acá equiparía el objeto).")
+            return
+        want = []
+        for o in sell:
+            g_ = self._game_item(o.get("name")) or {}
+            want.append(norm((g_.get("affix") + " " if g_.get("affix") else "") + (g_.get("name") or o.get("name") or "")))
+        winapi.left_up()
+        for o in sell:
+            x, y = self.abs_pt(o["x"], o["y"])
+            winapi.click(x, y)
+            time.sleep(0.12)
+            winapi.click(x, y)
+            time.sleep(0.7)
+        winapi.move(*self.abs_pt(int(tabp[1] + 300 * kx), int(tabp[2] - 60 * ky)))
+        time.sleep(0.5)
+
+        def listed():
+            ws_ = words(grab())
+            x_lo, x_hi = tabp[1] - 60 * kx, tabp[1] + 520 * kx
+            rows = {}
+            for w in ws_:
+                if x_lo <= w[1] <= x_hi and tabp[2] + 35 * ky < w[2] < tabp[2] + 600 * ky:
+                    rows.setdefault(round(w[2] / (11 * ky)), []).append(w)
+            out = []
+            for r_ in rows.values():
+                r_ = sorted(r_, key=lambda v: v[1])
+                txt = " ".join(v[0] for v in r_)
+                low = txt.lower()
+                if low.startswith("recibes") or "vender" in low or "arrastra" in low or "quieras" in low or "quitarlos" in low or "puedes" in low:
+                    continue
+                nm = " ".join(v[0] for v in r_ if not v[0].replace(".", "").replace(",", "").isdigit())
+                nm = nm.lstrip("0123456789 ")
+                if len(norm(nm)) >= 3:
+                    out.append((nm, r_[0][1], r_[0][2]))
+            return out, ws_
+
+        def allowed(nm):
+            k = norm(nm).rstrip(".")
+            return any(k == w_ or (len(k) >= 8 and w_.startswith(k[:len(k)])) or difflib.SequenceMatcher(None, k, w_).ratio() >= 0.82 for w_ in want)
+        for _ in range(4):
+            ls, ws = listed()
+            extra = [l for l in ls if not allowed(l[0])]
+            if not extra:
+                break
+            self.log(f"🛒 En la lista de venta apareció '{extra[0][0]}' que no quería vender: lo saco.")
+            click(extra[0][1] + 20 * kx, extra[0][2])
+            time.sleep(0.7)
+        ls, ws = listed()
+        if not ls or any(not allowed(l[0]) for l in ls):
+            self.log("🛒 La lista de venta no coincide con lo que quería vender: no vendo nada.")
+            for l in ls:
+                click(l[1] + 20 * kx, l[2])
+                time.sleep(0.4)
+            return
+        rec = next((w for w in ws if norm(w[0]).startswith("recibes")), None)
+        tot = ""
+        if rec:
+            tot = "".join(v[0] for v in sorted([v for v in ws if abs(v[2] - rec[2]) < 8 * ky and v[1] > rec[1]], key=lambda v: v[1]))
+        btn = next((w for w in ws if norm(w[0]) == "vender" and w[2] > tabp[2] + 300 * ky), None)
+        if not btn:
+            self.log("🛒 No veo el botón 'Vender ítems': no vendo.")
+            return
+        click(btn[1] + 30 * kx, btn[2])
+        time.sleep(1.5)
+        self.log("🛒 Vendí: " + ", ".join(l[0] for l in ls) + (f" (recibí {tot})" if tot else "") + ".")
+        self._bag_mem = []
+        self._bag_sell = []
+
     def _gold_tip(self, pt):
         """Sostengo el clic en ese punto del bolso y leo el cartelito: si dice 'N Gold', devuelvo N."""
         import re
@@ -7281,6 +7363,25 @@ class Bot:
         it = self._game_item(o.get("name"))
         if not it:
             return ("other", "no lo reconozco", None, None, 0)
+        if it.get("type") == 5:
+            keep_ids = getattr(self, "_quest_item_ids", None)
+            if keep_ids is None:
+                keep_ids = set()
+                try:
+                    from . import gamedata
+                    for q_ in gamedata.load_quests(self.world.game_dir) or []:
+                        for g_ in ((q_.get("objectives") or {}).get("gather") or []):
+                            keep_ids.add(int(g_["id"]))
+                except Exception:
+                    pass
+                self._quest_item_ids = keep_ids
+            if int(it.get("id", -1)) in keep_ids:
+                return ("keep", "lo pide una misión", it, None, 0)
+            # solo partes de bichos; gemas, minerales, fichas de evento y cosechas no se venden solas
+            if any(k in it["name"].lower() for k in ("token", "ore", "nugget", "diamond", "crystal", "sapphire", "ruby", "emerald",
+                                                     "coal", "mithral", "gold", "clay", "pumpkin", "radish", "mushroom", "garlic")):
+                return ("keep", "material valioso: lo decide Juan", it, None, 0)
+            return ("sell", "material de botín", it, None, 0)
         if it.get("type") != 1 or not it.get("slot"):
             return ("other", "no es equipo", it, None, 0)
         slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
@@ -7615,7 +7716,10 @@ class Bot:
         if now - getattr(self, "_shop_last", 0) < 900:
             return
         hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and (gold or 0) >= 30
-        if not hungry and (n is None or n > lim or not afford or now < getattr(self, "_pot_stuck_until", 0)):
+        bs_ = getattr(self, "_bag_slots", None)
+        full = bool(bs_ and now - bs_[2] < 1800 and bs_[0] >= bs_[1] - 6 and getattr(self, "_bag_sell", None)
+                    and self.cfg.get("sell_olympia", True))
+        if not hungry and not full and (n is None or n > lim or not afford or now < getattr(self, "_pot_stuck_until", 0)):
             return
         self._shop_last = now
         self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
@@ -7668,18 +7772,13 @@ class Bot:
             # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
             sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
                     and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
-            if not self.cfg.get("sell_olympia", False):
-                sell = []  # apagado: vendió un arma que creía tener puesta (16/11). Hasta probar bien el equipado, no vende.
+            if not self.cfg.get("sell_olympia", True):
+                sell = []
             if sell and tabp:
-                click(tabp[1] + 346 * kx, tabp[2])
-                time.sleep(1.0)
-                for o in sell:
-                    self._drag_bg(o["x"], o["y"], tabp[1] + 166 * kx, tabp[2] + 317 * ky)
-                vb = next((w for w in words(grab()) if norm(w[0]) == "vender" and w[2] > tabp[2] + 500 * ky), None)
-                click(*(vb[1:3] if vb else (tabp[1] + 170 * kx, tabp[2] + 647 * ky)))
-                time.sleep(1.5)
-                self.log("🛒 Vendí: " + ", ".join(o["name"] for o in sell) + ".")
-                self._bag_mem = []
+                try:
+                    self._oly_sell(sell, tabp, words, grab, click)
+                except Exception as e:
+                    self.log(f"🛒 No pude vender: {e!r}")
                 click(tabp[1], tabp[2])
                 time.sleep(1.0)
             self._oly_bag(names=False)  # leo el oro
