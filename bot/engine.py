@@ -7055,6 +7055,14 @@ class Bot:
         pw = next((w for w in ws if w[0].strip().lower().startswith("peso")), None)
         if not pw:
             return None
+        try:
+            import re as _re
+            row_ = " ".join(w[0] for w in sorted([w for w in ws if abs(w[2] - pw[2]) < 10 * ky and w[1] >= pw[1]], key=lambda w: w[1]))
+            m_ = _re.search(r"\((\d{1,2})\s*/\s*(\d{2})\)", row_.translate(str.maketrans({"O": "0", "o": "0", "l": "1", "I": "1"})))
+            if m_ and int(m_.group(1)) <= int(m_.group(2)) <= 200:
+                self._bag_slots = (int(m_.group(1)), int(m_.group(2)), time.time())
+        except Exception:
+            pass
         self._release()
         winapi.left_up()  # nunca pasar por el bolso con el botón apretado: arrastraría (y tiraría) cosas
         from . import bagscan
@@ -7638,6 +7646,16 @@ class Bot:
             # cuántas: hasta el objetivo de pociones, gastando como mucho un tercio del oro que sobra de la reserva
             want_n = int(self.cfg.get("pots_target", 15))
             n = self._pot_budget(gold, have)
+            # el bolso tiene lugares contados (cada poción ocupa uno): dejo 8 libres para lo que levanto del piso
+            bs = getattr(self, "_bag_slots", None)
+            if bs and time.time() - bs[2] < 120:
+                room = bs[1] - 8 - bs[0]
+                if room < n:
+                    self.log(f"🛒 Bolso con {bs[0]}/{bs[1]} lugares: compro {max(0, room)} pociones en vez de {n}.")
+                    n = max(0, room)
+                if n <= 0:
+                    self._left = {"pot": max(have, 10), "meat": 99}  # si está lleno es porque pociones tengo
+                    return
             if n <= 0:
                 if not getattr(self, "_food_pending", None):
                     self.log(f"🛒 No compro pociones: tengo {gold} de oro y guardo {reserve} para equipo.")

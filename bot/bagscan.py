@@ -49,13 +49,17 @@ def scan(img, pw, words=(), readnum=None):
            "items": [], "box": (x1, y1, x2, y2)}
     taken = np.zeros(roi.shape[:2], np.uint8)  # lo que ya sé qué es (frascos, números, oro): no es un objeto suelto
     centers = []
+    orphans = []
     # 1) cantidades en verde: cada una pertenece al frasco que tiene arriba a la izquierda
     for o in _groups(green, kx, ky):
         bb = roi[max(0, o[1] - int(36 * ky)):max(0, o[1] - int(4 * ky)), max(0, o[0] - int(30 * kx)):o[0] + int(4 * kx)]
         col = _colors(bb.reshape(-1, 3).astype(int))
         kind = max(("vida", "maná", "energía"), key=lambda k: col[k])
         if col[kind] < 25:
-            continue  # verde que no es una cantidad (el brillo de un frasco verde)
+            # no veo el frasco (puede estar tapado por otro objeto): guardo la cantidad para decidir al final
+            if (o[2] - o[0]) >= 6 * kx:
+                orphans.append(o)
+            continue
         n = readnum(img, x1 + o[0] - 3, y1 + o[1] - 3, x1 + o[2] + 3, y1 + o[3] + 3) if readnum else None
         if n is None:
             out["unknown"] = True
@@ -65,6 +69,16 @@ def scan(img, pw, words=(), readnum=None):
         centers.append(c)
         cv2.circle(taken, c, int(15 * kx), 1, -1)
         cv2.rectangle(taken, (o[0] - 2, o[1] - 2), (o[2] + 2, o[3] + 2), 1, -1)
+    # 1b) cantidad verde sin frasco a la vista: las cantidades verdes son siempre de pociones. Si no conté ninguna
+    #     de vida, la más grande es la de vida (el frasco rojo quedó tapado por una espada o un escudo).
+    if orphans and out["pots"]["vida"] == 0 and readnum:
+        vals = [(readnum(img, x1 + o[0] - 3, y1 + o[1] - 3, x1 + o[2] + 3, y1 + o[3] + 3), o) for o in orphans]
+        vals = [(v, o) for v, o in vals if v is not None and 2 <= v <= 99]
+        if vals:
+            v, o = max(vals, key=lambda t: t[0])
+            out["pots"]["vida"] = v
+            out["vida_hidden"] = True
+            cv2.rectangle(taken, (o[0] - 2, o[1] - 2), (o[2] + 2, o[3] + 2), 1, -1)
     # 2) oro: el número en blanco que está pegado al montón de oro (el juego abrevia: '774', '2.6k', '1.2m').
     #    Los otros números blancos son cantidades de objetos apilados: no son oro.
     inbox = sorted([w for w in words if x1 <= w[1] <= x2 and y1 <= w[2] <= y2], key=lambda w: (round(w[2] / (8 * ky)), w[1]))
