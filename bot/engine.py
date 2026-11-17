@@ -1178,6 +1178,12 @@ class Bot:
             self._maybe_audit()
         except Exception:
             pass
+        try:
+            self._gear_check()
+        except Exception as e_:
+            if time.time() - getattr(self, "_gc_err", 0) > 600:
+                self._gc_err = time.time()
+                self.log(f"🛡 Error en el chequeo de equipo: {e_!r}")
         self._brain_step()
         self._close_junk_windows()
         self._maybe_gear()
@@ -4431,6 +4437,8 @@ class Bot:
         return True
 
     def _town_need(self, why):
+        if any(k in str(why) for k in ("dejé de matar", "mataron")):
+            self._gear_t = 0  # leo qué tengo puesto apenas pueda
         if any(k in str(why) for k in ("dejé de matar", "mataron", "arma")):
             self._worn_suspect_until = time.time() + 900  # puede que el arma se haya salido: reviso una vez
         self._town_done = False
@@ -8095,6 +8103,172 @@ class Bot:
             elif ("defensa" in low or "(def)" in low) and nums:
                 out["def"] = nums[0]
         return out
+
+    # puntos del muñeco de la ficha (F5), relativos a la palabra 'Nivel:' a 1920x1080. Sosteniendo el clic sobre
+    # cada pieza sale su cartelito con nombre y durabilidad (probado: gorro, arma, pecho, escudo, capa, piernas, pies).
+    GEAR_PTS = ((-170, 60), (-135, 60), (-205, 105), (-170, 105), (-135, 150), (-205, 205), (-170, 205), (-170, 285), (-205, 150))
+
+    def _gear_read(self):
+        """Lo que tengo PUESTO de verdad, leído del muñeco de la ficha. Devuelve {nombre: {name, dur, dur_max, dmg,
+        def}} o None si no pude abrir/leer la ficha. Sirve para cualquier personaje y servidor con este cliente."""
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+
+        def anchor():
+            im = self.screen.grab(self.rect)
+            H, W = im.shape[:2]
+            ws = ocr.read_words(im, {"x1": int(W * 0.12), "y1": int(H * 0.1), "x2": int(W * 0.62), "y2": int(H * 0.86)}, scale=1.0)
+            nv = next((w for w in ws if w[0].strip().lower().startswith("nivel")), None)
+            if nv and any(w[0].strip().lower().startswith(("talentos", "hambre", "exp")) for w in ws):
+                return nv
+            return None
+        self._release()
+        nv = anchor()
+        opened = False
+        if not nv:
+            winapi.press("F5")
+            time.sleep(1.3)
+            opened = True
+            nv = anchor()
+        if not nv:
+            if opened:
+                winapi.press("F5")  # no la reconocí: la dejo como estaba
+                time.sleep(0.4)
+            return None
+        out = {}
+        try:
+            for dx, dy in self.GEAR_PTS:
+                x, y = int(nv[1] + dx * kx), int(nv[2] + dy * ky)
+                winapi.left_up()
+                winapi.move(*self.abs_pt(x, y))
+                time.sleep(0.25)
+                winapi.left_down()
+                time.sleep(0.6)
+                im2 = self.screen.grab(self.rect)
+                winapi.left_up()
+                time.sleep(0.25)
+                x1, y1 = max(0, int(x - 14 * kx)), max(0, int(y + 44 * ky))
+                box = {"x1": x1, "y1": y1, "x2": min(im2.shape[1], int(x + 470 * kx)), "y2": min(im2.shape[0], int(y + 190 * ky))}
+                tw = ocr.read_words(im2, box, scale=1.0)
+                # renglones del cartelito: arrancan pegados a su borde izquierdo; lo que quede a la derecha tras un hueco
+                # grande es texto de la ficha que se ve atrás
+                lines = []
+                for w in sorted(tw, key=lambda w: (w[2], w[1])):
+                    if lines and abs(w[2] - lines[-1][0][2]) < 9 * ky:
+                        lines[-1].append(w)
+                    else:
+                        lines.append([w])
+                keep = []
+                for ln in lines:
+                    ln = sorted(ln, key=lambda w: w[1])
+                    if ln[0][1] - len(ln[0][0]) * 4.6 * kx > x1 + 34 * kx:
+                        continue
+                    row = [ln[0]]
+                    for w in ln[1:]:
+                        gap = w[1] - row[-1][1] - (len(w[0]) + len(row[-1][0])) * 4.6 * kx
+                        if gap > 55 * kx:
+                            break
+                        row.append(w)
+                    keep.append(row)
+                if not keep:
+                    continue
+                name = " ".join(w[0] for w in keep[0]).strip()
+                tp = self._tip_parse([w for r in keep[1:] for w in r], tol=9 * ky) if len(keep) > 1 else {}
+                if not name or not any(k in tp for k in ("dur", "dmg", "def")):
+                    continue
+                if any(k in name.lower() for k in ("nivel", "exp", "peso", "hambre", "talentos", "contrib", "reput", "majest")):
+                    continue
+                d = {"name": name, "dur": tp.get("dur"), "dur_max": tp.get("dur_max"), "dmg": tp.get("dmg"), "def": tp.get("def")}
+                if name not in out or (d["dur_max"] and not out[name].get("dur_max")):
+                    out[name] = d
+        finally:
+            winapi.left_up()
+            if anchor():
+                winapi.press("F5")
+                time.sleep(0.5)
+        return out
+
+    def _gear_slot(self, d):
+        it = self._game_item(d["name"]) or {}
+        if d.get("dmg") or str(it.get("slot") or "").startswith("arma"):
+            return "arma"
+        if it.get("slot"):
+            return it["slot"]
+        low = d["name"].lower()
+        for k, sl in (("shield", "escudo"), ("cape", "capa"), ("cap(", "cabeza"), ("helm", "cabeza"), ("hat", "cabeza"), ("shoes", "pies"),
+                      ("boots", "pies"), ("trousers", "piernas"), ("hose", "piernas"), ("leggings", "piernas"), ("hauberk", "brazos"),
+                      ("shirt", "pecho"), ("tunic", "pecho"), ("armor", "pecho"), ("mail", "pecho"), ("robe", "pecho")):
+            if k in low:
+                return sl
+        return "otro:" + low
+
+    def _gear_check(self, force=False):
+        """SUPERVIVENCIA: cada 10 minutos (y enseguida si dejé de matar, me mataron o volví del herrero) leo qué tengo
+        puesto. Sin arma no se pelea: pueblo ya. Si se salió una pieza: reparar y volver a ponerla. Si a algo le queda
+        poca durabilidad: herrero ANTES de que se rompa. De paso el plan de compras sabe de verdad qué tengo."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.running or self.pos.get("x") is None:
+            return
+        now = time.time()
+        every = float(self.cfg.get("gear_check_min", 10)) * 60
+        if not force and now - getattr(self, "_gear_t", 0) < every:
+            return
+        if getattr(self, "mission", None) or getattr(self, "_busy_ui", False) or getattr(self, "goto", None):
+            return
+        for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th", "_audit_th", "_town_th"):
+            th = getattr(self, a, None)
+            if th is not None and th.is_alive():
+                return
+        if self.state == "attack" or self._under_attack() or self._adjacent_mobs() >= 1 or now < getattr(self, "_rabia_until", 0):
+            return
+        self._gear_t = now
+        self._busy_ui = True
+        self._busy_t0 = now
+        try:
+            g = self._gear_read()
+        finally:
+            self._busy_ui = False
+        if g is None:
+            self._gear_t = now - every + 120  # no pude leer la ficha: pruebo en 2 minutos
+            return
+        items = list(g.values())
+        worn, weapon = {}, None
+        for d in items:
+            sl = self._gear_slot(d)
+            worn[sl] = {"name": d["name"], "v": int(d.get("dmg") or d.get("def") or 0), "ok": True,
+                        "dur": d.get("dur"), "dur_max": d.get("dur_max")}
+            if sl == "arma":
+                weapon = d
+        prev = self.cfg.get("worn") or {}
+        missing = [f"{prev[sl].get('name')}" for sl in prev if isinstance(prev[sl], dict) and prev[sl].get("ok") and sl not in worn
+                   and not str(prev[sl].get("name") or "").startswith("?") and not sl.startswith("otro:")]
+        low = [d for d in items if d.get("dur_max") and d.get("dur") is not None and d["dur"] <= max(0.15 * d["dur_max"], 45)]
+        sig = tuple(sorted((sl, w["name"]) for sl, w in worn.items()))
+        self.cfg["worn"] = worn
+        try:
+            cfgmod.save(self.cfg)
+        except Exception:
+            pass
+        if sig != getattr(self, "_gear_sig", None) or now - getattr(self, "_gear_said", 0) > 3600:
+            self._gear_sig, self._gear_said = sig, now
+            self.log("🛡 Tengo puesto: " + ("; ".join(f"{w['name']}" + (f" {w['dur']}/{w['dur_max']}" if w.get("dur_max") else "")
+                                                    for sl, w in sorted(worn.items())) or "NADA") + ".")
+        if not weapon:
+            self.log("⛔ SIN ARMA: no peleo así. Voy al pueblo a reparar/ponerme una.")
+            self._worn_suspect_until = now + 900
+            self._broken_t = now
+            self._gear_t = now - every + 240
+            self._town_need("sin arma")
+        elif missing:
+            self.log("🛡 Se me salió: " + ", ".join(missing) + ". Voy a repararlo y ponérmelo de nuevo.")
+            self._broken_t = now
+            self._worn_seen = now
+            self._gear_t = now - every + 300
+            self._town_need("se salió parte del equipo")
+        elif low and now - getattr(self, "_rep_last", 0) > 600:
+            self.log("🔧 Poca durabilidad en " + ", ".join(f"{d['name']} ({d['dur']}/{d['dur_max']})" for d in low) + ": voy al herrero antes de que se rompa.")
+            th = getattr(self, "_rep_th", None)
+            if not (th is not None and th.is_alive()):
+                self._rep_th = threading.Thread(target=self._oly_repair_trip, args=("poca durabilidad",), daemon=True)
+                self._rep_th.start()
 
     def _maybe_audit(self):
         """Cada tanto, parado y sin bichos cerca, abro el bolso (F6) y paso el mouse por cada cosa: el cartelito dice
