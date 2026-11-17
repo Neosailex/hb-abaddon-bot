@@ -1185,6 +1185,12 @@ class Bot:
                 self._gc_err = time.time()
                 self.log(f"🛡 Error en el chequeo de equipo: {e_!r}")
         self._brain_step()
+        try:
+            if not getattr(self, "_busy_ui", False) and time.time() - getattr(self, "_dropno_t", 0) > 6:
+                self._dropno_t = time.time()
+                self._drop_no()
+        except Exception:
+            pass
         self._close_junk_windows()
         self._maybe_gear()
         try:
@@ -1401,8 +1407,39 @@ class Bot:
             pass
         return False
 
+    def _drop_no(self, img=None):
+        """Cartel '¿Estás seguro de que quieres tirar este objeto?' (sale abajo a la derecha si un arrastre cae fuera
+        del bolso): SIEMPRE 'No'. Lo leo recortado, porque la lectura de pantalla entera no llega ahí abajo."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.rect:
+            return False
+        img = img if img is not None else self.screen.grab(self.rect)
+        H, W = img.shape[:2]
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        for bx in ({"x1": int(W * 0.60), "y1": int(H * 0.70), "x2": W, "y2": int(H * 0.96)},
+                   {"x1": int(W * 0.20), "y1": int(H * 0.25), "x2": int(W * 0.80), "y2": int(H * 0.75)}):
+            ws = ocr.read_words(img, bx, scale=1.0)
+            hit = next((w for w in ws if norm(w[0]) == "tirar"), None)
+            if not hit or not any(norm(w[0]) in ("seguro", "quieres", "objeto") for w in ws):
+                continue
+            no = next((w for w in ws if norm(w[0]) == "no" and 0 < w[2] - hit[2] < H * 0.09), None)
+            if not no:
+                si = next((w for w in ws if norm(w[0]) in ("si", "sí") and 0 < w[2] - hit[2] < H * 0.09), None)
+                if not si:
+                    continue
+                no = ("No", si[1] + int(W * 0.102), si[2])  # el botón 'No' está a la derecha del 'Sí'
+            winapi.left_up()
+            winapi.click(*self.abs_pt(no[1], no[2]))
+            time.sleep(0.5)
+            self.log("🚫 Había quedado abierto el cartel de tirar un objeto: respondí 'No' (nunca tiro nada).")
+            return True
+        return False
+
     def _ui_clear(self):
         """Antes de caminar: nada abierto (tienda o bolso). Con una ventana abierta el personaje no camina."""
+        try:
+            self._drop_no()
+        except Exception:
+            pass
         try:
             if self._close_shop_window():
                 self.log("Cierro la ventana de la tienda antes de salir.")
@@ -8182,6 +8219,10 @@ class Bot:
                     out[name] = d
         finally:
             winapi.left_up()
+            try:
+                self._drop_no()
+            except Exception:
+                pass
             if anchor():
                 winapi.press("F5")
                 time.sleep(0.5)
@@ -8644,7 +8685,7 @@ class Bot:
             bag = self._oly_bag() or []
             # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
             sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
-                    and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
+                    and (o.get("name") == "Mana Potion" or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
             if not self.cfg.get("sell_olympia", True):
                 sell = []
             try:
@@ -8678,7 +8719,7 @@ class Bot:
                         break
                     bag = self._oly_bag() or []
                     sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
-                            and not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS)]
+                            and (o.get("name") == "Mana Potion" or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
                     if not sell:
                         break
                 click(tabp[1], tabp[2])
