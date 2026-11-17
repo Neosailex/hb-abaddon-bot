@@ -10215,6 +10215,15 @@ class Bot:
                 except Exception:
                     pass
 
+            # 0) primero separo lo que está encimado (un objeto tapando una pila: la Chemise arriba del maná)
+            try:
+                if self._bag_tidy():
+                    moved += 1
+                    self._bag_scan = None
+                    bag = self._oly_bag() or []
+                    sc = getattr(self, "_bag_scan", None) or sc
+            except Exception:
+                pass
             # 1) despejo la columna: lo que no es frasco ni comida y está en un lugar fijo, va a un lugar libre
             food_names = ("baguette", "meat", "bread", "carne", "pan ")
             sc2 = dict(sc, pot_xy=list(sc.get("pot_xy") or []) + list(slots.values()))
