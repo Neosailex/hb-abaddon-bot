@@ -6043,6 +6043,20 @@ class Bot:
                     if m.ok(*wp) and m.los((px, py), wp) and not m.near_tele(wp[0], wp[1], 1):
                         break
                 self.log("Trabado: pruebo para otro lado.")
+                if n_st >= 9 and n_st % 9 == 0:
+                    # muchas veces trabado seguido: algo en la pantalla me frena (ventana abierta, tecla apretada,
+                    # objeto en el cursor). Suelto todas las teclas, cierro ventanas y guardo una captura.
+                    try:
+                        for k_ in ("ALT", "SHIFT", "CTRL"):
+                            winapi.key_up(k_)
+                        winapi.left_up()
+                        self._drop_no()
+                        self._ui_clear()
+                        import cv2
+                        cv2.imwrite(os.path.join(cfgmod.DATA, "trabado_dbg.jpg"), self.screen.grab(self.rect), [cv2.IMWRITE_JPEG_QUALITY, 75])
+                        self.log("🧹 Trabado muchas veces seguidas: solté teclas, cerré ventanas y guardé una captura (trabado_dbg.jpg).")
+                    except Exception:
+                        pass
         tw, th = self._tile()
         cx, cy = self._char()
         # en Helbreath se camina manteniendo el click: muevo el cursor hacia el próximo punto y lo dejo apretado
@@ -8305,6 +8319,13 @@ class Bot:
             return ("sell", "poción de maná: un guerrero no la usa y ocupa lugar", it, None, 0)
         if it.get("type") != 1 or not it.get("slot"):
             return ("other", "no es equipo", it, None, 0)
+        # ropa de mujer (W) / de hombre (M): solo me sirve la de mi sexo (lo sé por lo que tengo puesto)
+        nm_ = str(o.get("name") or it.get("name") or "")
+        worn_names = " ".join(str((v or {}).get("name") or "") for v in (self.cfg.get("worn") or {}).values())
+        mine = "(M)" if "(M)" in worn_names else ("(W)" if "(W)" in worn_names else None)
+        if mine and nm_.rstrip().endswith(("(M)", "(W)")) and not nm_.rstrip().endswith(mine):
+            affix_ = nm_.split()[0] not in (it.get("name") or "").split()[:1]
+            return ("keep" if affix_ else "sell", "es ropa del otro sexo: no me la puedo poner", it, None, 0)
         slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
         val = int(it.get("dmg") or it.get("def") or 0)
         worn = (self.cfg.get("worn") or {}).get(slot)
@@ -10896,7 +10917,9 @@ class Bot:
                 # recuadro de abajo: nombre del objeto elegido y su precio 'N c/u'
                 box = ocr.read_words(img, {"x1": int(t_ref[1] - 75), "y1": int(t_ref[2] + 440), "x2": int(t_ref[1] + 470), "y2": int(t_ref[2] + 590)}, scale=1.0)
                 txt = norm(" ".join(w[0] for w in sorted(box, key=lambda w: (round(w[2] / 9), w[1]))))
-                toks = [norm(t) for t in re.split(r"[\s()]+", it["name"]) if len(norm(t)) >= 2]
+                # errores típicos del OCR en este recuadro: 'rn' por 'm' ('clayrnore'), 'l'/'I' por '1'
+                txt = txt.replace("rn", "m")
+                toks = [norm(t).replace("rn", "m") for t in re.split(r"[\s()]+", it["name"]) if len(norm(t)) >= 2]
                 price_ok = str(int(it["price"])) in txt or str(int(it["price"])) in txt.replace("o", "0")
                 # la fila ya la elegí por nombre y precio exactos; si el recuadro solo deja leer el precio, alcanza
                 if not (price_ok and (all(t in txt for t in toks) or len(txt) < 24)):
