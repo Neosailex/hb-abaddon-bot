@@ -8917,10 +8917,24 @@ class Bot:
             if not inshop():
                 self.mission = {"map": "Aresden Farm", "goal": [63, 69], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
                 wrongb = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("warehouse", "blacksmith", "hall", "guild", "church"))
+                last_out = None
                 while not inshop() and not wrongb() and time.time() - t0 < 900 and self.alive and self.running:
+                    if "farm" in (self.pos.get("map") or "").lower() and self.pos.get("x") is not None:
+                        last_out = (int(self.pos["x"]), int(self.pos["y"]))
                     time.sleep(0.3)
                 if wrongb():
-                    self.log(f"🛒 Entré a {self.pos.get('map')} en vez de la tienda (estaba en otro mapa del que creía): salgo y pruebo de nuevo en unos minutos.")
+                    self.log(f"🛒 Entré a {self.pos.get('map')} en vez de la tienda: salgo y pruebo de nuevo en unos minutos.")
+                    # la última baldosa de la granja antes de entrar es la puerta equivocada: no la piso más (si no está
+                    # pegada a la puerta de la tienda)
+                    try:
+                        if last_out and max(abs(last_out[0] - 63), abs(last_out[1] - 69)) >= 3:
+                            bl = self.world.learn.setdefault("no_pisar", {}).setdefault("aresden farm", [])
+                            if list(last_out) not in bl:
+                                bl.append(list(last_out))
+                                self.world.save()
+                                self.log(f"🚫 Anoto ({last_out[0]},{last_out[1]}) de la granja como puerta de {self.pos.get('map')}: no la vuelvo a pisar.")
+                    except Exception:
+                        pass
                     self.mission = None
                     self._shop_last = time.time() - 660
                     return
