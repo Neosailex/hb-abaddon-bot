@@ -5477,6 +5477,12 @@ class Bot:
             try:
                 mk = (self.pos.get("map") or "").strip().lower()
                 h = (self.world.learn.get("oly_hot") or {}).get(mk)
+                if h and (self._pit_deadly({"x": h["x"], "y": h["y"]}) if hasattr(self, "_pit_deadly") else False):
+                    # la zona buena quedó donde me mataron (nido que me queda grande): no vuelvo ahí
+                    del self.world.learn["oly_hot"][mk]
+                    self._hot_go = None
+                    self.log(f"🎯 Mi zona buena ({h['x']},{h['y']}) es donde me mataron: la descarto.")
+                    h = None
                 if h and max(abs(h["x"] - px), abs(h["y"] - py)) <= 8 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
                     # llegué a mi zona buena y no hay nada: ya no es buena. La borro y voy a un nido ahora, sin esperar.
                     del self.world.learn["oly_hot"][mk]
