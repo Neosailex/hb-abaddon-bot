@@ -62,6 +62,14 @@ def scan(img, pw, words=(), readnum=None):
             continue
         n = readnum(img, x1 + o[0] - 3, y1 + o[1] - 3, x1 + o[2] + 3, y1 + o[3] + 3) if readnum else None
         if n is None:
+            # mi lector de cifras no pudo: uso el número que leyó el OCR de la ventana en ese mismo lugar
+            for w in words:
+                t = str(w[0]).strip()
+                if t.isdigit() and 1 <= int(t) <= 999 and x1 + o[0] - 8 * kx <= w[1] <= x1 + o[2] + 8 * kx \
+                        and y1 + o[1] - 8 * ky <= w[2] <= y1 + o[3] + 8 * ky:
+                    n = int(t)
+                    break
+        if n is None:
             out["unknown"] = True
             n = 2  # con número a la vista hay al menos dos
         out["pots"][kind] += n

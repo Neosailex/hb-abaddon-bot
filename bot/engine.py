@@ -7982,6 +7982,33 @@ class Bot:
                 # nombre y los datos ('Shirt(M)' / 'Oro (Gold) +21%' / 'Recuperación HP +10%' / 'DR 5')
                 if not o.get("name") or (self._game_item(top_nm) and not self._game_item(o.get("name"))):
                     o["name"] = top_nm
+                if not self._game_item(o.get("name")):
+                    # cualquier renglón del cartelito que sea un objeto del juego es el nombre (va arriba de los bonus)
+                    rows_t = {}
+                    for w in tw_:
+                        rows_t.setdefault(round(w[2] / (9 * ky)), []).append(w)
+                    for k_ in sorted(rows_t)[:3]:
+                        ln_ = " ".join(w[0] for w in sorted(rows_t[k_], key=lambda w: w[1])).strip()
+                        if len(ln_) >= 4 and "+" not in ln_ and ":" not in ln_ and self._game_item(ln_):
+                            o["name"] = ln_
+                            break
+                if not self._game_item(o.get("name")) and len(xs_) > 200:
+                    # los objetos con bonus tienen el nombre en verde oscuro y el OCR común lo saltea: leo agrandada
+                    # la franja de arriba del cartelito
+                    try:
+                        import cv2
+                        cy0 = max(0, int(top - 34 * ky))
+                        strip = im2[cy0:int(top - 6 * ky), int(xs_.min()):int(xs_.max()) + 1]
+                        if strip.size:
+                            g3 = cv2.cvtColor(strip.max(axis=2), cv2.COLOR_GRAY2BGR)
+                            for sc_ in (3.0, 2.0):
+                                sw = ocr.read_words(g3, {"x1": 0, "y1": 0, "x2": g3.shape[1], "y2": g3.shape[0]}, scale=sc_)
+                                nm2 = " ".join(w[0] for w in sorted(sw, key=lambda w: w[1])).strip()
+                                if nm2 and self._game_item(nm2):
+                                    o["name"] = nm2
+                                    break
+                    except Exception:
+                        pass
             if any(k in o["name"].lower() for k in ("potion", "poción", "pocion")):
                 o["kind"] = "pot"
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
@@ -9815,14 +9842,33 @@ class Bot:
         if not tt and not any(norm(w[0]) in ("arrastra", "dañado", "danado", "repararlo") for w in ws):
             self.log("🔧 No se abrió la ventana 'Reparar'.")
             return 0
+        fixed = []
+        # lo que ya está en la lista (quedó marcado de una vez anterior: en el bolso se ve con borde amarillo y así no
+        # se puede equipar ni leer): un clic en su renglón lo repara
+        try:
+            y_hi0 = (tt[2] - 14 * ky) if tt else self.rect[3] * 0.8
+            y_lo0 = (tt[2] - 340 * ky) if tt else self.rect[3] * 0.1
+            rows_ = {}
+            for w in ws:
+                if y_lo0 < w[2] < y_hi0:
+                    rows_.setdefault(round(w[2] / (11 * ky)), []).append(w)
+            for r_ in list(rows_.values())[:5]:
+                r_ = sorted(r_, key=lambda v: v[1])
+                nm_ = " ".join(v[0] for v in r_ if not v[0].replace(".", "").replace(",", "").isdigit()).strip()
+                gi_ = self._game_item(nm_) if len(norm(nm_)) >= 4 else None
+                if gi_ and gi_.get("type") == 1:
+                    winapi.click(*self.abs_pt(r_[0][1], r_[0][2]))
+                    time.sleep(1.2)
+                    fixed.append(gi_.get("name") or nm_)
+        except Exception:
+            pass
         if not bh:
             winapi.press("F6")
             time.sleep(1.1)
         bag = self._oly_bag() or []
         brk = [o for o in bag if o["kind"] == "item" and o.get("name") and (o.get("dur") == 0 or self._bag_judge(o)[0] == "broken")][:6]
-        if not brk:
+        if not brk and not fixed:
             self.log("🔧 En el bolso no veo nada roto para reparar.")
-        fixed = []
         for o in brk:
             x, y = self.abs_pt(o["x"], o["y"])
             winapi.click(x, y)

@@ -1,1 +1,1 @@
-{"version": 328, "notes": "Cartel de tirar: lo contesta No esté donde esté (trababa al bot). Herrero: aprende cada cuánto reparar según el desgaste y no vuelve cada 7 minutos si no hay nada roto. Nombres de objetos con bonus bien leídos."}
+{"version": 329, "notes": "Cuenta bien las pociones cuando el lector de cifras falla, repara lo que quedó marcado en la lista del herrero y lee el nombre de los objetos con bonus."}
