@@ -1413,9 +1413,17 @@ class Bot:
             t = " ".join(norm(w[0]) for w in words)
             hits = sum(k in t for k in ("opciones", "discord", "ticket", "capturas", "sesión", "sesion", "noticias", "eventos"))
             if hits >= 3:
-                # ESC mandado por el bot no lo cierra, y no estoy seguro de qué hace cada botón de la barra de abajo
-                # (uno puede cerrar la sesión). Con el menú abierto NO hago ningún clic: me quedo quieto y aviso.
+                # se cierra con clic DERECHO en la ventana (Juan). Lo hago sobre el título 'Menú del juego', lejos de
+                # los botones (un clic izquierdo en un botón abre Discord o cierra la sesión).
                 self._release()
+                tit = next((w for w in words if norm(w[0]) in ("menú", "menu")), None)
+                if tit and time.time() - getattr(self, "_gm_rc", 0) > 4:
+                    self._gm_rc = time.time()
+                    winapi.left_up()
+                    winapi.click(*self.abs_pt(tit[1], tit[2]), button="right")
+                    time.sleep(0.6)
+                    self.log("🗙 Cerré el menú del juego (clic derecho en el título).")
+                    return True
                 if time.time() - getattr(self, "_gm_said", 0) > 60:
                     self._gm_said = time.time()
                     self.log("⛔ El menú del juego está abierto: no toco nada hasta que se cierre (un clic ahí abre Discord o cierra la sesión).")
@@ -5742,7 +5750,8 @@ class Bot:
                     winapi.key_down("ALT")
                     time.sleep(0.05)
                 try:
-                    winapi.click(*self.abs_pt(tx_, ty_), button="right")
+                    # golpe crítico (Juan): Alt apretado + clic IZQUIERDO sobre el bicho
+                    winapi.click(*self.abs_pt(tx_, ty_), button="left" if crit_ else "right")
                 finally:
                     if crit_:
                         time.sleep(0.08)
