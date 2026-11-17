@@ -1,1 +1,1 @@
-{"version": 349, "notes": "Al cambiar de personaje no borra nada: guarda lo del anterior en personajes/ y si vuelve un personaje conocido le devuelve lo suyo."}
+{"version": 350, "notes": "Ir a buscar una misión nunca lo lleva a una mazmorra (se moría cruzando la Farm Dungeon). Cierra las ventanas de evento, grupo, magia y resumen de muerte."}

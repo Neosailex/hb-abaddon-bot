@@ -7587,6 +7587,9 @@ class Bot:
         cands.sort(key=lambda c: (not self._same(c[0], stay or cur0), not self._same(c[0], cur0)))
         if stay:
             cands = [c for c in cands if self._same(c[0], stay)]
+        # ir a buscar una misión nunca puede llevarme a morir: nada de mazmorras (para llegar se cruzan nidos
+        # peligrosos: pasó con Daara en Middleland Dungeon, 4 muertes en Farm Dungeon) salvo que ya esté ahí
+        cands = [c for c in cands if self._same(c[0], cur0) or "dungeon" not in c[0].lower()]
         for mp_, xy in cands:
             loc = (mp_, xy[0], xy[1])
             break
