@@ -1,1 +1,1 @@
-{"version": 325, "notes": "Reconoce cuando el personaje es otro (ej. uno nuevo de nivel 1): conserva lo aprendido del servidor y borra lo que era del personaje anterior."}
+{"version": 326, "notes": "Arreglo del reparto de puntos en loop (un stat mal leído), venta de pociones verdes de más y diagnóstico de ventas que no entran en la lista."}

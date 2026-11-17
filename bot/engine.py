@@ -3393,6 +3393,20 @@ class Bot:
             prev = None
         else:
             self._pj_cand = None
+            if prev and isinstance(prev.get("stats"), dict):
+                # mismo personaje: un stat nunca baja. Si leo menos que la vez anterior, leí mal una cifra (me pasó:
+                # STR 60 leído 50 → creía tener 10 puntos sin repartir y abría 'Subir nivel' cada 20 segundos).
+                fixed = False
+                for n in names:
+                    pv = prev["stats"].get(n)
+                    if pv is not None and best[n] < pv:
+                        best[n] = pv
+                        fixed = True
+                if fixed:
+                    pend = per * (lvl - 1) - (sum(best[n] for n in names) - start)
+                    if pend < 0:
+                        self._sheet_fail = getattr(self, "_sheet_fail", 0) + 1
+                        return None
         sh = {"t": time.time(), "level": lvl, "exp": best.get("EXP"), "next": best.get("NEXT"), "pending": max(0, pend),
               "stats": {n: best[n] for n in names}}
         # 'Exp' es la del nivel actual (vuelve a cero al subir): armo un total que no retrocede para medir exp por hora
@@ -3842,6 +3856,8 @@ class Bot:
             if sh0["pending"] <= 0:
                 self._stats_fail = 0
                 return  # no hay nada para repartir: ni abro la ventana
+            if getattr(self, "_stats_block", None) == (sh0["level"], sh0["pending"]):
+                return  # ya probé dos veces con esta misma ficha y no cambió nada: no insisto hasta subir de nivel
             self._stats_force = sh0["pending"]
             try:
                 self._do_stats_ui()
@@ -3852,7 +3868,16 @@ class Bot:
                         self.log("📈 Stats confirmados en la ficha: " + ", ".join(f"+{v} {k}" for k, v in dif.items())
                                  + (f" (quedan {sh1['pending']})" if sh1["pending"] else "") + ".")
                     elif sh1["pending"]:
-                        self.log(f"Stats: siguen {sh1['pending']} puntos sin repartir; pruebo más tarde.")
+                        self._stats_noeff = getattr(self, "_stats_noeff", 0) + 1
+                        if self._stats_noeff >= 2:
+                            self._stats_noeff = 0
+                            self._stats_block = (sh1["level"], sh1["pending"])
+                            self.log(f"Stats: la ficha dice que quedan {sh1['pending']} puntos pero repartir no cambia nada "
+                                     f"(seguro leí mal un número): no vuelvo a probar hasta subir de nivel.")
+                        else:
+                            self.log(f"Stats: siguen {sh1['pending']} puntos sin repartir; pruebo más tarde.")
+                    if dif:
+                        self._stats_noeff = 0
                 return
             finally:
                 self._stats_force = None
@@ -7936,6 +7961,10 @@ class Bot:
                     if kd_ == "maná":
                         out.append({"x": int(x_), "y": int(y_), "kind": "item", "name": "Mana Potion", "area": 0,
                                     "rx": int(x_ - pw[1]), "ry": int(y_ - pw[2])})
+                    elif kd_ == "energía" and int((sc.get("pots") or {}).get("energía") or 0) > int(self.cfg.get("keep_sp_pots", 4)) \
+                            and not sc.get("unknown"):
+                        out.append({"x": int(x_), "y": int(y_), "kind": "item", "name": "Revitalizing Potion", "area": 0,
+                                    "rx": int(x_ - pw[1]), "ry": int(y_ - pw[2]), "surplus": True})
         except Exception:
             pass
         return out
@@ -7985,6 +8014,11 @@ class Bot:
                         except Exception:
                             pass
                     if cq:
+                        try:
+                            import cv2
+                            cv2.imwrite(os.path.join(cfgmod.DATA, "venta_cuantos.jpg"), imq, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        except Exception:
+                            pass
                         can = next((w for w in wq if nq(w[0]) == "cancelar" and 0 < w[2] - cq[2] < 220 * ky), None)
                         bq = can and next((w for w in wq if nq(w[0]) == "vender" and abs(w[2] - can[2]) < 12 * ky and w[1] < can[1]), None)
                         if bq:
@@ -8035,7 +8069,16 @@ class Bot:
             time.sleep(0.7)
         ls, ws = listed()
         if not ls:
-            return False  # no quedó nada en la lista (ya no había nada en ese lugar del bolso)
+            # no quedó nada en la lista (ya no había nada en ese lugar del bolso, o el doble clic no lo agarró)
+            if time.time() - getattr(self, "_sell_miss_t", 0) > 120:
+                self._sell_miss_t = time.time()
+                self.log("🛒 Quise vender " + ", ".join(o.get("name") or "?" for o in sell) + " pero no apareció en la lista de venta: guardé la captura.")
+                try:
+                    import cv2
+                    cv2.imwrite(os.path.join(cfgmod.DATA, "venta_vacia.jpg"), grab(), [cv2.IMWRITE_JPEG_QUALITY, 80])
+                except Exception:
+                    pass
+            return False
         if any(not allowed(l[0]) for l in ls):
             self.log("🛒 La lista de venta no coincide con lo que quería vender: no vendo nada.")
             for l in ls:
@@ -8102,6 +8145,8 @@ class Bot:
     def _bag_judge(self, o):
         """Qué hago con un objeto del bolso: ('equip'|'sell'|'keep'|'broken'|'other', motivo, ficha, casillero, valor)."""
         it = self._game_item(o.get("name"))
+        if o.get("surplus"):
+            return ("sell", "pociones de energía de más: cada frasco ocupa un lugar del bolso", it, None, 0)
         if not it:
             return ("other", "no lo reconozco", None, None, 0)
         if it.get("type") == 5:
@@ -8765,7 +8810,7 @@ class Bot:
             bag = self._oly_bag(loose=True) or []
             # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
             sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
-                    and (o.get("name") == "Mana Potion" or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
+                    and (o.get("name") == "Mana Potion" or o.get("surplus") or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
             if not self.cfg.get("sell_olympia", True):
                 sell = []
             try:
@@ -8799,7 +8844,7 @@ class Bot:
                         break
                     bag = self._oly_bag(loose=True) or []
                     sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
-                            and (o.get("name") == "Mana Potion" or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
+                            and (o.get("name") == "Mana Potion" or o.get("surplus") or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
                     if not sell:
                         break
                 click(tabp[1], tabp[2])
