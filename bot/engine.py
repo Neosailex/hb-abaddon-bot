@@ -7850,8 +7850,15 @@ class Bot:
                 # confirmo con el botón 'Vender' del cartel (el que tiene 'Cancelar' al lado)
                 try:
                     nq = lambda t: "".join(c for c in t.lower() if c.isalnum())
-                    wq = words(grab())
+                    imq = grab()
+                    wq = words(imq)
                     cq = next((w for w in wq if nq(w[0]).startswith(("disponible", "cuantos", "cuántos"))), None)
+                    if not cq and reps == 1:
+                        try:
+                            import cv2
+                            cv2.imwrite(os.path.join(cfgmod.DATA, "venta_dbg.jpg"), imq, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                        except Exception:
+                            pass
                     if cq:
                         can = next((w for w in wq if nq(w[0]) == "cancelar" and 0 < w[2] - cq[2] < 220 * ky), None)
                         bq = can and next((w for w in wq if nq(w[0]) == "vender" and abs(w[2] - can[2]) < 12 * ky and w[1] < can[1]), None)
@@ -7881,8 +7888,9 @@ class Bot:
                 r_ = sorted(r_, key=lambda v: v[1])
                 txt = " ".join(v[0] for v in r_)
                 low = txt.lower()
-                if low.startswith("recibes") or "vender" in low or "arrastra" in low or "quieras" in low or "quitarlos" in low or "puedes" in low:
-                    continue
+                if low.startswith("recibes") or "vender" in low or "arrastra" in low or "quieras" in low or "quitarlos" in low or "puedes" in low \
+                        or "ítems" in low or "items" in low or "lista" in low or "clic" in low or "cuántos" in low or "disponible" in low or "cancelar" in low:
+                    continue  # el cartel de la lista vacía ('Arrastra aquí los ítems…') o el de cantidad, no son ítems
                 nm = " ".join(v[0] for v in r_ if not v[0].replace(".", "").replace(",", "").isdigit())
                 nm = nm.lstrip("0123456789 ")
                 if len(norm(nm)) >= 3:
