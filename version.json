@@ -1,1 +1,1 @@
-{"version": 353, "notes": "Segundo motor de lectura de texto (RapidOCR) disponible con un interruptor; queda apagado: el bot sigue leyendo con el de Windows."}
+{"version": 354, "notes": "Modo mixto de lectura: RapidOCR relee los nombres de objetos que Windows no entiende y verifica la lista de venta antes de sacar algo. Solo en zona segura."}

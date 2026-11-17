@@ -8143,6 +8143,21 @@ class Bot:
                         if len(ln_) >= 4 and "+" not in ln_ and ":" not in ln_ and self._game_item(ln_):
                             o["name"] = ln_
                             break
+                if not self._game_item(o.get("name")) and len(xs_) > 200 and ocr.ENGINE == "mixto" and self._mobs_within(4) == 0:
+                    # modo mixto: el nombre verde de los objetos con bonus lo lee mejor RapidOCR (más lento: solo sin
+                    # bichos cerca y solo cuando Windows no pudo)
+                    try:
+                        rw = ocr.read_words_rapid(im2, {"x1": int(xs_.min()), "y1": int(ys_.min()), "x2": int(xs_.max()) + 1, "y2": int(ys_.max()) + 1}) or []
+                        rows_r = {}
+                        for w in rw:
+                            rows_r.setdefault(round(w[2] / (9 * ky)), []).append(w)
+                        for k_ in sorted(rows_r)[:3]:
+                            ln_ = " ".join(w[0] for w in sorted(rows_r[k_], key=lambda w: w[1])).strip()
+                            if len(ln_) >= 4 and "+" not in ln_ and ":" not in ln_ and self._game_item(ln_):
+                                o["name"] = ln_
+                                break
+                    except Exception:
+                        pass
                 if not self._game_item(o.get("name")) and len(xs_) > 200:
                     # los objetos con bonus tienen el nombre en verde oscuro y el OCR común lo saltea: leo agrandada
                     # la franja de arriba del cartelito
@@ -8251,12 +8266,18 @@ class Bot:
         winapi.move(*self.abs_pt(int(tabp[1] + 300 * kx), int(tabp[2] - 60 * ky)))
         time.sleep(0.5)
 
-        def listed():
-            ws_ = words(grab())
+        def listed(rapid=False):
             x_lo, x_hi = tabp[1] - 60 * kx, tabp[1] + 520 * kx
             bh_ = getattr(self, "_bag_hdr_xy", None)
             if bh_ and bh_[0] - 45 * kx > x_lo:
                 x_hi = min(x_hi, bh_[0] - 45 * kx)  # el bolso (se puede mover) no es parte de la lista de venta
+            ws_ = None
+            if rapid:
+                # segunda lectura con RapidOCR (más lenta pero más certera con nombres): solo la zona de la lista
+                ws_ = ocr.read_words_rapid(grab(), {"x1": max(0, int(x_lo)), "y1": int(tabp[2] + 30 * ky),
+                                                    "x2": int(x_hi), "y2": int(tabp[2] + 605 * ky)})
+            if ws_ is None:
+                ws_ = words(grab())
             rows = {}
             for w in ws_:
                 if x_lo <= w[1] <= x_hi and tabp[2] + 35 * ky < w[2] < tabp[2] + 600 * ky:
@@ -8287,9 +8308,25 @@ class Bot:
             # pasa por 'Knee Trousers(M)', y 'Slime -lelly' sí pasa por 'Slime Jelly'
             return any(k == w_ or (len(k) >= 8 and w_.startswith(k)) or (abs(len(k) - len(w_)) <= 2 and k[:2] == w_[:2]
                        and difflib.SequenceMatcher(None, k, w_).ratio() >= 0.84) for w_ in want)
+        def recheck(rows):
+            """Lo que Windows leyó como 'no es lo que quería vender', lo releo con RapidOCR (modo mixto) antes de
+            sacarlo: 'Slime -nelly' o 'HealthPotion' mal leídos no son objetos equivocados."""
+            if not rows or ocr.ENGINE != "mixto":
+                return rows
+            try:
+                lr, _w = listed(True)
+            except Exception:
+                return rows
+            keep = []
+            for l in rows:
+                r2 = next((m for m in lr if abs(m[2] - l[2]) <= 9 * ky), None)
+                if r2 and allowed(r2[0]):
+                    continue
+                keep.append(l)
+            return keep
         for _ in range(8):
             ls, ws = listed()
-            extra = [l for l in ls if not allowed(l[0])]
+            extra = recheck([l for l in ls if not allowed(l[0])])
             if not extra:
                 break
             self.log(f"🛒 En la lista de venta apareció '{extra[0][0]}' que no quería vender: lo saco.")
@@ -8307,7 +8344,7 @@ class Bot:
                 except Exception:
                     pass
             return False
-        if any(not allowed(l[0]) for l in ls):
+        if recheck([l for l in ls if not allowed(l[0])]):
             self.log("🛒 La lista de venta no coincide con lo que quería vender: no vendo nada y vacío la lista.")
             self._sell_list_clear(listed, click, kx)
             return
@@ -9749,6 +9786,14 @@ class Bot:
             k2 = norm(" ".join(ws[i:]))
             if len(k2) >= 4 and k2 in db:
                 return dict(db[k2], affix=" ".join(ws[:i]))
+        # sin espacios (RapidOCR a veces pega las palabras: 'StrongChemise(W)'): el nombre de tabla más largo con el
+        # que termina, si lo de adelante es un bonus conocido
+        affixes = ("strong", "light", "sharp", "ancient", "critical", "crushing", "agile", "special", "poisoning",
+                   "righteous", "mana", "converting", "health", "siphoning", "superior")
+        best_ = max((k2 for k2 in db if len(k2) >= 5 and k.endswith(k2) and k != k2), key=len, default=None)
+        if best_ and any(k[:len(k) - len(best_)].startswith(a_) for a_ in affixes):
+            pre = k[:len(k) - len(best_)]
+            return dict(db[best_], affix=pre.capitalize())
         import difflib
         m = difflib.get_close_matches(k, list(db), n=1, cutoff=0.88)
         return db[m[0]] if m else None
