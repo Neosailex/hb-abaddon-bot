@@ -8109,7 +8109,9 @@ class Bot:
         want = []
         for o in sell:
             g_ = self._game_item(o.get("name")) or {}
-            want.append(norm((g_.get("affix") + " " if g_.get("affix") else "") + (g_.get("name") or o.get("name") or "")))
+            # el cartelito de una pila dice '18 Slime Jelly': la cantidad no es parte del nombre
+            nm_ = re.sub(r"^\s*\d+\s*[x×]?\s*", "", g_.get("name") or o.get("name") or "")
+            want.append(norm((g_.get("affix") + " " if g_.get("affix") else "") + nm_))
         winapi.left_up()
         for o in sell:
             x, y = self.abs_pt(o["x"], o["y"])
@@ -8184,7 +8186,7 @@ class Bot:
             return out, ws_
 
         def allowed(nm):
-            k = norm(nm).rstrip(".")
+            k = norm(re.sub(r"^\s*\d+\s*[x×]?\s*", "", nm)).rstrip(".")
             # mismo nombre, o casi (una letra mal leída) comparando el MISMO largo desde el principio: 'Trousers(M)' no
             # pasa por 'Knee Trousers(M)', y 'Slime -lelly' sí pasa por 'Slime Jelly'
             return any(k == w_ or (len(k) >= 8 and w_.startswith(k)) or (abs(len(k) - len(w_)) <= 2 and k[:2] == w_[:2]
