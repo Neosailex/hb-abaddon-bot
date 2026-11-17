@@ -8976,6 +8976,13 @@ class Bot:
                 stock = int(self.cfg.get("food_stock", 4))
                 need_now = -(-max(0, int(hun or 0) - 10) // 20)          # baguettes para llenar la barra
                 n_buy = max(0, min(8, need_now + (0 if have_food else stock)))
+                # la comida del bolso a veces no la reconozco (queda tapada) y compraba reserva en cada visita hasta
+                # llenar el bolso: reserva como mucho una vez por hora, y nunca más de 3 de una
+                if not have_food and time.time() - getattr(self, "_food_stock_t", 0) < 3600:
+                    n_buy = max(0, min(n_buy, need_now))
+                n_buy = min(n_buy, max(3, need_now if (hun or 0) >= 60 else 0))
+                if n_buy > need_now:
+                    self._food_stock_t = time.time()
                 bs_f = getattr(self, "_bag_slots", None)
                 if bs_f and bs_f[1] - bs_f[0] < 2:
                     n_buy = min(n_buy, max(0, need_now))               # bolso lleno: solo lo que me como ya
@@ -9033,7 +9040,9 @@ class Bot:
             bs = getattr(self, "_bag_slots", None)
             if bs and time.time() - bs[2] < 120:
                 # lugares libres para lo que levanto del piso: 3; con pocas pociones, ninguno (primero sobrevivir)
-                room = bs[1] - (0 if have < 10 else 3) - bs[0]
+                # ...y si el plan tiene equipo para comprar ya, le guardo su lugar (con el bolso lleno 'Comprar' no hace nada)
+                gear_n = len([i for i in ((getattr(self, "plan", None) or {}).get("buy_now") or []) if i.get("confirmed")])
+                room = bs[1] - max(gear_n, 0 if have < 10 else 3) - bs[0]
                 if room < n:
                     self.log(f"🛒 Bolso con {bs[0]}/{bs[1]} lugares: compro {max(0, room)} pociones en vez de {n}.")
                     n = max(0, room)
