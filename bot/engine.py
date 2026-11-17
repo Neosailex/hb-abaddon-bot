@@ -1191,6 +1191,7 @@ class Bot:
             pass
         try:
             self._gear_check()
+            self._bag_order_check()
         except Exception as e_:
             if time.time() - getattr(self, "_gc_err", 0) > 600:
                 self._gc_err = time.time()
@@ -8186,10 +8187,8 @@ class Bot:
                     pass
             return False
         if any(not allowed(l[0]) for l in ls):
-            self.log("🛒 La lista de venta no coincide con lo que quería vender: no vendo nada.")
-            for l in ls:
-                click(l[1] + 20 * kx, l[2])
-                time.sleep(0.4)
+            self.log("🛒 La lista de venta no coincide con lo que quería vender: no vendo nada y vacío la lista.")
+            self._sell_list_clear(listed, click, kx)
             return
         rec = next((w for w in ws if norm(w[0]).startswith("recibes")), None)
         tot = ""
@@ -8197,13 +8196,32 @@ class Bot:
             tot = "".join(v[0] for v in sorted([v for v in ws if abs(v[2] - rec[2]) < 8 * ky and v[1] > rec[1]], key=lambda v: v[1]))
         btn = next((w for w in ws if norm(w[0]) == "vender" and w[2] > tabp[2] + 300 * ky), None)
         if not btn:
-            self.log("🛒 No veo el botón 'Vender ítems': no vendo.")
+            self.log("🛒 No veo el botón 'Vender ítems': no vendo y vacío la lista.")
+            self._sell_list_clear(listed, click, kx)
             return
         click(btn[1] + 30 * kx, btn[2])
         time.sleep(1.5)
         self.log("🛒 Vendí: " + ", ".join(l[0] for l in ls) + (f" (recibí {tot})" if tot else "") + ".")
         self._bag_mem = []
         self._bag_sell = []
+        return True
+
+    def _sell_list_clear(self, listed, click, kx):
+        """Saco todo de la lista de venta antes de cerrar la tienda: lo que queda cargado en la lista se queda marcado
+        en el bolso (borde amarillo) y así no se puede equipar, reparar ni leer hasta reloguear. Pruebo clic izquierdo
+        sobre el renglón; si no sale, derecho; y verifico releyendo la lista."""
+        for btn_ in ("left", "left", "right", "right"):
+            ls_, _ws = listed()
+            if not ls_:
+                return True
+            for l in ls_:
+                click(l[1] + 20 * kx, l[2], btn_) if btn_ == "right" else click(l[1] + 20 * kx, l[2])
+                time.sleep(0.5)
+        ls_, _ws = listed()
+        if ls_:
+            self.log("⚠ No pude vaciar la lista de venta: " + ", ".join(l[0] for l in ls_) + " puede quedar marcado (borde amarillo).")
+            self._sell_stuck_t = time.time()
+            return False
         return True
 
     def _gold_tip(self, pt):
@@ -10006,6 +10024,123 @@ class Bot:
         self._ui_clear()
         self._bag_mem = []
         return len(fixed)
+
+    def _bag_order_check(self):
+        """Cada 15 minutos (o enseguida si leí mal las pociones), sin bichos cerca: ordeno el bolso."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.running or self.pos.get("x") is None:
+            return
+        now = time.time()
+        sc = getattr(self, "_bag_scan", None) or {}
+        bad = bool(sc.get("unknown") or sc.get("vida_hidden"))
+        if now - getattr(self, "_order_t", 0) < (240 if bad else 900):
+            return
+        if getattr(self, "mission", None) or getattr(self, "_busy_ui", False) or getattr(self, "goto", None) or self._ui_th_alive():
+            return
+        if self.state == "attack" or self._under_attack() or self._mobs_within(5) >= 1 or now < getattr(self, "_rabia_until", 0):
+            return
+        self._order_t = now
+        self._busy_ui = True
+        self._busy_t0 = now
+        try:
+            self._bag_order()
+        finally:
+            self._busy_ui = False
+
+    def _bag_order(self):
+        """Ordeno el bolso como lo hace Juan: cada tipo de frasco (y la comida) en su lugar fijo de la columna
+        izquierda, sin nada encima, así la cantidad se lee siempre. Con Shift apretado, arrastrar UN frasco mueve toda
+        la pila de ese tipo. Lo que esté ocupando esos lugares lo corro a un lugar libre. Nunca suelto cerca del borde
+        (soltar afuera es tirar) y si sale el cartel de tirar, contesto No."""
+        from . import bagscan
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        opened = False
+        if not bool(self._bag_open(self.screen.grab(self.rect))):
+            winapi.press("F6")
+            time.sleep(0.9)
+            opened = True
+        moved = 0
+        try:
+            self._bag_scan = None
+            bag = self._oly_bag() or []
+            sc = getattr(self, "_bag_scan", None)
+            if not sc:
+                return 0
+            bx1, by1, bx2, by2 = sc["box"]
+            col_x = int(bx1 + 50 * kx)
+            slots = {k: (col_x, int(by1 + (55 + 62 * i) * ky)) for i, k in enumerate(("vida", "energía", "maná", "comida"))}
+            if not all(bx1 + 40 * kx <= x <= bx2 - 40 * kx and by1 + 35 * ky <= y <= by2 - 35 * ky for x, y in slots.values()):
+                return 0
+            near = lambda p, q, r=30: abs(p[0] - q[0]) <= r * kx and abs(p[1] - q[1]) <= r * ky
+
+            def drag(x1, y1, x2, y2, stack):
+                winapi.left_up()
+                if stack:
+                    winapi.key_down("SHIFT")
+                    time.sleep(0.08)
+                try:
+                    self._drag_bg(x1, y1, x2, y2)
+                finally:
+                    if stack:
+                        winapi.key_up("SHIFT")
+                time.sleep(0.3)
+                try:
+                    self._drop_no()
+                except Exception:
+                    pass
+
+            # 1) despejo la columna: lo que no es frasco ni comida y está en un lugar fijo, va a un lugar libre
+            food_names = ("baguette", "meat", "bread", "carne", "pan ")
+            sc2 = dict(sc, pot_xy=list(sc.get("pot_xy") or []) + list(slots.values()))
+            for o in bag:
+                if o.get("kind") != "item":
+                    continue
+                nm = (o.get("name") or "").lower()
+                if any(k in nm for k in food_names) or nm in ("mana potion", "revitalizing potion"):
+                    continue
+                if any(near((o["x"], o["y"]), sl, 38) for sl in slots.values()):
+                    spot = bagscan.free_spot(sc2, kx, ky)
+                    if not spot or not (bx1 + 40 * kx < spot[0] < bx2 - 40 * kx and by1 + 40 * ky < spot[1] < by2 - 40 * ky):
+                        break
+                    drag(o["x"], o["y"], spot[0], spot[1], False)
+                    sc2["pot_xy"].append(spot)
+                    moved += 1
+            # 2) cada tipo de frasco a su lugar (Shift = toda la pila)
+            for kind in ("vida", "energía", "maná"):
+                self._bag_scan = None
+                self._oly_bag(names=False)
+                sc = getattr(self, "_bag_scan", None) or {}
+                pts = [p for p, k in zip(sc.get("pot_xy") or [], sc.get("pot_kinds") or []) if k == kind]
+                if kind == "vida" and not pts and sc.get("vida_hidden_pt"):
+                    pts = [sc["vida_hidden_pt"]]
+                if not pts or (len(pts) == 1 and near(pts[0], slots[kind], 14)):
+                    continue
+                for p in pts[:3]:
+                    if not near(p, slots[kind], 14):
+                        drag(p[0], p[1], slots[kind][0], slots[kind][1], True)
+                        moved += 1
+            # 3) la comida (la reconozco por el nombre del cartelito)
+            for o in (self._oly_bag() or []):
+                nm = (o.get("name") or "").lower()
+                if o.get("kind") == "item" and any(k in nm for k in food_names) and not near((o["x"], o["y"]), slots["comida"], 14):
+                    drag(o["x"], o["y"], slots["comida"][0], slots["comida"][1], True)
+                    moved += 1
+                    break
+            self._bag_scan = None
+            self._bag_mem = []
+            self._oly_bag(names=False)
+            sc = getattr(self, "_bag_scan", None) or {}
+            if moved:
+                p_ = sc.get("pots") or {}
+                self.log(f"🎒 Ordené el bolso ({moved} movimiento/s): vida {p_.get('vida', '?')}, energía {p_.get('energía', '?')}, "
+                         f"maná {p_.get('maná', '?')}" + (" — todavía hay algo tapado." if sc.get("unknown") or sc.get("vida_hidden") else "."))
+        except Exception as e:
+            self.log(f"🎒 No pude ordenar el bolso: {e!r}")
+        finally:
+            winapi.key_up("SHIFT")
+            if opened and bool(self._bag_open(self.screen.grab(self.rect))):
+                winapi.press("F6")
+                time.sleep(0.4)
+        return moved
 
     def _bag_tidy(self, force=False):
         """Separo lo que quedó encimado en el bolso (un frasco arriba del escudo recién comprado): arrastro el objeto
