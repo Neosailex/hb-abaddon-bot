@@ -1,1 +1,1 @@
-{"version": 330, "notes": "Venta: reconoce el renglón aunque el precio se lea mal (Slime Jelly) y es más estricta con nombres parecidos. No levanta pociones verdes de más ni pociones con el bolso lleno."}
+{"version": 331, "notes": "Tienda: compra pociones según las que tiene en ese momento y no se queda sin lugar para ellas. Nunca dos encargos de pueblo a la vez. No va al herrero cada media hora por tener el bolso lleno."}

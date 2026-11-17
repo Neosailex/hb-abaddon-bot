@@ -1566,6 +1566,15 @@ class Bot:
                         return True
         return False
 
+    def _ui_th_alive(self):
+        """¿Hay otro encargo de pueblo/ventanas en marcha? Dos a la vez se pisan (tienda y herrero juntos: 11 minutos
+        perdidos)."""
+        for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th", "_audit_th", "_town_th"):
+            th = getattr(self, a, None)
+            if th is not None and th.is_alive():
+                return True
+        return False
+
     def _mobs_within(self, r=3):
         """Bichos a r baldosas o menos (servers sin estructura de memoria: lista de entidades). 0 si no se sabe."""
         try:
@@ -7925,6 +7934,7 @@ class Bot:
                 # adentro de la tienda cambia la luz (el área medida no coincide) y ahí el cartelito no sale: si revisé
                 # el bolso hace poco, lo que está en el mismo lugar es lo mismo
                 m = next((m for m in mem if abs(m["rx"] - o["rx"]) <= 9 * kx and abs(m["ry"] - o["ry"]) <= 9 * ky
+                          and abs(m["area"] - o["area"]) <= 0.35 * max(m["area"], 1)
                           and m.get("name") and time.time() - m.get("t", 0) < 2700), None)
             if m and (m.get("ok") or time.time() - m.get("t", 0) < 3600):
                 o.update({k: m[k] for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str") if m.get(k) is not None})
@@ -8767,8 +8777,7 @@ class Bot:
     def _oly_supplies(self):
         """Olympia: cuento las pociones abriendo el bolso cada tanto y, si quedan pocas, voy a la tienda."""
         now = time.time()
-        th = getattr(self, "_shop_th", None)
-        if th is not None and th.is_alive():
+        if self._ui_th_alive():
             return
         if self.state != "seek" or self._under_attack() or self._fleeing():
             return
@@ -8984,6 +8993,14 @@ class Bot:
                     pass
             gold = getattr(self, "_gold", None)
             have = getattr(self, "_left", {}).get("pot") or 0
+            # las que tengo AHORA (recién leí el bolso acá adentro), no las que conté antes de salir para la tienda
+            try:
+                sc_ = getattr(self, "_bag_scan", None) or {}
+                if not sc_.get("unknown") and not sc_.get("vida_hidden") and sc_.get("pots") is not None:
+                    have = int(sc_["pots"].get("vida") or 0)
+                    self._left = {"pot": have, "meat": 99}
+            except Exception:
+                pass
             reserve = int(self.cfg.get("gold_reserve", 150))
             # cuántas: hasta el objetivo de pociones, gastando como mucho un tercio del oro que sobra de la reserva
             want_n = int(self.cfg.get("pots_target", 15))
@@ -8991,7 +9008,8 @@ class Bot:
             # el bolso tiene lugares contados (cada poción ocupa uno): dejo 8 libres para lo que levanto del piso
             bs = getattr(self, "_bag_slots", None)
             if bs and time.time() - bs[2] < 120:
-                room = bs[1] - 8 - bs[0]
+                # lugares libres para lo que levanto del piso: 3; con pocas pociones, ninguno (primero sobrevivir)
+                room = bs[1] - (0 if have < 10 else 3) - bs[0]
                 if room < n:
                     self.log(f"🛒 Bolso con {bs[0]}/{bs[1]} lugares: compro {max(0, room)} pociones en vez de {n}.")
                     n = max(0, room)
@@ -10269,6 +10287,8 @@ class Bot:
             # dos "no muere" seguidos NO alcanzan para decir que el arma se rompió (al llegar a un nido nuevo pasa
             # siempre y lo sacaba de donde estaba cazando bien). Para eso está la regla de los 75 s pegado sin matar.
             weak = False
+            if self._ui_th_alive():
+                return
             worn = self._worn_check() or weak or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
             if not worn and (self.state == "attack" or self._under_attack() or self._fleeing()):
                 return
@@ -10285,7 +10305,9 @@ class Bot:
                 return
             if not hasattr(self, "_loose_ok"):
                 self._loose_ok = int(self.cfg.get("loose_ok", 0))
-            loose = (getattr(self, "_bag_items", 0) or 0) > self._loose_ok and now - self._rep_last > 1800
+            # 'equipo suelto' solo cuenta si vi algo roto en el bolso (antes iba cada media hora por tener el bolso lleno)
+            loose = (getattr(self, "_bag_items", 0) or 0) > self._loose_ok and now - self._rep_last > 1800 \
+                and now - getattr(self, "_broken_t", 0) < 7200
             due = now - self._rep_last > float(self.cfg.get("repair_every_min", 150)) * 60
             if not (worn or loose or due) or now - self._rep_last < 300:
                 return
