@@ -7901,6 +7901,10 @@ class Bot:
         winapi.left_up()  # nunca pasar por el bolso con el botón apretado: arrastraría (y tiraría) cosas
         from . import bagscan
         sc = bagscan.scan(img, (pw[1], pw[2]), ws, self._read_small_num)
+        try:
+            sc = self._stack_fix(sc)
+        except Exception:
+            pass
         self._bag_scan = sc
         out = []
         d, approx = sc["gold"], sc["gold_approx"]
@@ -9336,6 +9340,10 @@ class Bot:
                 food = (o, g_.get("name") or o.get("name"))
                 break
         if not food:
+            scf = getattr(self, "_bag_scan", None) or {}
+            if scf.get("food_pt"):
+                food = ({"x": scf["food_pt"][0], "y": scf["food_pt"][1]}, "la pila de comida")
+        if not food:
             if fp:
                 self.log("🍖 Compré comida pero no la encuentro en el bolso (no leí su nombre): pruebo en la próxima revisión.")
         else:
@@ -10076,6 +10084,44 @@ class Bot:
         self._bag_mem = []
         return len(fixed)
 
+    def _tip_first_line(self, pt):
+        """Sostengo el clic sobre ese punto del bolso y devuelvo el primer renglón del cartelito (el nombre)."""
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        winapi.left_up()
+        winapi.move(*self.abs_pt(pt[0], pt[1]))
+        time.sleep(0.3)
+        winapi.left_down()
+        time.sleep(0.6)
+        im_ = self.screen.grab(self.rect)
+        winapi.left_up()
+        time.sleep(0.3)
+        tw_ = ocr.read_words(im_, {"x1": max(0, int(pt[0] - 60 * kx)), "y1": max(0, int(pt[1] - 20 * ky)),
+                                   "x2": min(im_.shape[1], int(pt[0] + 420 * kx)), "y2": min(im_.shape[0], int(pt[1] + 160 * ky))}, scale=1.0)
+        if not tw_:
+            return ""
+        top = min(w[2] for w in tw_)
+        return " ".join(w[0] for w in sorted([w for w in tw_ if w[2] - top < 10 * ky], key=lambda w: w[1])).strip()
+
+    def _stack_fix(self, sc):
+        """Pilas con número verde que NO son pociones (el jamón/carne es rojo y lo contaba como 19 pociones de vida):
+        las que verifiqué con el cartelito quedan anotadas por su lugar en el bolso; acá las descuento."""
+        fx = getattr(self, "_stack_names", None) or {}
+        if not fx or not sc or not sc.get("stacks"):
+            return sc
+        pw = getattr(self, "_bag_hdr_xy", None) or (0, 0)
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        for st in sc["stacks"]:
+            rel = (st["x"] - pw[0], st["y"] - pw[1])
+            hit = next((v for k, v in fx.items() if abs(k[0] - rel[0]) <= 14 * kx and abs(k[1] - rel[1]) <= 14 * ky
+                        and time.time() - v["t"] < 3600), None)
+            if hit and hit["kind"] != st["kind"]:
+                sc["pots"][st["kind"]] = max(0, sc["pots"][st["kind"]] - st["n"])
+                st["kind"] = hit["kind"]
+                if hit["kind"] == "comida":
+                    sc["food_n"] = sc.get("food_n", 0) + st["n"]
+                    sc["food_pt"] = (st["x"], st["y"])
+        return sc
+
     def _bag_order_check(self):
         """Cada 15 minutos (o enseguida si leí mal las pociones), sin bichos cerca: ordeno el bolso."""
         if cfgmod.server_slug(self.cfg) == "abaddon" or not self.running or self.pos.get("x") is None:
@@ -10155,12 +10201,34 @@ class Bot:
                     drag(o["x"], o["y"], spot[0], spot[1], False)
                     sc2["pot_xy"].append(spot)
                     moved += 1
+            # 1b) verifico con el cartelito qué es cada pila con número (no todo lo que tiene número es poción)
+            try:
+                self._bag_scan = None
+                self._oly_bag(names=False)
+                sc_v = getattr(self, "_bag_scan", None) or {}
+                pw_ = getattr(self, "_bag_hdr_xy", None) or (0, 0)
+                names_ = {}
+                want_ = {"vida": "health", "energía": "revitaliz", "maná": "mana"}
+                for st in (sc_v.get("stacks") or [])[:6]:
+                    nm_ = self._tip_first_line((st["x"], st["y"])).lower()
+                    if not nm_:
+                        continue
+                    kind_ = st["kind"]
+                    if want_[kind_] not in nm_ and "potion" not in nm_:
+                        kind_ = "comida" if any(k in nm_ for k in ("meat", "baguette", "bread", "carne", "pan")) else "otro"
+                        self.log(f"🎒 La pila de {st['n']} que creía {st['kind']} es '{nm_}': no la cuento como pociones.")
+                    names_[(st["x"] - pw_[0], st["y"] - pw_[1])] = {"kind": kind_, "name": nm_, "t": time.time()}
+                self._stack_names = names_
+            except Exception:
+                pass
             # 2) cada tipo de frasco a su lugar (Shift = toda la pila)
             for kind in ("vida", "energía", "maná"):
                 self._bag_scan = None
                 self._oly_bag(names=False)
                 sc = getattr(self, "_bag_scan", None) or {}
-                pts = [p for p, k in zip(sc.get("pot_xy") or [], sc.get("pot_kinds") or []) if k == kind]
+                sc = self._stack_fix(sc)
+                pts = [(st_["x"], st_["y"]) for st_ in (sc.get("stacks") or []) if st_["kind"] == kind] \
+                    or [p for p, k in zip(sc.get("pot_xy") or [], sc.get("pot_kinds") or []) if k == kind and not sc.get("stacks")]
                 if kind == "vida" and not pts and sc.get("vida_hidden_pt"):
                     pts = [sc["vida_hidden_pt"]]
                 if not pts or (len(pts) == 1 and near(pts[0], slots[kind], 14)):
@@ -10169,7 +10237,13 @@ class Bot:
                     if not near(p, slots[kind], 14):
                         drag(p[0], p[1], slots[kind][0], slots[kind][1], True)
                         moved += 1
-            # 3) la comida (la reconozco por el nombre del cartelito)
+            # 3) la comida (la reconozco por el nombre del cartelito; la pila de carne la conozco del paso 1b)
+            self._bag_scan = None
+            self._oly_bag(names=False)
+            scf = self._stack_fix(getattr(self, "_bag_scan", None) or {})
+            if scf.get("food_pt") and not near(scf["food_pt"], slots["comida"], 14):
+                drag(scf["food_pt"][0], scf["food_pt"][1], slots["comida"][0], slots["comida"][1], True)
+                moved += 1
             for o in (self._oly_bag() or []):
                 nm = (o.get("name") or "").lower()
                 if o.get("kind") == "item" and any(k in nm for k in food_names) and not near((o["x"], o["y"]), slots["comida"], 14):

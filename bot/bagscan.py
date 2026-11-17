@@ -74,6 +74,7 @@ def scan(img, pw, words=(), readnum=None):
             n = 2  # con número a la vista hay al menos dos
         out["pots"][kind] += n
         c = (o[0] - int(10 * kx), o[1] - int(20 * ky))
+        out.setdefault("stacks", []).append({"kind": kind, "n": n, "x": x1 + c[0], "y": y1 + c[1]})
         centers.append(c)
         out.setdefault("pot_kinds", []).append(kind)
         cv2.circle(taken, c, int(15 * kx), 1, -1)
