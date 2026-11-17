@@ -1,1 +1,1 @@
-{"version": 361, "notes": "Arreglo: el bot dejó de pegarle a slimes y hormigas (los trataba como bichos a probar de a uno). No vuelve a la tienda en loop cuando no ve el bolso."}
+{"version": 362, "notes": "Arreglo del bolso en la tienda: lo abre antes de hablar con la tendera y confirma que quedó abierto; si adentro no lo ve, cierra la tienda, lo abre y vuelve a entrar."}

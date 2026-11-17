@@ -8080,6 +8080,36 @@ class Bot:
             self._bag_hdr_xy = (pw[1], pw[2])
         return pw
 
+    def _bag_ensure(self, grab=None, tries=2):
+        """Deja el bolso ABIERTO y lo confirma. F6 es un interruptor: si el detector falló y el bolso ya estaba abierto,
+        el F6 lo cierra; por eso después de cada F6 vuelvo a mirar y, si no aparece, pruebo de nuevo. Confirmo con
+        Windows OCR y, si no, con RapidOCR (zona segura). True si quedó abierto."""
+        grab = grab or (lambda: self.screen.grab(self.rect))
+
+        def seen():
+            im = grab()
+            if self._bag_open(im):
+                return True
+            try:
+                kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+                rw = ocr.read_words_rapid(im, {"x1": 0, "y1": int(60 * ky), "x2": im.shape[1], "y2": int(im.shape[0] * 0.9)}) or []
+                pw = next((w for w in rw if w[0].strip().lower().startswith("peso")), None)
+                if pw:
+                    self._bag_hdr_xy = (pw[1], pw[2])
+                    return True
+            except Exception:
+                pass
+            return False
+        if seen():
+            return True
+        for _ in range(max(1, tries)):
+            winapi.press("F6")
+            time.sleep(1.2)
+            if seen():
+                return True
+        self.log("🎒 No logro ver el bolso abierto.")
+        return False
+
     def _oly_bag(self, names=True, loose=False):
         """Bolso abierto (F6): [{'name','x','y','kind'}] con lo que hay; kind = pot/gold/item. También deja
         self._gold con el oro leído. Pasa el mouse por cada cosa para leer el nombre en el cartelito."""
@@ -9267,8 +9297,26 @@ class Bot:
             if not com:
                 self.log("🛒 No encontré a la tendera.")
                 return
+            # el bolso se abre ANTES de hablar con la tendera: con la ventana de la tienda abierta el F6 no siempre
+            # llega (el foco queda en la cajita de cantidad) y el bolso quedaba cerrado ('0 objetos')
+            self._bag_ensure(grab)
             click(com[1], com[2])
             time.sleep(1.8)
+            if not self._bag_ensure(grab, tries=1):
+                # sigue cerrado adentro: cierro la tienda, abro el bolso afuera y vuelvo a pedir comerciar
+                self.log("🎒 Con la tienda abierta no veo el bolso: cierro, lo abro y vuelvo a entrar.")
+                try:
+                    self._close_shop_window()
+                except Exception:
+                    pass
+                time.sleep(0.8)
+                self._bag_ensure(grab)
+                menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 else None
+                menu = menu or self._npc_find("shop", "comerciar")
+                com = next((w for w in (menu or []) if norm(w[0]).startswith("comerciar")), None)
+                if com:
+                    click(com[1], com[2])
+                    time.sleep(1.8)
             ws = words(grab())
             tabp = next((w for w in ws if norm(w[0]).startswith("poci") or norm(w[0]).startswith("pocl") or "ocion" in norm(w[0])), None)
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
@@ -9300,10 +9348,13 @@ class Bot:
                 except Exception:
                     pass
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
-            if not bool(self._bag_open(grab())):
-                winapi.press("F6")  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender
-                time.sleep(1.1)
+            self._bag_ensure(grab, tries=1)  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender
             bag = self._oly_bag(loose=True) or []
+            if not any(o["kind"] == "item" for o in bag):
+                # segunda chance: RapidOCR para el encabezado y relectura
+                ocr.SAFE = True
+                if self._bag_ensure(grab, tries=2):
+                    bag = self._oly_bag(loose=True) or []
             # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
             sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
                     and (o.get("name") == "Mana Potion" or o.get("surplus") or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
