@@ -10684,6 +10684,7 @@ class Bot:
                 time.sleep(0.4)
                 want = norm(it["name"])
                 row = None
+                seen_rows = {}
                 for _pg in range(40):
                     winapi.move(*self.abs_pt(t_ref[1] + 700, t_ref[2] + 500))
                     time.sleep(0.3)
@@ -10698,12 +10699,25 @@ class Bot:
                         return n_ == want or difflib.SequenceMatcher(None, n_, want).ratio() >= 0.86
 
                     row = next((r for r in rows if r[1] == int(it["price"]) and _same_item(r[0])), None)
+                    for r_ in rows:
+                        seen_rows[r_[0]] = r_[1]
+                    if not row:
+                        # mismo nombre con otro precio (el server lo cambió, o lo leí sin el punto de miles): vale si el
+                        # nombre es exacto y el precio no se aleja más de 15% del catálogo
+                        row = next((r for r in rows if norm(r[0]) == want and abs(r[1] - int(it["price"])) <= 0.15 * int(it["price"])), None)
                     if row:
                         break
                     self._wheel(t_ref[1] + 150, t_ref[2] + 250, -120)
                     time.sleep(0.35)
                 if not row:
-                    self.log(f"🛍 No encontré '{it['name']}' a {it['price']} en la lista.")
+                    near_ = [f"{k} {v}" for k, v in seen_rows.items() if any(t_ in norm(k) for t_ in ("bastard", "sword", "claymore"))][:8]
+                    self.log(f"🛍 No encontré '{it['name']}' a {it['price']} en la lista (vi {len(seen_rows)} filas"
+                             + (": " + "; ".join(near_) if near_ else "") + ").")
+                    try:
+                        import cv2
+                        cv2.imwrite(os.path.join(cfgmod.DATA, "herrero_lista.jpg"), self.screen.grab(self.rect), [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    except Exception:
+                        pass
                     continue
                 winapi.click(*self.abs_pt(row[2] + 20, row[3]))
                 time.sleep(0.9)
@@ -10759,6 +10773,22 @@ class Bot:
                 # no pude comprar (y si era el arma, sin arma buena no se caza): reintento en 4 minutos, no en 30
                 self._gear_retry = False
                 self._gear_last = time.time() - float(self.cfg.get("gear_trip_every_min", 30)) * 60 + 240
+                try:
+                    wv = int(((self.cfg.get("worn") or {}).get("arma") or {}).get("v") or 0)
+                    lvl_ = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
+                    if wv and wv <= 5 and lvl_ >= 25 and inside() and self.running:
+                        # SUPERVIVENCIA: con un arma de daño 4 a este nivel no mato nada y me matan (pasó). Me quedo
+                        # adentro del herrero (zona segura) hasta el próximo intento de compra.
+                        self.log(f"⛔ Arma muy floja para mi nivel (daño {wv}) y no pude comprar otra: espero acá adentro, a salvo, y pruebo de nuevo en 4 minutos.")
+                        self._busy_ui = True
+                        t_w = time.time()
+                        while time.time() - t_w < 235 and self.running and self.alive:
+                            self._busy_t0 = time.time()
+                            time.sleep(1.0)
+                        self._busy_ui = False
+                        self._gear_last = 0
+                except Exception:
+                    pass
 
     def _maybe_gear(self):
         """Cada tanto reviso el bolso: me pongo lo mejor, vendo lo que no sirve y compro lo que dice el plan."""

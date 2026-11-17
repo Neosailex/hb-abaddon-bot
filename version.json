@@ -1,1 +1,1 @@
-{"version": 334, "notes": "Compra de equipo en el herrero: encuentra las pestañas aunque no se lean, cierra la ventana si falla y reintenta en 4 minutos."}
+{"version": 335, "notes": "Si queda con un arma muy floja y no puede comprar otra, espera a salvo adentro del herrero y reintenta. Compra aunque el precio difiera un poco del catálogo. Diagnóstico de la lista del herrero."}
