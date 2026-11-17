@@ -1,1 +1,1 @@
-{"version": 329, "notes": "Cuenta bien las pociones cuando el lector de cifras falla, repara lo que quedó marcado en la lista del herrero y lee el nombre de los objetos con bonus."}
+{"version": 330, "notes": "Venta: reconoce el renglón aunque el precio se lea mal (Slime Jelly) y es más estricta con nombres parecidos. No levanta pociones verdes de más ni pociones con el bolso lleno."}

@@ -5029,6 +5029,9 @@ class Bot:
                             or (k[2].startswith("poci") and v[0] >= 3))
         cand = [k for k, v in cur.items() if okk(k, v) and (k[0], k[1]) not in tried
                 and not ("man" in k[2] and not self.cfg.get("loot_mana", False))  # las de maná no las uso: solo llenan el bolso
+                and not ("energ" in k[2] and int(((getattr(self, "_bag_scan", None) or {}).get("pots") or {}).get("energía") or 0)
+                         >= int(self.cfg.get("keep_sp_pots", 4)))  # verdes de más: cada frasco ocupa un lugar y después hay que venderlo
+                and not (k[2].startswith("poci") and (getattr(self, "_bag_slots", None) or (0, 99, 0))[0] >= (getattr(self, "_bag_slots", None) or (0, 99, 0))[1])
                 and max(abs(k[0] - px), abs(k[1] - py)) <= int(reach or self.cfg.get("loot_reach", 7))
                 and not any((e[0], e[1]) == (k[0], k[1]) for e in ents)]
         if not cand:
@@ -8116,7 +8119,13 @@ class Bot:
                 if low.startswith("recibes") or "vender" in low or "arrastra" in low or "quieras" in low or "quitarlos" in low or "puedes" in low \
                         or "ítems" in low or "items" in low or "lista" in low or "clic" in low or "cuántos" in low or "disponible" in low or "cancelar" in low:
                     continue  # el cartel de la lista vacía ('Arrastra aquí los ítems…') o el de cantidad, no son ítems
-                nm = " ".join(v[0] for v in r_ if not v[0].replace(".", "").replace(",", "").isdigit())
+                # el precio va a la derecha del renglón y a veces se lee como letras ('700' → '7ClCl'): no es nombre
+                isnum = lambda t: bool(t) and all(c in "0123456789.,ClOoIl|SsBD" for c in t) and any(c in "0123456789ClO" for c in t) \
+                    and not t.isalpha() or t.replace(".", "").replace(",", "").isdigit()
+                toks = [v for v in r_]
+                while len(toks) > 1 and (isnum(toks[-1][0]) or (toks[-1][1] > tabp[1] + 250 * kx and sum(c.isdigit() for c in toks[-1][0]) >= 1)):
+                    toks.pop()
+                nm = " ".join(v[0] for v in toks if not v[0].replace(".", "").replace(",", "").isdigit())
                 nm = nm.lstrip("0123456789 ")
                 if len(norm(nm)) >= 3:
                     out.append((nm, r_[0][1], r_[0][2]))
@@ -8124,7 +8133,10 @@ class Bot:
 
         def allowed(nm):
             k = norm(nm).rstrip(".")
-            return any(k == w_ or (len(k) >= 8 and w_.startswith(k[:len(k)])) or difflib.SequenceMatcher(None, k, w_).ratio() >= 0.82 for w_ in want)
+            # mismo nombre, o casi (una letra mal leída) comparando el MISMO largo desde el principio: 'Trousers(M)' no
+            # pasa por 'Knee Trousers(M)', y 'Slime -lelly' sí pasa por 'Slime Jelly'
+            return any(k == w_ or (len(k) >= 8 and w_.startswith(k)) or (abs(len(k) - len(w_)) <= 2 and k[:2] == w_[:2]
+                       and difflib.SequenceMatcher(None, k, w_).ratio() >= 0.84) for w_ in want)
         for _ in range(8):
             ls, ws = listed()
             extra = [l for l in ls if not allowed(l[0])]
@@ -9860,6 +9872,11 @@ class Bot:
                     winapi.click(*self.abs_pt(r_[0][1], r_[0][2]))
                     time.sleep(1.2)
                     fixed.append(gi_.get("name") or nm_)
+        except Exception:
+            pass
+        try:
+            import cv2
+            cv2.imwrite(os.path.join(cfgmod.DATA, "reparar_dbg.jpg"), self.screen.grab(self.rect), [cv2.IMWRITE_JPEG_QUALITY, 80])
         except Exception:
             pass
         if not bh:
