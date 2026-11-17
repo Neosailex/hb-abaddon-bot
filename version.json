@@ -1,1 +1,1 @@
-{"version": 333, "notes": "Cierra la tienda del herrero por la barra del título (quedaba abierta y trababa al bot) y no se cree una lectura de oro con una cifra de menos."}
+{"version": 334, "notes": "Compra de equipo en el herrero: encuentra las pestañas aunque no se lean, cierra la ventana si falla y reintenta en 4 minutos."}

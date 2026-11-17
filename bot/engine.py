@@ -10634,12 +10634,39 @@ class Bot:
             winapi.click(*self.abs_pt(com[1], com[2]))
             time.sleep(2.0)
             ws = self._q_words(self.screen.grab(self.rect))
-            tabs = {norm(w[0]): w for w in ws if norm(w[0]) in ("armas", "armadura", "varios") and w[2] < self.rect[3] * 0.25}
+            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            tabs = {norm(w[0]): w for w in ws if norm(w[0]) in ("armas", "armadura", "varios") and w[2] < self.rect[3] * 0.4}
             t_ref = tabs.get("armas")
             if not t_ref:
-                self.log("🛍 No veo las pestañas de la tienda.")
+                # letra gótica: pruebo recortado y agrandado; si no, ubico la pestaña por la columna de precios
+                try:
+                    im_ = self.screen.grab(self.rect)
+                    for sc_ in (1.0, 2.0):
+                        wc = ocr.read_words(im_, {"x1": int(self.rect[2] * 0.12), "y1": int(self.rect[3] * 0.12),
+                                                  "x2": int(self.rect[2] * 0.6), "y2": int(self.rect[3] * 0.42)}, scale=sc_)
+                        for w in wc:
+                            if norm(w[0]) in ("armas", "arrnas", "armadura", "varios"):
+                                tabs.setdefault("armas" if norm(w[0]) == "arrnas" else norm(w[0]), w)
+                        if tabs.get("armas"):
+                            break
+                    t_ref = tabs.get("armas")
+                    if not t_ref and tabs.get("armadura"):
+                        t_ref = ("Armas", tabs["armadura"][1] - 148 * kx, tabs["armadura"][2])
+                    if not t_ref:
+                        full_ = ocr.read_words(im_, {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.9)}, scale=1.0)
+                        col_ = self._shop_price_col(full_)
+                        if col_:
+                            t_ref = ("Armas", col_[0] - 425 * kx, col_[1] - 46 * ky)
+                except Exception:
+                    pass
+            if not t_ref:
+                self.log("🛍 No veo las pestañas de la tienda: la cierro y pruebo de nuevo en unos minutos.")
+                try:
+                    self._close_shop_window()
+                except Exception:
+                    pass
+                self._gear_retry = True
                 return
-            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
             for it in items:
                 self._busy_t0 = None
                 tname = it.get("tab") or ("armas" if it.get("slot") in ("arma", "arma2m") else "armadura")
@@ -10702,9 +10729,16 @@ class Bot:
                     self.log(f"🛍 Compré {it['name']} por {it['price']} de oro.")
                 else:
                     self.log(f"🛍 Apreté Comprar para {it['name']} pero no vi la confirmación (leí: {msg[-60:]}).")
-            # cierro la tienda y me pongo lo nuevo
-            winapi.click(*self.abs_pt(t_ref[1] + 200 * kx, t_ref[2] + 317 * ky), button="right")
+            # cierro la tienda (clic derecho en la barra del título: cierra siempre y no elige nada) y me pongo lo nuevo
+            winapi.left_up()
+            winapi.move(*self.abs_pt(t_ref[1] + 20 * kx, t_ref[2] - 43 * ky))
+            time.sleep(0.2)
+            winapi.click(*self.abs_pt(t_ref[1] + 20 * kx, t_ref[2] - 43 * ky), button="right")
             time.sleep(0.7)
+            try:
+                self._close_shop_window()
+            except Exception:
+                pass
             if bought:
                 self._reequip_loose(max_n=len(bought))
                 own = [o for o in (self.cfg.get("owned_items") or [])]
@@ -10721,6 +10755,10 @@ class Bot:
             self.mission = None
             self._busy_ui = False
             self._gear_last = time.time()
+            if getattr(self, "_gear_retry", False) or (items and not bought and any(i.get("slot") in ("arma", "arma2m") for i in items)):
+                # no pude comprar (y si era el arma, sin arma buena no se caza): reintento en 4 minutos, no en 30
+                self._gear_retry = False
+                self._gear_last = time.time() - float(self.cfg.get("gear_trip_every_min", 30)) * 60 + 240
 
     def _maybe_gear(self):
         """Cada tanto reviso el bolso: me pongo lo mejor, vendo lo que no sirve y compro lo que dice el plan."""
