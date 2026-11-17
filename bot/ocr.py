@@ -144,6 +144,7 @@ async def _recognize_words(img_gray):
 # Se prende con config 'ocr_engine': 'rapid' (todo), 'mixto' (solo lo que se pida con prefer='rapid') o 'windows'
 # (como siempre). Si RapidOCR no está instalado o falla, se usa el de Windows sin avisar a nadie más.
 ENGINE = "windows"
+SAFE = False  # el bot lo prende adentro de tiendas/herrería (zona segura, sin bichos): ahí lee todo con RapidOCR
 _rapid = None
 _rapid_err = None
 _rlock = threading.Lock()
@@ -196,7 +197,11 @@ def read_words_rapid(img, box):
         lx, rx = min(xs), max(xs)
         cy = sum(ys) / 4.0
         h = max(ys) - min(ys)
-        parts = str(txt).split()
+        import unicodedata
+        txt = unicodedata.normalize("NFKC", str(txt))  # paréntesis y dos puntos 'anchos' -> normales
+        # RapidOCR a veces pega palabras ('HealthPotion', 'SnakeSkin:1/3'): separo donde una minúscula sigue de mayúscula
+        txt = re.sub(r"(?<=[a-záéíóúñ])(?=[A-ZÁÉÍÓÚÑ])", " ", txt)
+        parts = txt.split()
         if not parts:
             continue
         n = max(1, len(str(txt)))
@@ -212,7 +217,7 @@ def read_words_rapid(img, box):
 
 def read_words(img, box, scale=1.5, prefer=None):
     """Palabras con su posición (coords de la ventana del juego): [(texto, cx, cy, w, h)]."""
-    if ENGINE == "rapid" or (ENGINE == "mixto" and prefer == "rapid"):
+    if ENGINE == "rapid" or (ENGINE == "mixto" and (prefer == "rapid" or (SAFE and prefer != "windows"))):
         r = read_words_rapid(img, box)
         if r is not None:
             return r

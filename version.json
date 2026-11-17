@@ -1,1 +1,1 @@
-{"version": 357, "notes": "Si no encuentra las pestañas de la tienda, las ubica con la segunda lectura (RapidOCR). Sin eso no vendía y el bolso lleno no dejaba comprar la armadura."}
+{"version": 358, "notes": "Adentro de tiendas y herrería (zona segura) lee todo con RapidOCR: comprar, vender, reparar y ordenar el bolso. Afuera, en combate, sigue con el de Windows. Ordena el bolso al entrar a la tienda."}

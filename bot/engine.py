@@ -1100,6 +1100,14 @@ class Bot:
             if want_ != ocr.ENGINE:
                 ocr.set_engine(want_)
                 self.log(f"🔤 Motor de lectura de texto: {want_}.")
+            # zona segura (adentro de tienda, herrería o almacén, sin bichos): ahí todo se lee con RapidOCR, que es
+            # más lento pero más certero (comprar, vender, reparar, ordenar el bolso). Afuera, Windows (combate).
+            mp_ = (self.pos.get("map") or "").lower()
+            safe_ = any(k in mp_ for k in ("shop", "blacksmith", "warehouse", "smith")) and self._mobs_within(8) == 0
+            if safe_ != ocr.SAFE:
+                ocr.SAFE = safe_
+                if want_ == "mixto":
+                    self.log("🔤 Zona segura: leo con RapidOCR." if safe_ else "🔤 Afuera: leo con el OCR de Windows.")
         except Exception:
             pass
         # pantalla de ingreso (sesión cerrada): ahí no se hace NINGÚN clic (Crear cuenta / Discord / Salir) ni se
@@ -8209,7 +8217,7 @@ class Bot:
         norm = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
         ws = words(grab())
-        vt = next((w for w in ws if norm(w[0]) == "vender" and abs(w[2] - tabp[2]) < 15 * ky), None)
+        vt = next((w for w in ws if (norm(w[0]) == "vender" or (norm(w[0]).endswith("ender") and len(norm(w[0])) <= 7)) and abs(w[2] - tabp[2]) < 15 * ky), None)
         click(*(vt[1:3] if vt else (tabp[1] + 346 * kx, tabp[2])))
         time.sleep(1.2)
         ws = words(grab())
@@ -8352,7 +8360,7 @@ class Bot:
         tot = ""
         if rec:
             tot = "".join(v[0] for v in sorted([v for v in ws if abs(v[2] - rec[2]) < 8 * ky and v[1] > rec[1]], key=lambda v: v[1]))
-        btn = next((w for w in ws if norm(w[0]) == "vender" and w[2] > tabp[2] + 300 * ky), None)
+        btn = next((w for w in ws if norm(w[0]).startswith("vender") and w[2] > tabp[2] + 300 * ky), None)
         if not btn:
             self.log("🛒 No veo el botón 'Vender ítems': no vendo y vacío la lista.")
             self._sell_list_clear(listed, click, kx)
@@ -8563,6 +8571,14 @@ class Bot:
             low = t.lower()
             tail = t.split(":", 1)[1] if ":" in t else t
             nums = [int(n) for n in re.findall(r"\d+", tail.split("(")[0].translate(fix))]
+            if ("durab" in low or "(end)" in low) and len(nums) == 1 and "+" not in t and len(str(nums[0])) >= 3:
+                # RapidOCR a veces pierde la barra: '300300' = 300/300, '791200' = 79/1200 (el máximo es redondo)
+                d_ = str(nums[0])
+                for j in range(1, len(d_)):
+                    a_, b_ = int(d_[:j]), int(d_[j:])
+                    if d_[j] != "0" and a_ <= b_ and 50 <= b_ <= 5000 and b_ % 50 == 0:
+                        nums = [a_, b_]
+                        break
             if ("durab" in low or "(end)" in low) and len(nums) >= 2 and "+" not in t:
                 out["dur"], out["dur_max"] = nums[0], nums[1]
             elif ("daño" in low or "dmg" in low or "dano" in low) and nums:
@@ -9097,6 +9113,14 @@ class Bot:
             self._busy_ui = True
             self._release()
             time.sleep(1.5)
+            # adentro de la tienda (zona segura, lectura con RapidOCR): primero ordeno el bolso, así se lee bien qué
+            # tengo y qué vender, y las pilas no quedan tapadas
+            try:
+                ocr.SAFE = self._mobs_within(8) == 0
+                self._bag_order()
+                self._order_t = time.time()
+            except Exception:
+                pass
             grab = lambda: self.screen.grab(self.rect)
             def words(im):
                 # pantalla entera + la ventana de la tienda leída recortada (la lectura entera a veces pierde renglones)
@@ -9123,7 +9147,7 @@ class Bot:
             click(com[1], com[2])
             time.sleep(1.8)
             ws = words(grab())
-            tabp = next((w for w in ws if norm(w[0]).startswith("poci") or norm(w[0]).startswith("pocl")), None)
+            tabp = next((w for w in ws if norm(w[0]).startswith("poci") or norm(w[0]).startswith("pocl") or "ocion" in norm(w[0])), None)
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
             if not tabp:
                 # la pestaña (letra gótica) no se leyó: la ubico por el primer renglón de la lista ('Health Potion')
@@ -11130,7 +11154,18 @@ class Bot:
             time.sleep(2.0)
             ws = self._q_words(self.screen.grab(self.rect))
             kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
-            tabs = {norm(w[0]): w for w in ws if norm(w[0]) in ("armas", "armadura", "varios") and w[2] < self.rect[3] * 0.4}
+            def tabname(t):
+                t = norm(t)
+                if t in ("armas", "armadura", "varios"):
+                    return t
+                if t.endswith("rmadura"):
+                    return "armadura"
+                if t.endswith("rmas") and len(t) <= 6:
+                    return "armas"
+                if t.endswith("arios") and len(t) <= 7:
+                    return "varios"
+                return None
+            tabs = {tabname(w[0]): w for w in ws if tabname(w[0]) and w[2] < self.rect[3] * 0.4}
             t_ref = tabs.get("armas")
             if not t_ref:
                 # letra gótica: pruebo recortado y agrandado; si no, ubico la pestaña por la columna de precios
