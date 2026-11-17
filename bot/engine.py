@@ -9237,6 +9237,7 @@ class Bot:
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inshop():
+                self._doors_tok = self._block_doors("shop")
                 self.mission = {"map": "Aresden Farm", "goal": [63, 69], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
                 wrongb = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("warehouse", "blacksmith", "hall", "guild", "church"))
                 last_out = None
@@ -9389,6 +9390,12 @@ class Bot:
                             break
                         sold_any = True
                         time.sleep(0.5)
+                        # repetir sobre el mismo lugar solo sirve para pilas (sale una unidad por vez); un ítem suelto
+                        # ya se vendió y en su lugar puede haber otra cosa (así se colaba el Bronze Shield)
+                        STACK_W = ("jelly", "potion", "skin", "teeth", "tongue", "meat", "baguette", "bread", "fur", "horn", "claw")
+                        sell = [o for o in sell if (o.get("n") or 1) > 1 or any(k in (o.get("name") or "").lower() for k in STACK_W)]
+                        if not sell:
+                            break
                     if not sold_any or time.time() - t_sell > 300:
                         break
                     bag = self._oly_bag(loose=True) or []
@@ -9565,6 +9572,11 @@ class Bot:
         except Exception as e:
             self.log(f"🛒 Error en la tienda: {e!r}")
         finally:
+            try:
+                self._unblock_doors(getattr(self, "_doors_tok", None))
+            except Exception:
+                pass
+            self._doors_tok = None
             # cierro la ventana de la tienda (click derecho adentro); abierta no deja caminar
             try:
                 self._close_shop_window()
@@ -10089,6 +10101,40 @@ class Bot:
     PLACES = {"olympia": {"shop": {"map": "Aresden Farm", "door": [63, 69], "inside": ("shop", "tienda"), "npc_type": 15, "npc": [59, 42]},
                           "smith": {"map": "Aresden Farm", "door": [75, 86], "inside": ("smith", "herrer"), "npc_type": 24, "npc": [49, 33]}}}
 
+    def _block_doors(self, target):
+        """Mientras voy a un local, tapo (temporalmente) las puertas de los OTROS locales conocidos y las puertas
+        equivocadas que ya aprendí para este: el camino las rodea y no entro por error. Devuelve lo que hay que
+        destapar al volver (_unblock_doors)."""
+        m = self.world.map_for(self.pos.get("map") or "")
+        if m is None:
+            return None
+        tp = self._place(target) or {}
+        td = tp.get("door")
+        doors = []
+        for k in ("shop", "smith", "warehouse"):
+            pk = self._place(k) or {}
+            if k != target and pk.get("door") and self._same(pk.get("map") or "", self.pos.get("map") or ""):
+                doors.append(tuple(pk["door"]))
+        doors += [tuple(d) for d in (tp.get("wrong_doors") or [])]
+        saved = {}
+        for x, y in doors:
+            if td and max(abs(x - td[0]), abs(y - td[1])) < 4:
+                continue
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    xx, yy = x + dx, y + dy
+                    if 0 <= xx < m.w and 0 <= yy < m.h and (xx, yy) not in saved:
+                        saved[(xx, yy)] = bool(m.walk[yy, xx])
+                        m.walk[yy, xx] = False
+        return (m, saved)
+
+    def _unblock_doors(self, tok):
+        if not tok:
+            return
+        m, saved = tok
+        for (x, y), v in saved.items():
+            m.walk[y, x] = v
+
     def _place(self, kind):
         p = dict((self.PLACES.get(cfgmod.server_slug(self.cfg)) or {}).get(kind) or {})
         p.update((self.cfg.get("places") or {}).get(kind) or {})
@@ -10208,13 +10254,27 @@ class Bot:
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inside():
+                self._doors_tok = self._block_doors("smith")
                 self.mission = {"map": pl["map"], "goal": list(d), "label": "Herrero (reparar)", "until": time.time() + 300, "enter": True, "hold": True}
                 wrongb = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("warehouse", "shop", "hall", "guild", "church")) \
                     and "blacksmith" not in (self.pos.get("map") or "").lower()
+                last_out = None
                 while not inside() and not wrongb() and time.time() - t0 < 900 and self.alive and self.running:
+                    if self._same(self.pos.get("map") or "", pl["map"]) and self.pos.get("x") is not None:
+                        last_out = (int(self.pos["x"]), int(self.pos["y"]))
                     time.sleep(0.3)
                 if wrongb():
                     self.log(f"🔧 Entré a {self.pos.get('map')} en vez del herrero: salgo y pruebo de nuevo en unos minutos.")
+                    try:
+                        if last_out and max(abs(last_out[0] - d[0]), abs(last_out[1] - d[1])) >= 3:
+                            pc = self.cfg.setdefault("places", {}).setdefault("smith", {})
+                            wd = pc.setdefault("wrong_doors", [])
+                            if list(last_out) not in wd:
+                                wd.append(list(last_out))
+                                cfgmod.save(self.cfg)
+                                self.log(f"🚫 Anoto ({last_out[0]},{last_out[1]}) como puerta equivocada: yendo al herrero la rodeo.")
+                    except Exception:
+                        pass
                     self.mission = None
                     self._rep_retry = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 240)
                     return
@@ -10361,6 +10421,11 @@ class Bot:
         finally:
             self.mission = None
             self._busy_ui = False
+            try:
+                self._unblock_doors(getattr(self, "_doors_tok", None))
+            except Exception:
+                pass
+            self._doors_tok = None
             self._rep_last = getattr(self, "_rep_retry", None) or time.time()
             self._gear_t = 0  # recién salido del herrero (sin bichos): buen momento para ver qué tengo puesto
             self._rep_retry = None
