@@ -385,6 +385,10 @@ def key_down(name):  # noqa: F811
     if not BG_HWND:
         return _fg["key_down"](name)
     vk, sc, ext = KEYS[name.upper()]
+    if name.upper() == "ALT":
+        # Alt de verdad llega como WM_SYSKEYDOWN con el bit de contexto: como tecla común el juego no lo toma
+        _post(0x0104, vk, _key_lparam(sc, False) | (1 << 29))
+        return
     _post(WM_KEYDOWN, vk, _key_lparam(sc, False))
 
 
@@ -392,6 +396,9 @@ def key_up(name):  # noqa: F811
     if not BG_HWND:
         return _fg["key_up"](name)
     vk, sc, ext = KEYS[name.upper()]
+    if name.upper() == "ALT":
+        _post(0x0101, vk, _key_lparam(sc, True))  # al soltar Alt solo, Windows manda WM_KEYUP
+        return
     _post(WM_KEYUP, vk, _key_lparam(sc, True))
 
 

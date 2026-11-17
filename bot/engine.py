@@ -1107,6 +1107,10 @@ class Bot:
                     return
         except Exception:
             pass
+        try:
+            self._hunger_watch()
+        except Exception:
+            pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
         try:
             if cfg["mode"] == "auto" and not self._fleeing() and self._reflex():
@@ -5526,7 +5530,9 @@ class Bot:
                         order = [r_ for r_ in ring if r_ in occ] or ring
                         dx_, dy_ = order[(slot_ // 2) % len(order)]
                         tx_, ty_ = int(cx + dx_ * tw), int(cy + dy_ * th)
-                    crit_ = self.cfg.get("rabia_crit", True) and now - getattr(self, "_crit_t", 0) > 3.2
+                # golpe crítico (Alt + ataque): lo tiro cada tanto siempre que esté pegando, no solo rodeado. Alt se
+                # aprieta solo para ese golpe y se suelta: nunca queda apretado. Si no hay cargas, sale un golpe común.
+                crit_ = self.cfg.get("crit_use", True) and now - getattr(self, "_crit_t", 0) > (3.2 if rab_ else float(self.cfg.get("crit_every", 6)))
                 if crit_:
                     self._crit_t = now
                     winapi.key_down("ALT")
@@ -8678,6 +8684,65 @@ class Bot:
         self.log(f"🍖 Hambre {hun}%: compré {n} de {self._food_pending['what']}.")
         self._oly_bag(names=False)
 
+    def _hunger_bar(self, img=None):
+        """Barra de comida (el tubito vertical al lado de la barra verde): naranja = lleno. Devuelve 0-100 de lleno,
+        o None si no la veo."""
+        try:
+            import cv2
+            img = self.img if img is None else img
+            if img is None:
+                return None
+            kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+            c = img[int(1009 * ky):int(1061 * ky), int(962 * kx):int(971 * kx)]
+            if c.size == 0:
+                return None
+            hsv = cv2.cvtColor(c, cv2.COLOR_BGR2HSV)
+            m = ((hsv[..., 0] < 22) | (hsv[..., 0] > 170)) & (hsv[..., 1] > 120) & (hsv[..., 2] > 110)
+            rows = m.mean(axis=1) >= 0.5
+            # el tubo vacío es gris verdoso apagado: si tampoco veo eso, no es la barra (hay una ventana encima)
+            dull = ((hsv[..., 1] < 90) & (hsv[..., 2] > 70)).mean(axis=1) >= 0.5
+            if (rows | dull).mean() < 0.7:
+                return None
+            return int(round(100.0 * rows.mean()))
+        except Exception:
+            return None
+
+    def _hunger_watch(self):
+        """Cada minuto miro la barra de comida. Con menos de 40% lleno y sin bichos pegados, como ya (sin esperar
+        a la revisión del bolso de cada 20 minutos)."""
+        now = time.time()
+        if now - getattr(self, "_hb_t", 0) < 60 or getattr(self, "_busy_ui", False) or cfgmod.server_slug(self.cfg) == "abaddon":
+            return
+        self._hb_t = now
+        fill = self._hunger_bar()
+        if fill is None:
+            return
+        self._hb_fill = fill
+        if fill > int(self.cfg.get("eat_below_fill", 40)):
+            return
+        self._hunger = max(int(getattr(self, "_hunger", None) or 0), 100 - fill)
+        if now - getattr(self, "_hb_eat_t", 0) < 240 or self._adjacent_mobs() >= 1 or self._town_block():
+            return
+        self._hb_eat_t = now
+        self._eat_n = max(1, min(5, int((95 - fill) // 20)))  # cada baguette sube ~20%
+        self.log(f"🍖 Barra de comida en {fill}%: como ahora.")
+        self._busy_ui = True
+        self._busy_t0 = now
+        try:
+            self._release()
+            self._eat_food()
+        except Exception as e:
+            self.log(f"🍖 No pude comer: {e!r}")
+        finally:
+            self._busy_ui = False
+        f2 = self._hunger_bar(self.screen.grab(self.rect))
+        if f2 is not None and f2 <= fill + 5:
+            # no subió: no tengo comida (o no la reconocí) → que la compre en el próximo paso por la tienda
+            self._hunger = max(60, 100 - f2)
+            if now - getattr(self, "_hb_said", 0) > 900:
+                self._hb_said = now
+                self.log(f"🍖 Comí y la barra sigue en {f2}%: no tengo comida en el bolso (o no la reconocí). Compro en la tienda.")
+
     def _eat_food(self):
         """Como lo que tenga de comida en el bolso (lo busco por nombre con el cartelito): doble clic por unidad."""
         fp = getattr(self, "_food_pending", None)
@@ -8705,7 +8770,7 @@ class Bot:
                 self.log("🍖 Compré comida pero no la encuentro en el bolso (no leí su nombre): pruebo en la próxima revisión.")
         else:
             o, nm = food
-            n = int(fp["n"]) if fp else 3
+            n = int(fp["n"]) if fp else int(getattr(self, "_eat_n", 3) or 3)
             x, y = self.abs_pt(o["x"], o["y"])
             for _ in range(max(1, min(n, 5))):
                 winapi.click(x, y)
