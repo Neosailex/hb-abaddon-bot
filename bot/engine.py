@@ -9596,6 +9596,13 @@ class Bot:
             from . import gear
             # la tabla de objetos es la de Abaddon: en otro server manda el catálogo leído en sus tiendas
             idb_l = list(idb.values()) if cfgmod.server_slug(self.cfg) == "abaddon" else []
+            try:
+                # lo que busqué en la tienda y no lo venden (el catálogo decía que sí): no lo planeo por un día
+                ns_ = {k for k, t_ in (self.world.learn.get("no_stock") or {}).items() if time.time() - t_ < 86400}
+                if ns_ and isinstance(cat, dict) and cat.get("items"):
+                    cat = dict(cat, items=[i for i in cat["items"] if i.get("name") not in ns_])
+            except Exception:
+                pass
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
                            self._gold_mem(), owned, reach, cur, idb_l, gear.owned_bonus(inv, idb))
             self.plan = p
@@ -10718,6 +10725,15 @@ class Bot:
                         cv2.imwrite(os.path.join(cfgmod.DATA, "herrero_lista.jpg"), self.screen.grab(self.rect), [cv2.IMWRITE_JPEG_QUALITY, 80])
                     except Exception:
                         pass
+                    if len(seen_rows) >= 20:
+                        # recorrí la lista entera y no está: esta tienda no lo vende. Que el plan elija otra cosa.
+                        self._nostock_n = dict(getattr(self, "_nostock_n", {}) or {})
+                        self._nostock_n[it["name"]] = self._nostock_n.get(it["name"], 0) + 1
+                        if self._nostock_n[it["name"]] >= 2:
+                            self.world.learn.setdefault("no_stock", {})[it["name"]] = time.time()
+                            self.world.save()
+                            self._brain_t = 0
+                            self.log(f"🛍 Dos veces recorrí la lista y no venden '{it['name']}': lo saco del plan por un día y elijo otra cosa.")
                     continue
                 winapi.click(*self.abs_pt(row[2] + 20, row[3]))
                 time.sleep(0.9)
