@@ -140,8 +140,82 @@ async def _recognize_words(img_gray):
     return out
 
 
-def read_words(img, box, scale=1.5):
+# ---------------------------------------------------------------- segundo motor (opcional): RapidOCR
+# Se prende con config 'ocr_engine': 'rapid' (todo), 'mixto' (solo lo que se pida con prefer='rapid') o 'windows'
+# (como siempre). Si RapidOCR no está instalado o falla, se usa el de Windows sin avisar a nadie más.
+ENGINE = "windows"
+_rapid = None
+_rapid_err = None
+_rlock = threading.Lock()
+
+
+def set_engine(name):
+    global ENGINE
+    ENGINE = str(name or "windows").lower()
+
+
+def _get_rapid():
+    global _rapid, _rapid_err
+    if _rapid or _rapid_err:
+        return _rapid
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+        _rapid = RapidOCR()
+    except Exception as e:
+        _rapid_err = repr(e)
+    return _rapid
+
+
+def rapid_error():
+    return _rapid_err
+
+
+def read_words_rapid(img, box):
+    """Como read_words, con RapidOCR. Devuelve renglones partidos en palabras con su posición aproximada."""
+    eng = _get_rapid()
+    if img is None or eng is None:
+        return None
+    x1, y1, x2, y2 = (int(box[k]) for k in ("x1", "y1", "x2", "y2"))
+    crop = img[max(0, y1):y2, max(0, x1):x2]
+    if crop.size == 0:
+        return []
+    with _rlock:
+        try:
+            res, _ = eng(crop)
+        except Exception:
+            return None
+    out = []
+    for bx, txt, sc in (res or []):
+        try:
+            if float(sc) < 0.5:
+                continue
+        except Exception:
+            pass
+        xs = [p[0] for p in bx]
+        ys = [p[1] for p in bx]
+        lx, rx = min(xs), max(xs)
+        cy = sum(ys) / 4.0
+        h = max(ys) - min(ys)
+        parts = str(txt).split()
+        if not parts:
+            continue
+        n = max(1, len(str(txt)))
+        pos = 0
+        for w in parts:
+            i = str(txt).find(w, pos)
+            pos = i + len(w)
+            a = lx + (rx - lx) * i / n
+            b = lx + (rx - lx) * (i + len(w)) / n
+            out.append((w, x1 + (a + b) / 2.0, y1 + cy, b - a, h))
+    return out
+
+
+def read_words(img, box, scale=1.5, prefer=None):
     """Palabras con su posición (coords de la ventana del juego): [(texto, cx, cy, w, h)]."""
+    if ENGINE == "rapid" or (ENGINE == "mixto" and prefer == "rapid"):
+        r = read_words_rapid(img, box)
+        if r is not None:
+            return r
     if img is None or _get_engine() is None:
         return []
     x1, y1, x2, y2 = (int(box[k]) for k in ("x1", "y1", "x2", "y2"))

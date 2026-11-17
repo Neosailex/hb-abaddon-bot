@@ -1,1 +1,1 @@
-{"version": 352, "notes": "El orden del bolso relee las cantidades al terminar y no se repite cada 4 minutos."}
+{"version": 353, "notes": "Segundo motor de lectura de texto (RapidOCR) disponible con un interruptor; queda apagado: el bot sigue leyendo con el de Windows."}

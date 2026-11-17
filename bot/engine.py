@@ -1095,6 +1095,13 @@ class Bot:
             self._mode_check()
         except Exception:
             pass
+        try:
+            want_ = str(cfg.get("ocr_engine", "windows")).lower()
+            if want_ != ocr.ENGINE:
+                ocr.set_engine(want_)
+                self.log(f"🔤 Motor de lectura de texto: {want_}.")
+        except Exception:
+            pass
         # pantalla de ingreso (sesión cerrada): ahí no se hace NINGÚN clic (Crear cuenta / Discord / Salir) ni se
         # escribe nada. Me apago y aviso; la contraseña la pone Juan.
         try:
