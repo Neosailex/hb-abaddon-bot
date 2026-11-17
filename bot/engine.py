@@ -8512,9 +8512,27 @@ class Bot:
             self._oly_bag(names=False)  # leo el oro
             # 1b) comida: con hambre alta compro pan (o carne) y me lo como al salir
             try:
+                # SIEMPRE que paso por la tienda llevo comida (regla de Juan): lo que falte para llenar la barra más
+                # una reserva en el bolso, para comer en el campo sin volver al pueblo.
+                fill_ = self._hunger_bar(grab())
                 hun = getattr(self, "_hunger", None)
-                if hun is not None and hun >= int(self.cfg.get("eat_above", 50)) and (getattr(self, "_gold", 0) or 0) >= 30:
-                    self._oly_buy_food(words, grab, click, tabp, hun)
+                if fill_ is not None:
+                    hun = max(int(hun or 0), 100 - fill_)
+                have_food = sum(1 for o in bag if o["kind"] == "item" and any(k in (o.get("name") or "").lower() for k in ("baguette", "meat", "bread")))
+                stock = int(self.cfg.get("food_stock", 4))
+                need_now = -(-max(0, int(hun or 0) - 10) // 20)          # baguettes para llenar la barra
+                n_buy = max(0, min(8, need_now + (0 if have_food else stock)))
+                bs_f = getattr(self, "_bag_slots", None)
+                if bs_f and bs_f[1] - bs_f[0] < 2:
+                    n_buy = min(n_buy, max(0, need_now))               # bolso lleno: solo lo que me como ya
+                if n_buy >= 1 and (getattr(self, "_gold", None) is None or (getattr(self, "_gold", 0) or 0) >= 30):
+                    self._oly_buy_food(words, grab, click, tabp, n_buy * 20)
+                    fp_ = getattr(self, "_food_pending", None)
+                    if fp_:
+                        if need_now >= 1:
+                            fp_["n"] = need_now                         # me como solo lo que hace falta; el resto queda
+                        else:
+                            self._food_pending = None
             except Exception as e:
                 self.log(f"🍖 No pude comprar comida: {e!r}")
             # 2) pociones: solo con el oro que sobra después de la reserva para equipo, y hasta 4
@@ -8689,7 +8707,7 @@ class Bot:
         click(cp[1], cp[2])
         time.sleep(1.5)
         self._food_pending = {"n": n, "before": before, "what": "pan" if per == 20 else "carne"}
-        self.log(f"🍖 Hambre {hun}%: compré {n} de {self._food_pending['what']}.")
+        self.log(f"🍖 Compré {n} de {self._food_pending['what']} (comida para llenar la barra y reserva).")
         self._oly_bag(names=False)
 
     def _hunger_bar(self, img=None):

@@ -1,1 +1,1 @@
-{"version": 320, "notes": "La lista de venta vacía ya no se lee como ítems; guarda captura al vender apilados para ajustar el cartel de cantidad."}
+{"version": 321, "notes": "Cada vez que pasa por la tienda de pociones compra comida: lo que falta para llenar la barra más una reserva de 4 para comer en el campo."}
