@@ -9134,6 +9134,24 @@ class Bot:
                     col_ = self._shop_price_col(ws)
                     if col_:
                         tabp = ("Pociones", col_[0] - 347 * kx, col_[1] - 47 * ky)
+            if not tabp:
+                # última opción: RapidOCR lee la letra gótica a medias ('TPociones', 'Tociones') o el título ('ienda')
+                try:
+                    rw = ocr.read_words_rapid(grab(), {"x1": int(300 * kx), "y1": int(140 * ky), "x2": int(1000 * kx), "y2": int(560 * ky)}) or []
+                    pc = next((w for w in rw if "ocion" in norm(w[0]) or "ociones" in norm(w[0])), None)
+                    if pc:
+                        tabp = ("Pociones", pc[1], pc[2])
+                    else:
+                        ti = next((w for w in rw if norm(w[0]).endswith("ienda")), None)
+                        hp2 = next((w for w in rw if norm(w[0]).startswith("healthpotion") or norm(w[0]) == "health"), None)
+                        if hp2:
+                            tabp = ("Pociones", hp2[1] - (hp2[3] / 2 if norm(hp2[0]).startswith("healthpotion") else 0) + 32 * kx, hp2[2] - 47 * ky)
+                        elif ti:
+                            tabp = ("Pociones", ti[1] - 167 * kx, ti[2] + 44 * ky)
+                    if tabp:
+                        self.log("🛒 Ubiqué las pestañas de la tienda con la segunda lectura (RapidOCR).")
+                except Exception:
+                    pass
             # 1) vender lo que no sirve (arrastrar del bolso a la lista de venta y 'Vender ítems')
             if not bool(self._bag_open(grab())):
                 winapi.press("F6")  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender

@@ -1,1 +1,1 @@
-{"version": 356, "notes": "El plan de compras respeta lugares fijados (la Shirt con +21% de oro no se cambia por la Hauberk)."}
+{"version": 357, "notes": "Si no encuentra las pestañas de la tienda, las ubica con la segunda lectura (RapidOCR). Sin eso no vendía y el bolso lleno no dejaba comprar la armadura."}
