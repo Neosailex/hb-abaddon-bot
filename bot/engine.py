@@ -8172,6 +8172,7 @@ class Bot:
                 time.sleep(0.4)
             if broken and self._place("smith"):
                 self._worn_seen = time.time()
+                self._broken_t = time.time()
                 self.log(f"🔧 {broken[0]} está roto (durabilidad 0) y suelto en el bolso: voy a repararlo.")
         except Exception as e:
             self.log(f"🎒 No pude revisar el bolso: {e!r}")
@@ -9250,6 +9251,15 @@ class Bot:
             else:
                 self.log("🔧 No vi el cartel de 'Reparar todo' (o no había nada para reparar): guardé la captura. Reintento en 5 minutos.")
                 self._rep_retry = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 300)
+            # lo que se rompió del todo se salió al bolso y 'Reparar Todo' no lo arregla: va por 'Reparar' (de a uno)
+            if time.time() - getattr(self, "_broken_t", 0) < 7200 or self.cfg.get("repair_loose_always", False):
+                try:
+                    n_fix = self._oly_repair_loose(pl)
+                    if n_fix:
+                        self._broken_t = 0
+                        self._worn_seen = time.time()  # para que abajo me los vuelva a poner
+                except Exception as e:
+                    self.log(f"🔧 Error reparando lo suelto: {e!r}")
             # solo me vuelvo a poner cosas si algo se había roto (lo roto se desequipa solo); un repuesto guardado no se toca
             lo = int(self.cfg.get("loose_ok", 0))
             if time.time() - getattr(self, "_worn_seen", 0) < 3600 or (getattr(self, "_bag_items", 0) or 0) > lo:
@@ -9262,6 +9272,80 @@ class Bot:
             self._busy_ui = False
             self._rep_last = getattr(self, "_rep_retry", None) or time.time()
             self._rep_retry = None
+
+    def _oly_repair_loose(self, pl):
+        """Herrero → 'Reparar' (a secas): se abre la ventana Reparar con el bolso al lado. Doble clic en el equipo roto
+        del bolso lo pasa a la lista; un clic en ese renglón de la lista lo repara (clic derecho lo quita). Devuelve
+        cuántos reparó. (Secuencia que mostró Juan.)"""
+        norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
+        kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+        self._ui_clear()
+        time.sleep(0.6)
+        menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 else None
+        menu = menu or self._npc_find("smith", "reparar")
+        if not menu:
+            self.log("🔧 No pude abrir el menú del herrero para reparar lo suelto.")
+            return 0
+        todo_y = [w[2] for w in menu if "todo" in norm(w[0])]
+        reps = sorted((w for w in menu if norm(w[0]).startswith("repar") and "todo" not in norm(w[0])
+                       and not any(abs(w[2] - ty) < 8 * ky for ty in todo_y)), key=lambda w: w[2])
+        if not reps:
+            self.log("🔧 No encontré la opción 'Reparar' en el menú del herrero.")
+            return 0
+        winapi.click(*self.abs_pt(reps[0][1], reps[0][2]))
+        time.sleep(2.0)
+
+        def win_words():
+            img = self.screen.grab(self.rect)
+            bh = self._bag_open(img)
+            x2 = int(bh[1] - 45 * kx) if bh else int(self.rect[2] * 0.62)
+            ws_ = ocr.read_words(img, {"x1": 0, "y1": 0, "x2": max(200, x2), "y2": int(self.rect[3] * 0.9)}, scale=1.0)
+            return ws_, bh
+        ws, bh = win_words()
+        tt = next((w for w in ws if "tienes" in norm(w[0])), None)
+        if not tt and not any(norm(w[0]) in ("arrastra", "dañado", "danado", "repararlo") for w in ws):
+            self.log("🔧 No se abrió la ventana 'Reparar'.")
+            return 0
+        if not bh:
+            winapi.press("F6")
+            time.sleep(1.1)
+        bag = self._oly_bag() or []
+        brk = [o for o in bag if o["kind"] == "item" and o.get("name") and (o.get("dur") == 0 or self._bag_judge(o)[0] == "broken")][:6]
+        if not brk:
+            self.log("🔧 En el bolso no veo nada roto para reparar.")
+        fixed = []
+        for o in brk:
+            x, y = self.abs_pt(o["x"], o["y"])
+            winapi.click(x, y)
+            time.sleep(0.12)
+            winapi.click(x, y)
+            time.sleep(1.0)
+            winapi.move(*self.abs_pt(int(self.rect[2] * 0.5), int(self.rect[3] * 0.86)))
+            time.sleep(0.3)
+            ws, _bh = win_words()
+            tt = next((w for w in ws if "tienes" in norm(w[0])), tt)
+            keys = [k for k in (norm(p_) for p_ in str(o["name"]).replace("(", " ").replace(")", " ").split()) if len(k) >= 4]
+            y_hi = (tt[2] - 14 * ky) if tt else self.rect[3] * 0.8
+            y_lo = (tt[2] - 340 * ky) if tt else self.rect[3] * 0.1
+            row = next((w for w in ws if y_lo < w[2] < y_hi and any(k in norm(w[0]) or (len(norm(w[0])) >= 4 and norm(w[0]) in k) for k in keys)), None)
+            if not row:
+                self.log(f"🔧 Puse {o['name']} para reparar pero no lo veo en la lista: no hago clic a ciegas.")
+                continue
+            winapi.click(*self.abs_pt(row[1], row[2]))
+            time.sleep(1.2)
+            fixed.append(o["name"])
+        if fixed:
+            self.log("🔧 Reparé lo que estaba roto en el bolso: " + ", ".join(fixed) + ".")
+        # cierro la ventana (igual que la tienda: clic derecho en un lugar vacío) y el bolso
+        try:
+            if not self._close_shop_window() and tt:
+                winapi.click(*self.abs_pt(tt[1] + 190 * kx, tt[2] - 345 * ky), button="right")
+                time.sleep(0.5)
+        except Exception:
+            pass
+        self._ui_clear()
+        self._bag_mem = []
+        return len(fixed)
 
     def _bag_tidy(self, force=False):
         """Separo lo que quedó encimado en el bolso (un frasco arriba del escudo recién comprado): arrastro el objeto
