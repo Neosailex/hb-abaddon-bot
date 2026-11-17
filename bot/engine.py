@@ -10210,9 +10210,12 @@ class Bot:
                 names_ = {}
                 want_ = {"vida": "health", "energía": "revitaliz", "maná": "mana"}
                 for st in (sc_v.get("stacks") or [])[:6]:
-                    nm_ = self._tip_first_line((st["x"], st["y"])).lower()
-                    if not nm_:
-                        continue
+                    nm_raw = self._tip_first_line((st["x"], st["y"]))
+                    nm_ = nm_raw.lower()
+                    gi_ = self._game_item(nm_raw) if len(nm_raw) >= 4 else None
+                    if not nm_ or not gi_:
+                        continue  # no leí un nombre del juego: no cambio nada (antes descontaba pociones de verdad)
+                    nm_ = str(gi_.get("name") or nm_raw).lower()
                     kind_ = st["kind"]
                     if want_[kind_] not in nm_ and "potion" not in nm_:
                         kind_ = "comida" if any(k in nm_ for k in ("meat", "baguette", "bread", "carne", "pan")) else "otro"
