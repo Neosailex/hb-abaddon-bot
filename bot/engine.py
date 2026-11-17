@@ -5231,6 +5231,28 @@ class Bot:
                 best = (score, p, nm)
         return best
 
+    def _quest_worth(self, q, done, total, nm):
+        """¿Rinde ir a hacer esta misión en vez de seguir subiendo donde estoy cómodo? Comparo el premio (exp + oro)
+        con lo que dejo de ganar mientras la hago: el tiempo que lleva (bichos que faltan × lo que tardo en matar
+        cada uno) por la experiencia por segundo que vengo sacando en este mapa. Sirve para cualquier pj y nivel."""
+        try:
+            y = (self.world.learn.get("yield") or {}).get((self.pos.get("map") or "").strip().lower()) or {}
+            rate = float(y.get("exp", 0)) / float(y["sec"]) if y.get("sec", 0) > 1800 else 0.0
+            if rate <= 0:
+                return True, "todavía no sé cuánto rinde cazar acá"
+            ttk = float((self.world.learn.get("oly_ttk") or {}).get(nm, 0) or 0) \
+                or float(((self.world.learn.get("fight") or {}).get(nm) or {}).get("ttk", 0) or 0) or 10.0
+            left = max(1, int(total) - int(done))
+            if q.get("kind") != "kill":
+                left = int(left / 0.15)  # objetos que caen cada tanto: unos 7 bichos por objeto
+            secs = left * (ttk + 5.0) + 120
+            value = float(q.get("exp") or 0) + 10.0 * float(q.get("gold") or 0)
+            cost = secs * rate * 0.5  # mientras la hago igual gano algo matando los bichos de la misión
+            ok = value >= cost
+            return ok, (f"premio {int(value / 1000)}k contra {int(cost / 1000)}k que dejo de ganar en {int(secs / 60)} min")
+        except Exception:
+            return True, ""
+
     def _quest_drive(self, ents, px, py, now):
         """La misión de matar N bichos se hace donde vive ese bicho. Si estoy lejos de su nido (cazando otra cosa
         porque rinde), cada media hora voy derecho para allá sin frenarme por lo que haya en el camino (si me pegan,
@@ -5270,6 +5292,15 @@ class Bot:
                 return False
             if any(e[2]["name"] in qm and max(abs(e[0] - px), abs(e[1] - py)) <= 12 for e in ents):
                 return False  # ya tengo bichos de la misión acá
+            qa_ = self._quest_active()
+            if qa_:
+                w_ok, w_why = self._quest_worth(qa_[0], qa_[1], qa_[2], next(iter(qm)))
+                if getattr(self, "_qworth_said", None) != (qa_[0]["name"], w_ok):
+                    self._qworth_said = (qa_[0]["name"], w_ok)
+                    self.log(f"📜 Misión '{qa_[0]['name']}': " + ("me conviene ir a hacerla" if w_ok else "no rinde ir a buscarla, sigo subiendo acá (si aparece su bicho, suma)") + (f" ({w_why})." if w_why else "."))
+                if not w_ok:
+                    self._qdrive_last = now - 900  # lo vuelvo a pensar en 15 minutos (cambia con el nivel y el arma)
+                    return False
             cands = []
             for p in self._pits():
                 nm = p.get("mob") or p.get("guess")
@@ -9087,7 +9118,10 @@ class Bot:
         if fill > int(self.cfg.get("eat_below_fill", 40)):
             return
         self._hunger = max(int(getattr(self, "_hunger", None) or 0), 100 - fill)
-        if now - getattr(self, "_hb_eat_t", 0) < 240 or self._adjacent_mobs() >= 1 or self._town_block():
+        adj_ = self._adjacent_mobs()
+        # en un nido nunca quedo sin bichos al lado: si ya tengo hambre de verdad, como igual con 1 o 2 pegados y vida alta
+        starving = fill <= 20 and adj_ <= 2 and (self.bars.get("hp") or 0) >= 70
+        if now - getattr(self, "_hb_eat_t", 0) < 240 or (adj_ >= 1 and not starving) or self._town_block():
             return
         self._hb_eat_t = now
         self._eat_n = max(1, min(5, int((95 - fill) // 20)))  # cada baguette sube ~20%
@@ -9702,6 +9736,7 @@ class Bot:
             self.mission = None
             self._busy_ui = False
             self._rep_last = getattr(self, "_rep_retry", None) or time.time()
+            self._gear_t = 0  # recién salido del herrero (sin bichos): buen momento para ver qué tengo puesto
             self._rep_retry = None
 
     def _oly_repair_loose(self, pl):

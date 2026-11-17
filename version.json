@@ -1,1 +1,1 @@
-{"version": 326, "notes": "Arreglo del reparto de puntos en loop (un stat mal leído), venta de pociones verdes de más y diagnóstico de ventas que no entran en la lista."}
+{"version": 327, "notes": "Misiones: solo va a buscarlas si el premio rinde más que seguir subiendo donde está cómodo. Come aunque esté en un nido si la barra está muy baja. Revisa el equipo al salir del herrero."}
