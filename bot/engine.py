@@ -3180,6 +3180,53 @@ class Bot:
                 sh = None
         return sh if sh and time.time() - sh.get("t", 0) < max_age else None
 
+    def _new_character(self, lvl, old_lvl):
+        """Cambió el personaje (la ficha muestra otro nivel que no puede ser el mismo pj). Lo que es del SERVIDOR queda
+        (mapas, portales, tiendas, nidos, cuánto pega cada bicho, zonas donde se muere, precios); lo que era del
+        PERSONAJE anterior se borra: equipo puesto y comprado, memoria del bolso, misiones hechas, tiempos de matar
+        (dependen del arma), oro y pociones contadas."""
+        self.log(f"🧑 Es otro personaje (nivel {lvl}; el anterior era nivel {old_lvl}): lo que aprendí del servidor queda, "
+                 f"y arranco de cero lo que era del otro (equipo, bolso, misiones, tiempos de pelea).")
+        c = self.cfg
+        c["worn"] = {}
+        c["owned_items"] = []
+        c["need_weapon"] = False
+        c["train_skill_until"] = 0
+        t = c.setdefault("travel", {})
+        t["my_level"] = int(lvl)
+        try:
+            cfgmod.save(c)
+        except Exception:
+            pass
+        try:
+            os.remove(os.path.join(cfgmod.profile_dir(c), "bolso.json"))
+        except Exception:
+            pass
+        try:
+            L = self.world.learn
+            old = L.setdefault("pj_anterior", {})
+            for k in ("oly_ttk", "fight", "oly_hot", "loot_blind"):
+                if L.get(k):
+                    old[k] = L.pop(k)
+            # bicho que mató dos veces al otro pj: sigue vetado solo si este es de menor nivel (lo decide _killer)
+            self.world.save()
+        except Exception:
+            pass
+        try:
+            st = self.learner.st
+            if st and st.get("quests_done"):
+                st.setdefault("pj_anterior", {})["quests_done"] = st.pop("quests_done")
+                self.learner.save()
+        except Exception:
+            pass
+        for a, v in (("_bag_mem", None), ("_gold", None), ("_pot_est", None), ("_left", {}), ("_gear_t", 0), ("_gear_sig", None),
+                     ("_audit_t", 0), ("_quests_sig", None), ("_exp_off", 0), ("_bag_sell", []), ("_worn_seen", 0),
+                     ("_hunger", None), ("_gold_rel", None), ("_buy_chk", None), ("_pot_stuck_until", 0), ("_stats_vals", None)):
+            try:
+                setattr(self, a, v)
+            except Exception:
+                pass
+
     def _ficha_glyphs(self):
         """Cifras de la letra de la ficha del personaje, aprendidas de números que el OCR leyó enteros."""
         from . import glyphs as glmod
@@ -3328,9 +3375,24 @@ class Bot:
         per = int(self.cfg.get("stats_per_level", 3))
         pend = per * (lvl - 1) - (sum(best[n] for n in names) - start)
         prev = self._sheet(10 ** 9)
-        if not (1 <= lvl <= 250) or not (0 <= pend <= per * 60) or (prev and not (0 <= lvl - prev["level"] <= 5)):
+        if not (1 <= lvl <= 250) or not (0 <= pend <= per * 60):
             self._sheet_fail = getattr(self, "_sheet_fail", 0) + 1
             return None  # lectura que no cierra (un dígito mal leído): no la uso
+        if prev and not (0 <= lvl - prev["level"] <= 5):
+            # el nivel nunca baja ni salta de a muchos: o leí mal, o es OTRO personaje. Si la misma ficha (nivel y
+            # stats) sale igual tres veces seguidas, es otro personaje: lo del anterior no vale para este.
+            sig = (lvl,) + tuple(best[n] for n in names)
+            pc = getattr(self, "_pj_cand", None)
+            self._pj_cand = (sig, pc[1] + 1) if pc and pc[0] == sig else (sig, 1)
+            if self._pj_cand[1] < 3:
+                self._sheet_fail = getattr(self, "_sheet_fail", 0) + 1
+                self._census_t = time.time() - 10 ** 6  # la releo enseguida para confirmar
+                return None
+            self._pj_cand = None
+            self._new_character(lvl, prev["level"])
+            prev = None
+        else:
+            self._pj_cand = None
         sh = {"t": time.time(), "level": lvl, "exp": best.get("EXP"), "next": best.get("NEXT"), "pending": max(0, pend),
               "stats": {n: best[n] for n in names}}
         # 'Exp' es la del nivel actual (vuelve a cero al subir): armo un total que no retrocede para medir exp por hora

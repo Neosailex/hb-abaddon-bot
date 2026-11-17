@@ -1,1 +1,1 @@
-{"version": 324, "notes": "No se reinicia ni reparte puntos ni abre la ficha con bichos cerca (murió una vez por eso). En la tienda reconoce el bolso por posición."}
+{"version": 325, "notes": "Reconoce cuando el personaje es otro (ej. uno nuevo de nivel 1): conserva lo aprendido del servidor y borra lo que era del personaje anterior."}
