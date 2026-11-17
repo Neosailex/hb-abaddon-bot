@@ -385,8 +385,8 @@ class Bot:
                     if not changed_at:
                         changed_at = time.time()
                     elif time.time() - changed_at > 8 and not getattr(self, "_busy_ui", False) and (
-                            time.time() - changed_at > 240 or not self.running or cfgmod.server_slug(self.cfg) == "abaddon"
-                            or (self._mobs_within(5) == 0 and not self._under_attack() and (self.bars.get("hp") or 100) >= 50)):
+                            time.time() - changed_at > 420 or not self.running or cfgmod.server_slug(self.cfg) == "abaddon"
+                            or (self._mobs_within(8) == 0 and not self._under_attack() and (self.bars.get("hp") or 100) >= 80)):
                         self.log("Hay una versión nueva del bot: me reinicio solo.")
                         self.restart_app()
                         return
@@ -8848,8 +8848,14 @@ class Bot:
                     time.sleep(0.5)
             if not inshop():
                 self.mission = {"map": "Aresden Farm", "goal": [63, 69], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
-                while not inshop() and time.time() - t0 < 900 and self.alive and self.running:
+                wrongb = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("warehouse", "blacksmith", "hall", "guild", "church"))
+                while not inshop() and not wrongb() and time.time() - t0 < 900 and self.alive and self.running:
                     time.sleep(0.3)
+                if wrongb():
+                    self.log(f"🛒 Entré a {self.pos.get('map')} en vez de la tienda (estaba en otro mapa del que creía): salgo y pruebo de nuevo en unos minutos.")
+                    self.mission = None
+                    self._shop_last = time.time() - 660
+                    return
             if not inshop():
                 self.log("🛒 No llegué a la tienda.")
                 return
@@ -9713,8 +9719,15 @@ class Bot:
                     time.sleep(0.5)
             if not inside():
                 self.mission = {"map": pl["map"], "goal": list(d), "label": "Herrero (reparar)", "until": time.time() + 300, "enter": True, "hold": True}
-                while not inside() and time.time() - t0 < 900 and self.alive and self.running:
+                wrongb = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("warehouse", "shop", "hall", "guild", "church")) \
+                    and "blacksmith" not in (self.pos.get("map") or "").lower()
+                while not inside() and not wrongb() and time.time() - t0 < 900 and self.alive and self.running:
                     time.sleep(0.3)
+                if wrongb():
+                    self.log(f"🔧 Entré a {self.pos.get('map')} en vez del herrero: salgo y pruebo de nuevo en unos minutos.")
+                    self.mission = None
+                    self._rep_retry = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 240)
+                    return
             if not inside():
                 self.log("🔧 No llegué al herrero.")
                 return
@@ -9901,10 +9914,28 @@ class Bot:
             winapi.press("F6")
             time.sleep(1.1)
         bag = self._oly_bag() or []
-        brk = [o for o in bag if o["kind"] == "item" and o.get("name") and (o.get("dur") == 0 or self._bag_judge(o)[0] == "broken")][:6]
+        # roto = durabilidad 0 (aunque no le haya leído bien el nombre) o equipo grande sin cartelito (lo roto/marcado a
+        # veces no lo muestra). Lo que no esté dañado no aparece en la lista y no pasa nada.
+        brk = [o for o in bag if o["kind"] == "item" and (o.get("dur") == 0 or (o.get("name") and self._bag_judge(o)[0] == "broken")
+                                                         or (not o.get("name") and (o.get("area") or 0) >= 1200 * kx * ky))][:8]
         if not brk and not fixed:
             self.log("🔧 En el bolso no veo nada roto para reparar.")
+        HINT = ("arrastra", "aqui", "aquí", "dañado", "danado", "repararlo", "reparar", "quitarlo", "quitarlos", "clic", "haz",
+                "puedes", "lista", "items", "ítems", "item", "ítem", "para", "tienes", "total", "costo", "coste")
+
+        def list_rows(ws_, tt_):
+            y_hi = (tt_[2] - 14 * ky) if tt_ else self.rect[3] * 0.8
+            y_lo = (tt_[2] - 340 * ky) if tt_ else self.rect[3] * 0.1
+            rows = {}
+            for w in ws_:
+                if y_lo < w[2] < y_hi and norm(w[0]) and norm(w[0]) not in HINT:
+                    rows.setdefault(round(w[2] / (11 * ky)), []).append(w)
+            return {k: sorted(v, key=lambda v_: v_[1]) for k, v in rows.items()
+                    if any(len(norm(v_[0])) >= 3 and not norm(v_[0]).isdigit() for v_ in v)}
         for o in brk:
+            ws, _bh = win_words()
+            tt = next((w for w in ws if "tienes" in norm(w[0])), tt)
+            before = list_rows(ws, tt)
             x, y = self.abs_pt(o["x"], o["y"])
             winapi.click(x, y)
             time.sleep(0.12)
@@ -9914,16 +9945,21 @@ class Bot:
             time.sleep(0.3)
             ws, _bh = win_words()
             tt = next((w for w in ws if "tienes" in norm(w[0])), tt)
-            keys = [k for k in (norm(p_) for p_ in str(o["name"]).replace("(", " ").replace(")", " ").split()) if len(k) >= 4]
-            y_hi = (tt[2] - 14 * ky) if tt else self.rect[3] * 0.8
-            y_lo = (tt[2] - 340 * ky) if tt else self.rect[3] * 0.1
-            row = next((w for w in ws if y_lo < w[2] < y_hi and any(k in norm(w[0]) or (len(norm(w[0])) >= 4 and norm(w[0]) in k) for k in keys)), None)
-            if not row:
-                self.log(f"🔧 Puse {o['name']} para reparar pero no lo veo en la lista: no hago clic a ciegas.")
+            after = list_rows(ws, tt)
+            # el renglón NUEVO de la lista es este objeto (no dependo de haberle leído el nombre)
+            new = [after[k] for k in sorted(after) if not any(abs(k - b) <= 0 for b in before)]
+            if len(after) > len(before) and new:
+                r_ = new[-1]
+            else:
+                keys = [k for k in (norm(p_) for p_ in str(o.get("name") or "").replace("(", " ").replace(")", " ").split()) if len(k) >= 4]
+                r_ = next((v for v in after.values() if any(k in norm(w[0]) or (len(norm(w[0])) >= 4 and norm(w[0]) in k) for w in v for k in keys)), None) if keys else None
+            if not r_:
+                if o.get("name"):
+                    self.log(f"🔧 Puse {o['name']} para reparar pero no apareció en la lista (no está dañado o no lo agarró).")
                 continue
-            winapi.click(*self.abs_pt(row[1], row[2]))
+            winapi.click(*self.abs_pt(r_[0][1], r_[0][2]))
             time.sleep(1.2)
-            fixed.append(o["name"])
+            fixed.append(o.get("name") or " ".join(w[0] for w in r_)[:40])
         if fixed:
             self.log("🔧 Reparé lo que estaba roto en el bolso: " + ", ".join(fixed) + ".")
         # cierro la ventana (igual que la tienda: clic derecho en un lugar vacío) y el bolso
@@ -10290,7 +10326,8 @@ class Bot:
             if self._ui_th_alive():
                 return
             worn = self._worn_check() or weak or now - getattr(self, "_worn_seen", 0) < 600 and getattr(self, "_worn_seen", 0) > self._rep_last
-            if not worn and (self.state == "attack" or self._under_attack() or self._fleeing()):
+            overdue = now - self._rep_last > float(self.cfg.get("repair_every_min", 150)) * 60 + 480
+            if not worn and not overdue and (self.state == "attack" or self._under_attack() or self._fleeing()):
                 return
             if worn and now - self._rep_last >= 300:
                 self._elite_ts = []

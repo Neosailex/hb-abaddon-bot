@@ -1,1 +1,1 @@
-{"version": 331, "notes": "Tienda: compra pociones según las que tiene en ese momento y no se queda sin lugar para ellas. Nunca dos encargos de pueblo a la vez. No va al herrero cada media hora por tener el bolso lleno."}
+{"version": 332, "notes": "Repara lo roto del bolso aunque no le lea el nombre, va al herrero aunque esté peleando si el mantenimiento está vencido, reinicio solo con vida alta y sin bichos, y corta si entra al edificio equivocado."}
