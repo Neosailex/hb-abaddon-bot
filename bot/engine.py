@@ -6242,10 +6242,15 @@ class Bot:
     def _travel(self, force_dest=None):
         """True si está viajando (no cazar todavía). force_dest: escapar a ese mapa sin pelear."""
         t = self.cfg.get("travel", {})
+        # adentro de un local sin nada que hacer: salgo aunque la posición tenga unos segundos (parado adentro no se
+        # refresca seguido y me quedaba clavado en la tienda)
+        if self.pos.get("map") and time.time() - self.pos.get("t", 0) < 60 and not getattr(self, "_busy_ui", False) \
+                and not self._ui_th_alive():
+            if time.time() - getattr(self, "_exit_t", 0) > 2.5 and self._exit_building():
+                self._exit_t = time.time()
+                return True
         if (not t.get("enabled") and not force_dest) or not self.pos.get("map") or time.time() - self.pos["t"] > 5:
             return False
-        if self._exit_building():
-            return True
         if force_dest:
             pass
         elif (self.state in ("attack", "loot", "lootq") or time.time() - getattr(self, "_last_enemy", 0) < 6) and not self._is_travelling() \
