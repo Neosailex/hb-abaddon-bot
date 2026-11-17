@@ -8305,6 +8305,22 @@ class Bot:
         except Exception:
             pass
 
+    # cuánto rinde cada bonus para un guerrero de espada larga a dos manos (multiplica el daño o la defensa)
+    AFFIX_W = {"sharp": 1.15, "ancient": 1.2, "critical": 1.12, "crushing": 1.12, "agile": 1.08, "special": 1.06,
+               "poisoning": 1.05, "righteous": 1.05, "light": 1.03, "strong": 1.02, "mana": 1.0, "converting": 1.0}
+    AFFIX_A = {"strong": 1.03, "light": 1.02, "ancient": 1.08, "special": 1.04}
+
+    def _gear_score(self, name, val=None):
+        """Valor de una pieza para la build: daño o defensa base por el bonus que tenga."""
+        it = self._game_item(name) or {}
+        base = float(val if val is not None else (it.get("dmg") or it.get("def") or 0))
+        af = str(it.get("affix") or "").lower()
+        if not af:
+            return base
+        tbl = self.AFFIX_W if str(it.get("slot") or "").startswith("arma") else self.AFFIX_A
+        f = max([tbl.get(w, 1.02) for w in af.split()] or [1.0])
+        return base * f
+
     def _bag_judge(self, o):
         """Qué hago con un objeto del bolso: ('equip'|'sell'|'keep'|'broken'|'other', motivo, ficha, casillero, valor)."""
         it = self._game_item(o.get("name"))
@@ -8340,8 +8356,7 @@ class Bot:
         worn_names = " ".join(str((v or {}).get("name") or "") for v in (self.cfg.get("worn") or {}).values())
         mine = "(M)" if "(M)" in worn_names else ("(W)" if "(W)" in worn_names else None)
         if mine and nm_.rstrip().endswith(("(M)", "(W)")) and not nm_.rstrip().endswith(mine):
-            affix_ = nm_.split()[0] not in (it.get("name") or "").split()[:1]
-            return ("keep" if affix_ else "sell", "es ropa del otro sexo: no me la puedo poner", it, None, 0)
+            return ("sell", "es ropa del otro sexo: no me la puedo poner (Juan: lo de (W) se vende)", it, None, 0)
         slot = "arma" if str(it["slot"]).startswith("arma") else it["slot"]
         val = int(it.get("dmg") or it.get("def") or 0)
         worn = (self.cfg.get("worn") or {}).get(slot)
@@ -8355,7 +8370,7 @@ class Bot:
                                                       "Knee Trousers(M)", "Wood Shield", "Targe Shield", "Scimitar", "Superior Scimitar",
                                                       "Long Sword", "Short Sword", "Light Axe", "Superior Light Axe"))
             if it["name"] in junk:
-                return ("keep" if it.get("affix") else "sell", "equipo viejo que ya no uso", it, slot, val)
+                return ("sell", "equipo viejo que ya no uso", it, slot, val)
             if slot == "escudo":
                 return ("keep", "no sé si Juan me dejó con arma a dos manos: el escudo no lo toco", it, slot, val)
             if o.get("dur") == 0:
@@ -8363,12 +8378,11 @@ class Bot:
             return ("equip", "es del equipo que me puso Juan y quedó suelto: me lo vuelvo a poner", it, slot, val)
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         fam = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
-        # lo que tiene bonus (nombre con prefijo) nunca se vende solo: eso lo decide Juan
-        nosell = "keep" if it.get("affix") else "sell"
+        # regla de Juan (17/11): con bonus o sin bonus, lo que no es de la guía o no mejora lo puesto se VENDE; lo de
+        # la guía con bonus se compara (daño/defensa × bonus) y si rinde más, me lo pongo
+        nosell = "sell"
         if worn and worn.get("name") == full:
             if o.get("dur") == 0:
-                if it.get("affix"):
-                    return ("keep", "repuesto roto con bonus: lo guardo", it, slot, val)
                 # tengo uno igual puesto y andando: el repuesto roto no se arregla con 'Reparar Todo' (solo arregla lo
                 # puesto) y me hacía ir al herrero una y otra vez. Lo vendo.
                 return ("sell", "repuesto roto de lo que ya tengo puesto", it, slot, val)
@@ -8382,8 +8396,8 @@ class Bot:
                     if now_ - last_ > 600:
                         self._same_eq_t = now_
                     return ("equip", "igual al que tenía puesto: me lo pongo por si se había salido", it, slot, val)
-                return ("keep", "repuesto igual al que tengo puesto", it, slot, val)
-            return ("keep", "es igual a lo que tengo puesto: no lo toco", it, slot, val)
+                return ("sell", "repuesto igual al que tengo puesto (ocupa lugar en el bolso)", it, slot, val)
+            return ("sell", "es igual a lo que tengo puesto", it, slot, val)
         if slot == "arma" and not worn:
             if o.get("dur") == 0:
                 return ("broken", "está roto", it, slot, val)
@@ -8391,9 +8405,15 @@ class Bot:
                 return ("keep", f"pide nivel {it['level']}", it, slot, val)
             return ("equip", "no tengo arma comprobada puesta: cualquiera es mejor que pegar a mano", it, slot, val)
         if slot == "arma" and fam and str(it.get("family") or "").lower() != fam:
-            return (nosell, f"no es {fam} (mi talento)" + (f"; tiene bonus ({it['affix']}): lo guardo" if it.get("affix") else ""), it, slot, val)
-        if worn and val <= int(worn.get("v", -1)):
-            return (nosell, f"no mejora lo puesto ({worn.get('name')})" + (f"; tiene bonus ({it['affix']}): lo guardo" if it.get("affix") else ""), it, slot, val)
+            return ("sell", f"no es {fam} (mi talento): no es de la guía", it, slot, val)
+        if slot == "arma" and str(it.get("slot") or "") == "arma" and self.cfg.get("two_handed", True) \
+                and any(str((self._game_item(w_.get("name")) or {}).get("slot") or "") == "arma2m" for w_ in [worn or {}]):
+            return ("sell", "es de una mano y la guía es a dos manos", it, slot, val)
+        if worn:
+            sc_new = self._gear_score(full, val)
+            sc_old = self._gear_score(str(worn.get("name") or ""), worn.get("v"))
+            if sc_new <= sc_old:
+                return ("sell", f"no mejora lo puesto ({worn.get('name')}: {sc_old:.1f} contra {sc_new:.1f})", it, slot, val)
         if o.get("dur") == 0:
             return ("broken", "está roto", it, slot, val)
         if int(it.get("level") or 0) > lvl:
