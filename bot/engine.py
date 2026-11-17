@@ -9844,6 +9844,10 @@ class Bot:
                 ns_ = {k for k, t_ in (self.world.learn.get("no_stock") or {}).items() if time.time() - t_ < 86400}
                 if ns_ and isinstance(cat, dict) and cat.get("items"):
                     cat = dict(cat, items=[i for i in cat["items"] if i.get("name") not in ns_])
+                # lugares que Juan no quiere cambiar por comprado (ej. 'brazos': la Shirt con +21% de oro)
+                hold_ = set(self.cfg.get("slot_hold") or [])
+                if hold_ and isinstance(cat, dict) and cat.get("items"):
+                    cat = dict(cat, items=[i for i in cat["items"] if i.get("slot") not in hold_])
             except Exception:
                 pass
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
