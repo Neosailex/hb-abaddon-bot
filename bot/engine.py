@@ -9045,6 +9045,10 @@ class Bot:
                 if not have_food and time.time() - getattr(self, "_food_stock_t", 0) < 3600:
                     n_buy = max(0, min(n_buy, need_now))
                 n_buy = min(n_buy, max(3, need_now if (hun or 0) >= 60 else 0))
+                if time.time() - getattr(self, "_food_bought_t", 0) < 1800:
+                    # compré hace menos de media hora: el pan está en el bolso aunque no lo haya reconocido; no lleno
+                    # el bolso de pan (pasó: 4 baguettes por visita y después no entraban las pociones)
+                    n_buy = 0
                 if n_buy > need_now:
                     self._food_stock_t = time.time()
                 bs_f = getattr(self, "_bag_slots", None)
@@ -9244,6 +9248,7 @@ class Bot:
         time.sleep(1.5)
         self._food_pending = {"n": n, "before": before, "what": "pan" if per == 20 else "carne"}
         self.log(f"🍖 Compré {n} de {self._food_pending['what']} (comida para llenar la barra y reserva).")
+        self._food_bought_t = time.time()
         self._oly_bag(names=False)
 
     def _hunger_bar(self, img=None):

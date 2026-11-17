@@ -130,7 +130,8 @@ def scan(img, pw, words=(), readnum=None):
         col = _colors(roi[comp].astype(int))
         gxy = out.get("gold_xy")
         by_num = gxy and -60 * kx < (x1 + cen[i][0]) - gxy[0] < 8 * kx and -50 * ky < (y1 + cen[i][1]) - gxy[1] < 4 * ky and w_ <= 40 * kx
-        if col["oro"] > 0.25 * a or by_num:
+        # el montón de oro es el que está pegado al número de oro; otra cosa dorada (el pan: Baguette) es un objeto
+        if by_num or (col["oro"] > 0.25 * a and not gxy and not out.get("gold_pile")):
             out["gold_pile"] = (x1 + int(cen[i][0]), y1 + int(cen[i][1]))
             continue
         kind = max(("vida", "maná", "energía"), key=lambda k: col[k])
