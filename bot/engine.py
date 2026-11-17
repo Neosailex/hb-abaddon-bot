@@ -3146,6 +3146,15 @@ class Bot:
         """Abre el bolso, usa una poción roja ('pot') o come carne ('meat') con doble click y lo cierra."""
         if not self.rect:
             return False
+        if kind == "pot":
+            try:
+                la_ = getattr(self, "_last_adj", None)
+                if la_ and time.time() - la_[1] < 5:
+                    for nm_ in la_[0]:
+                        r_ = self._risk_rec(nm_)
+                        r_["pots"] += 1.0 / len(la_[0])
+            except Exception:
+                pass
         if kind == "pot" and self._pot_key():
             return True
         no = getattr(self, "_no_item", {})
@@ -4986,6 +4995,10 @@ class Bot:
         adj = sorted({tr.name for tr in g.tracks.values() if tr.dist(g.me) <= 1})
         if adj:
             self._last_adj = (adj, now)
+        try:
+            self._risk_track(adj, now)
+        except Exception:
+            pass
         for tr in g.lost:
             if now - tr.near_t < 3.0 and self.running:
                 self.stats["kills"] = self.stats.get("kills", 0) + 1
@@ -5000,6 +5013,11 @@ class Bot:
                 except Exception:
                     pass
                 self.log(f"✝ {tr.name} muerto (kill #{self.stats['kills']}).")
+                try:
+                    self._risk_rec(tr.name).__setitem__("k", self._risk_rec(tr.name)["k"] + 1)
+                    self._risk_judge(tr.name)
+                except Exception:
+                    pass
 
     def _grid_overlay(self):
         """La grilla pasada a pantalla para la vista previa: lo que se ve es lo que el bot cree."""
@@ -5686,6 +5704,21 @@ class Bot:
                         self._walk_to(m, (int(dest[0]), int(dest[1])), tgt[2]["name"])
                         return True
         ok = [e for e in ok if d(e) <= 1 or not self._killer(e[2]["name"])]  # al que me viene matando no lo busco
+
+        def probe_ok(e):
+            # bicho que estoy midiendo: solo si está suelto (nadie de su tipo a 3) y tengo vida y pociones
+            if d(e) <= 1 or self._risk_verdict(e[2]["name"]) != "probar":
+                return True
+            r_ = (self.world.learn.get("risk") or {}).get(e[2]["name"]) or {}
+            if r_.get("k", 0) >= 8 and r_.get("prev") != "no":
+                return True
+            near_same = sum(1 for o in ents if o is not e and o[2]["name"] == e[2]["name"] and max(abs(o[0] - e[0]), abs(o[1] - e[1])) <= 3)
+            pots_ = (getattr(self, "_left", {}) or {}).get("pot")
+            return near_same == 0 and (self.bars.get("hp") or 0) >= 75 and (pots_ is None or pots_ >= 8)
+        try:
+            ok = [e for e in ok if probe_ok(e)]
+        except Exception:
+            pass
         if not ok and ok0 and hp_now < 85 and not any(d(e) <= 3 for e in ents):
             # hay bichos pero todos en grupo y estoy bajo de vida: descanso acá en vez de irme a explorar
             self._release()
@@ -7347,6 +7380,12 @@ class Bot:
         lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
         kk = self.world.learn.setdefault("oly_killers", {})
         for nm in la[0]:
+            try:
+                r_ = self._risk_rec(nm)
+                r_["d"] += 1
+                self._risk_judge(nm)
+            except Exception:
+                pass
             k = kk.setdefault(nm, {"n": 0, "lvl": lvl})
             k["n"] = k["n"] + 1 if k.get("lvl") == lvl or k["n"] < 2 else 1
             k["lvl"] = lvl
@@ -7354,7 +7393,78 @@ class Bot:
                 self.log(f"🧠 {nm} ya me mató 2 veces a nivel {lvl}: no lo busco hasta nivel {lvl + 2} (si me ataca, me defiendo).")
         self.world.save()
 
+    # ---------------------------------------------------------------- ¿le da el cuero? (aprendido, para cualquier pj)
+    def _my_power(self):
+        """Nivel y defensa total puesta: si suben bastante, lo aprendido de un bicho se vuelve a probar."""
+        lvl = self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1))
+        dfn = sum(int((v or {}).get("v") or 0) for k, v in (self.cfg.get("worn") or {}).items() if k != "arma")
+        wpn = int(((self.cfg.get("worn") or {}).get("arma") or {}).get("v") or 0)
+        return lvl, dfn, wpn
+
+    def _risk_rec(self, mob):
+        R = self.world.learn.setdefault("risk", {})
+        lvl, dfn, wpn = self._my_power()
+        r = R.get(str(mob))
+        if not r or lvl >= int(r.get("lvl", 0)) + 2 or dfn >= int(r.get("def", 0)) * 1.2 + 3 or wpn > int(r.get("wpn", 0)):
+            # soy bastante más fuerte que cuando lo medí: arranco de nuevo (vuelvo a probarlo con cuidado)
+            old = r or {}
+            r = R[str(mob)] = {"lvl": lvl, "def": dfn, "wpn": wpn, "k": 0, "loss": 0.0, "pots": 0.0, "d": 0, "t": time.time(),
+                               "verdict": "probar", "prev": old.get("verdict")}
+        return r
+
+    def _risk_track(self, adj, now):
+        """Cada vuelta: si bajó la vida con bichos pegados, la pérdida se reparte entre los tipos que tenía encima."""
+        hp = self.bars.get("hp")
+        last = getattr(self, "_risk_hp", None)
+        self._risk_hp = (hp, now)
+        if hp is None or not last or last[0] is None or not adj or now - last[1] > 3:
+            return
+        drop = float(last[0]) - float(hp)
+        if drop <= 0 or drop > 60:
+            return
+        for nm in adj:
+            self._risk_rec(nm)["loss"] += drop / len(adj)
+        if now - getattr(self, "_risk_save_t", 0) > 120:
+            self._risk_save_t = now
+            try:
+                self.world.save()
+            except Exception:
+                pass
+
+    def _risk_judge(self, mob):
+        """Con lo medido decido: 'ok' (le doy), 'probar' (solo sueltos y con vida y pociones), 'no' (no lo busco)."""
+        r = self._risk_rec(mob)
+        k = max(1, r["k"])
+        per_kill = r["loss"] / k            # % de vida que me cuesta cada uno
+        pots_k = r["pots"] / k              # pociones por bicho
+        v = r.get("verdict", "probar")
+        if r["d"] >= 1 and r["k"] < 30:
+            v = "no"
+        elif r["k"] >= 8:
+            v = "no" if (per_kill > 30 or pots_k > 0.6) else "ok"
+        if v != r.get("verdict"):
+            r["verdict"] = v
+            txt = {"ok": "me da el cuero", "no": "todavía no me da", "probar": "lo pruebo de a uno"}[v]
+            self.log(f"🧠 {mob}: {txt} (con {r['k']} matados: {per_kill:.0f}% de vida y {pots_k:.1f} pociones por bicho"
+                     + (f", {r['d']} muerte/s" if r['d'] else "") + f"; nivel {r['lvl']}, defensa {r['def']}).")
+            try:
+                self.world.save()
+            except Exception:
+                pass
+        return v
+
+    def _risk_verdict(self, mob):
+        try:
+            r = (self.world.learn.get("risk") or {}).get(str(mob))
+            if not r:
+                return "probar"
+            return self._risk_rec(mob).get("verdict", "probar")
+        except Exception:
+            return "ok"
+
     def _killer(self, mob):
+        if self._risk_verdict(mob) == "no":
+            return True  # lo medí y todavía no me da (vuelvo a probar con 2 niveles más o mejor equipo)
         k = (self.world.learn.get("oly_killers") or {}).get(str(mob))
         if not k or k.get("n", 0) < 2:
             return False
@@ -7367,6 +7477,13 @@ class Bot:
         """¿Ese bicho está a mi alcance hoy? (mismo criterio que para elegir zona de caza)"""
         if self._killer(mob):
             return False
+        # bicho que todavía estoy midiendo: de a uno sí, pero no voy a su nido (en un nido no se 'prueba')
+        try:
+            r_ = (self.world.learn.get("risk") or {}).get(str(mob))
+            if r_ and self._risk_verdict(mob) == "probar" and r_.get("prev") == "no":
+                return False
+        except Exception:
+            pass
         try:
             cr = next((c for c in self._creatures_db().values() if str(c.get("name", "")).lower() == str(mob).lower()), None)
             if not cr:
