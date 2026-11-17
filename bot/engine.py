@@ -10061,6 +10061,29 @@ class Bot:
                         ws = wr
                         break
                 if not q:
+                    # segundo intento enseguida (no en 5 minutos: con el arma a 7% se rompía antes): vuelvo a abrir el
+                    # menú del herrero, aprieto 'Reparar Todo' y miro el cartel varias veces seguidas
+                    try:
+                        menu2 = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 else None
+                        menu2 = menu2 or self._npc_find("smith", "reparar")
+                        todo2 = next((w for w in (menu2 or []) if "todo" in norm(w[0])), None)
+                        if not todo2 and menu2:
+                            reps2 = sorted((w for w in menu2 if norm(w[0]).startswith("repar")), key=lambda w: w[2])
+                            todo2 = reps2[-1] if len(reps2) >= 2 else None
+                        if todo2:
+                            winapi.click(*self.abs_pt(todo2[1], todo2[2]))
+                            for _w in range(4):
+                                time.sleep(0.7)
+                                im_r = self.screen.grab(self.rect)
+                                wr = ocr.read_words(im_r, {"x1": 0, "y1": 0, "x2": int(self.rect[2] * 0.6), "y2": int(self.rect[3] * 0.5)}, scale=1.0)
+                                q = next((w for w in wr if "reparar" in norm(w[0]) and w[2] < self.rect[3] * 0.3), None)
+                                if q:
+                                    ws = wr
+                                    self.log("🔧 Segundo intento: ahora sí veo el cartel de 'Reparar todo'.")
+                                    break
+                    except Exception:
+                        pass
+                if not q:
                     try:
                         import cv2
                         cv2.imwrite(os.path.join(cfgmod.DATA, "herrero_dbg.jpg"), im_r, [cv2.IMWRITE_JPEG_QUALITY, 80])

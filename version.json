@@ -1,1 +1,1 @@
-{"version": 354, "notes": "Modo mixto de lectura: RapidOCR relee los nombres de objetos que Windows no entiende y verifica la lista de venta antes de sacar algo. Solo en zona segura."}
+{"version": 355, "notes": "Si no ve el cartel de 'Reparar todo', lo intenta de nuevo enseguida (el arma llegó a romperse esperando)."}
