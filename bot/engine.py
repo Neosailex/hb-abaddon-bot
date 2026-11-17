@@ -1365,10 +1365,21 @@ class Bot:
                 return True
             return False
         if smith:
-            # la lista del herrero está llena de filas: el click derecho va al recuadro de abajo (no elige nada)
-            winapi.click(*self.abs_pt(tab[1] + 40 * kx, tab[2] + 520 * ky), button="right")
+            # la lista del herrero está llena de filas y con algo elegido el recuadro de abajo tampoco cierra: el
+            # click derecho va a la barra del título (probado: cierra siempre y no elige nada)
+            winapi.left_up()
+            winapi.move(*self.abs_pt(tab[1] + 20 * kx, tab[2] - 43 * ky))
+            time.sleep(0.2)
+            winapi.click(*self.abs_pt(tab[1] + 20 * kx, tab[2] - 43 * ky), button="right")
         else:
             winapi.click(*self.abs_pt(tab[1] + 166 * kx, tab[2] + 317 * ky), button="right")
+            time.sleep(0.5)
+            try:
+                w2 = ocr.read_words(self.screen.grab(self.rect), {"x1": 0, "y1": 0, "x2": self.rect[2], "y2": int(self.rect[3] * 0.6)}, scale=1.0)
+                if any(norm(w[0]).startswith(("pocion", "pocl", "pocio")) and abs(w[2] - tab[2]) < 12 for w in w2):
+                    winapi.click(*self.abs_pt(tab[1] + 20 * kx, tab[2] - 43 * ky), button="right")  # sigue abierta: al título
+            except Exception:
+                pass
         time.sleep(0.4)
         return True
 
@@ -7898,6 +7909,13 @@ class Bot:
                 if gt is not None:
                     self._gold_rel = (p_[0] - pw[1], p_[1] - pw[2])
                     break
+            if gt is not None and sc.get("gold") and sc.get("gold_approx") and abs(gt - sc["gold"]) > 0.15 * sc["gold"]:
+                # el cartelito '10.982 Gold' leído con una cifra de menos ('1092', '102'): el número abreviado del bolso
+                # ('10.9k') dice otra cosa; le creo al abreviado
+                gt = None
+                d, approx = sc["gold"], True
+                self._gold_low = None
+                self._gold = d
             if gt is not None:
                 d, approx = gt, False
                 self._gold_low = d  # lectura exacta: vale aunque haya bajado mucho

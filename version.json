@@ -1,1 +1,1 @@
-{"version": 332, "notes": "Repara lo roto del bolso aunque no le lea el nombre, va al herrero aunque esté peleando si el mantenimiento está vencido, reinicio solo con vida alta y sin bichos, y corta si entra al edificio equivocado."}
+{"version": 333, "notes": "Cierra la tienda del herrero por la barra del título (quedaba abierta y trababa al bot) y no se cree una lectura de oro con una cifra de menos."}
