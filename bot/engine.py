@@ -10234,7 +10234,7 @@ class Bot:
         now = time.time()
         sc = getattr(self, "_bag_scan", None) or {}
         bad = bool(sc.get("unknown") or sc.get("vida_hidden"))
-        if now - getattr(self, "_order_t", 0) < (240 if bad else 900):
+        if now - getattr(self, "_order_t", 0) < (600 if bad else 900):
             return
         if getattr(self, "mission", None) or getattr(self, "_busy_ui", False) or getattr(self, "goto", None) or self._ui_th_alive():
             return
@@ -10369,8 +10369,13 @@ class Bot:
                     break
             self._bag_scan = None
             self._bag_mem = []
+            time.sleep(0.4)
             self._oly_bag(names=False)
             sc = getattr(self, "_bag_scan", None) or {}
+            if not sc.get("pots"):
+                time.sleep(0.8)
+                self._oly_bag(names=False)
+                sc = getattr(self, "_bag_scan", None) or {}
             if moved:
                 p_ = sc.get("pots") or {}
                 self.log(f"🎒 Ordené el bolso ({moved} movimiento/s): vida {p_.get('vida', '?')}, energía {p_.get('energía', '?')}, "
