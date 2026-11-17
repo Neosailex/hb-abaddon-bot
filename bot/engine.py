@@ -384,7 +384,9 @@ class Bot:
                 if now != base:
                     if not changed_at:
                         changed_at = time.time()
-                    elif time.time() - changed_at > 8 and not getattr(self, "_busy_ui", False):
+                    elif time.time() - changed_at > 8 and not getattr(self, "_busy_ui", False) and (
+                            time.time() - changed_at > 240 or not self.running or cfgmod.server_slug(self.cfg) == "abaddon"
+                            or (self._mobs_within(5) == 0 and not self._under_attack() and (self.bars.get("hp") or 100) >= 50)):
                         self.log("Hay una versión nueva del bot: me reinicio solo.")
                         self.restart_app()
                         return
@@ -1070,7 +1072,7 @@ class Bot:
             if getattr(self, "_rest_since", 0):
                 self._census()
                 if (cfg.get("stats_auto", {}).get("enabled") and getattr(self, "_last_stats", 1) == 0
-                        and cfgmod.server_slug(cfg) != "abaddon"):
+                        and cfgmod.server_slug(cfg) != "abaddon" and self._mobs_within(3) == 0):
                     self._stats_done = self._last_stats = time.time()
                     self._do_stats()
             return
@@ -1143,7 +1145,8 @@ class Bot:
             if not indoors and not getattr(self, "mission", None) and self._census():
                 return
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0 \
-                and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or (self.bars.get("hp") or 100) < 50)):
+                and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or self._mobs_within(3) > 0
+                         or (self.bars.get("hp") or 100) < 50)):
             self._last_stats = time.time()
             self._stats_done = time.time()
             self._do_stats()
@@ -1558,6 +1561,16 @@ class Bot:
                         time.sleep(0.3)
                         return True
         return False
+
+    def _mobs_within(self, r=3):
+        """Bichos a r baldosas o menos (servers sin estructura de memoria: lista de entidades). 0 si no se sabe."""
+        try:
+            if self.pos.get("x") is None:
+                return 0
+            px, py = self.pos["x"], self.pos["y"]
+            return sum(1 for e in (self._oly_ents() or []) if max(abs(e[0] - px), abs(e[1] - py)) <= r)
+        except Exception:
+            return 0
 
     def _adjacent_mobs(self):
         """Bichos a una baldosa del pj (lista de la memoria). 0 si no se sabe."""
@@ -7680,7 +7693,7 @@ class Bot:
             self._bag_hdr_xy = (pw[1], pw[2])
         return pw
 
-    def _oly_bag(self, names=True):
+    def _oly_bag(self, names=True, loose=False):
         """Bolso abierto (F6): [{'name','x','y','kind'}] con lo que hay; kind = pot/gold/item. También deja
         self._gold con el oro leído. Pasa el mouse por cada cosa para leer el nombre en el cartelito."""
         import cv2
@@ -7783,6 +7796,11 @@ class Bot:
                 continue
             m = next((m for m in mem if abs(m["rx"] - o["rx"]) <= 6 * kx and abs(m["ry"] - o["ry"]) <= 6 * ky
                       and abs(m["area"] - o["area"]) <= 0.12 * max(m["area"], 1)), None)
+            if not m and loose:
+                # adentro de la tienda cambia la luz (el área medida no coincide) y ahí el cartelito no sale: si revisé
+                # el bolso hace poco, lo que está en el mismo lugar es lo mismo
+                m = next((m for m in mem if abs(m["rx"] - o["rx"]) <= 9 * kx and abs(m["ry"] - o["ry"]) <= 9 * ky
+                          and m.get("name") and time.time() - m.get("t", 0) < 2700), None)
             if m and (m.get("ok") or time.time() - m.get("t", 0) < 3600):
                 o.update({k: m[k] for k in ("name", "dur", "dur_max", "dmg", "def", "lvl", "str") if m.get(k) is not None})
                 o["known"] = True
@@ -7841,7 +7859,7 @@ class Bot:
             if any(k in o["name"].lower() for k in ("potion", "poción", "pocion")):
                 o["kind"] = "pot"
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
-        if names:
+        if names and not (loose and any(o["kind"] == "item" and not o.get("name") for o in out)):
             try:
                 self._bag_mem_save([dict({k: o.get(k) for k in ("rx", "ry", "area", "name", "dur", "dur_max", "dmg", "def", "lvl", "str")},
                                          ok=bool(self._game_item(o.get("name"))), t=int(time.time()))
@@ -8258,7 +8276,7 @@ class Bot:
             th = getattr(self, a, None)
             if th is not None and th.is_alive():
                 return
-        if self.state == "attack" or self._under_attack() or self._adjacent_mobs() >= 1 or now < getattr(self, "_rabia_until", 0):
+        if self.state == "attack" or self._under_attack() or self._mobs_within(4) >= 1 or now < getattr(self, "_rabia_until", 0):
             return
         self._gear_t = now
         self._busy_ui = True
@@ -8682,7 +8700,7 @@ class Bot:
             if not bool(self._bag_open(grab())):
                 winapi.press("F6")  # el bolso abierto al lado de la tienda: de ahí leo oro, pociones y qué vender
                 time.sleep(1.1)
-            bag = self._oly_bag() or []
+            bag = self._oly_bag(loose=True) or []
             # solo vendo lo que reconocí en la tabla del juego y no me sirve (otro talento, o peor que lo puesto)
             sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
                     and (o.get("name") == "Mana Potion" or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
@@ -8717,7 +8735,7 @@ class Bot:
                         time.sleep(0.5)
                     if not sold_any or time.time() - t_sell > 300:
                         break
-                    bag = self._oly_bag() or []
+                    bag = self._oly_bag(loose=True) or []
                     sell = [o for o in bag if o["kind"] == "item" and self._bag_judge(o)[0] == "sell"
                             and (o.get("name") == "Mana Potion" or not any(k in (o.get("name") or "").lower() for k in self.KEEP_WORDS))]
                     if not sell:
