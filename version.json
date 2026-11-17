@@ -1,1 +1,1 @@
-{"version": 360, "notes": "La lectura del equipo puesto (muñeco de la ficha) usa siempre el OCR de Windows: con RapidOCR en zona segura leía mal y creía que se le había salido la ropa."}
+{"version": 361, "notes": "Arreglo: el bot dejó de pegarle a slimes y hormigas (los trataba como bichos a probar de a uno). No vuelve a la tienda en loop cuando no ve el bolso."}

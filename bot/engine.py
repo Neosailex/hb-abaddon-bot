@@ -5712,6 +5712,12 @@ class Bot:
             r_ = (self.world.learn.get("risk") or {}).get(e[2]["name"]) or {}
             if r_.get("k", 0) >= 8 and r_.get("prev") != "no":
                 return True
+            # bicho que ya vengo matando (tengo tiempos de pelea) y nunca medí como 'no': lo sigo cazando normal
+            # mientras se junta la medición (antes esto dejaba al bot 1 hora sin pegarle a nada: los slimes nunca
+            # están sueltos)
+            known_ = (self.world.learn.get("oly_ttk") or {}).get(e[2]["name"]) or ((self.world.learn.get("fight") or {}).get(e[2]["name"]) or {}).get("ttk")
+            if known_ and r_.get("prev") != "no":
+                return True
             near_same = sum(1 for o in ents if o is not e and o[2]["name"] == e[2]["name"] and max(abs(o[0] - e[0]), abs(o[1] - e[1])) <= 3)
             pots_ = (getattr(self, "_left", {}) or {}).get("pot")
             return near_same == 0 and (self.bars.get("hp") or 0) >= 75 and (pots_ is None or pots_ >= 8)
@@ -9178,7 +9184,7 @@ class Bot:
         hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and (gold or 0) >= 30
         bs_ = getattr(self, "_bag_slots", None)
         full = bool(bs_ and now - bs_[2] < 1800 and bs_[0] >= bs_[1] - 6 and getattr(self, "_bag_sell", None)
-                    and self.cfg.get("sell_olympia", True))
+                    and self.cfg.get("sell_olympia", True) and now > getattr(self, "_full_fail_until", 0))
         if not hungry and not full and (n is None or n > lim or not afford or now < getattr(self, "_pot_stuck_until", 0)):
             return
         self._shop_last = now
@@ -9305,6 +9311,8 @@ class Bot:
                 sell = []
             try:
                 its_ = [o for o in bag if o["kind"] == "item"]
+                if not its_:
+                    self._full_fail_until = time.time() + 2700  # no veo el bolso acá: no vuelvo por 'bolso lleno' en 45 min
                 self.log(f"🛒 En el bolso veo {len(its_)} objeto/s ({sum(1 for o in its_ if o.get('name'))} con nombre); para vender: "
                          f"{', '.join(o.get('name') or '?' for o in sell) or 'nada'}{'' if tabp else ' (no ubico las pestañas)'}.")
                 if not sell or not tabp:
