@@ -1029,6 +1029,14 @@ class Bot:
         # segundo plano: los clicks SIEMPRE van directo a la ventana del juego (nunca al mouse de tu PC)
         if self.cfg.get("background_mode") and self.hwnd and winapi.BG_HWND != self.hwnd:
             winapi.set_background(self.hwnd)
+        try:
+            # el cartel de tirar un objeto traba todo (hasta revivir): se contesta 'No' antes que cualquier otra cosa
+            if not getattr(self, "_busy_ui", False) and time.time() - getattr(self, "_dropno_t", 0) > 6:
+                self._dropno_t = time.time()
+                if self._drop_no():
+                    return
+        except Exception:
+            pass
         if self._watchdog():
             return
         self._town_account()
@@ -1188,12 +1196,6 @@ class Bot:
                 self._gc_err = time.time()
                 self.log(f"🛡 Error en el chequeo de equipo: {e_!r}")
         self._brain_step()
-        try:
-            if not getattr(self, "_busy_ui", False) and time.time() - getattr(self, "_dropno_t", 0) > 6:
-                self._dropno_t = time.time()
-                self._drop_no()
-        except Exception:
-            pass
         self._close_junk_windows()
         self._maybe_gear()
         try:
@@ -1418,8 +1420,10 @@ class Bot:
         img = img if img is not None else self.screen.grab(self.rect)
         H, W = img.shape[:2]
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
-        for bx in ({"x1": int(W * 0.60), "y1": int(H * 0.70), "x2": W, "y2": int(H * 0.96)},
-                   {"x1": int(W * 0.20), "y1": int(H * 0.25), "x2": int(W * 0.80), "y2": int(H * 0.75)}):
+        # el cartel sale donde quedó el mouse: abajo a la derecha, abajo a la izquierda o al medio
+        for bx in ({"x1": int(W * 0.48), "y1": int(H * 0.55), "x2": W, "y2": int(H * 0.985)},
+                   {"x1": 0, "y1": int(H * 0.55), "x2": int(W * 0.52), "y2": int(H * 0.985)},
+                   {"x1": int(W * 0.15), "y1": int(H * 0.15), "x2": int(W * 0.85), "y2": int(H * 0.60)}):
             ws = ocr.read_words(img, bx, scale=1.0)
             hit = next((w for w in ws if norm(w[0]) == "tirar"), None)
             if not hit or not any(norm(w[0]) in ("seguro", "quieres", "objeto") for w in ws):
@@ -7971,9 +7975,13 @@ class Bot:
                 except Exception:
                     pass
             tw_ = [w for w in tw_ if not w[0].strip().isdigit()]
-            if tw_ and not o.get("name"):
+            if tw_:
                 top = min(w[2] for w in tw_)
-                o["name"] = " ".join(w[0] for w in sorted([w for w in tw_ if w[2] - top < 10 * ky], key=lambda w: w[1]))
+                top_nm = " ".join(w[0] for w in sorted([w for w in tw_ if w[2] - top < 10 * ky], key=lambda w: w[1]))
+                # el nombre es el PRIMER renglón del cartelito; los objetos con bonus traen renglones de bonus entre el
+                # nombre y los datos ('Shirt(M)' / 'Oro (Gold) +21%' / 'Recuperación HP +10%' / 'DR 5')
+                if not o.get("name") or (self._game_item(top_nm) and not self._game_item(o.get("name"))):
+                    o["name"] = top_nm
             if any(k in o["name"].lower() for k in ("potion", "poción", "pocion")):
                 o["kind"] = "pot"
         winapi.move(*self.abs_pt(int(pw[1] + 300 * kx), int(pw[2] - 60 * ky)))
@@ -8370,6 +8378,9 @@ class Bot:
                     continue
                 if any(k in name.lower() for k in ("nivel", "exp", "peso", "hambre", "talentos", "contrib", "reput", "majest")):
                     continue
+                gi_ = self._game_item(name)
+                if gi_ and gi_.get("name") and len(name) > len(gi_["name"]) + 2 and name.lower().startswith(gi_["name"].lower()):
+                    name = gi_["name"]  # 'Combatant Cape -nbre:' → 'Combatant Cape' (texto de la ficha que se coló)
                 d = {"name": name, "dur": tp.get("dur"), "dur_max": tp.get("dur_max"), "dmg": tp.get("dmg"), "def": tp.get("def")}
                 if name not in out or (d["dur_max"] and not out[name].get("dur_max")):
                     out[name] = d
@@ -8436,7 +8447,7 @@ class Bot:
                 weapon = d
         prev = self.cfg.get("worn") or {}
         missing = [f"{prev[sl].get('name')}" for sl in prev if isinstance(prev[sl], dict) and prev[sl].get("ok") and sl not in worn
-                   and not str(prev[sl].get("name") or "").startswith("?") and not sl.startswith("otro:")]
+                   and not str(prev[sl].get("name") or "").startswith("?") and not sl.startswith("otro:") and sl != "capa"]
         low = [d for d in items if d.get("dur_max") and d.get("dur") is not None and d["dur"] <= max(0.15 * d["dur_max"], 45)]
         sig = tuple(sorted((sl, w["name"]) for sl, w in worn.items()))
         self.cfg["worn"] = worn
@@ -9653,6 +9664,27 @@ class Bot:
             self._busy_ui = True
             self._release()
             time.sleep(1.5)
+            # adentro del herrero no hay bichos: miro cuánto se gastó el equipo desde la última reparación y con eso
+            # ajusto cada cuánto vengo (en un nido se gasta mucho más rápido que cazando de a uno)
+            pre = None
+            try:
+                g_ = self._gear_read() if cfgmod.server_slug(self.cfg) != "abaddon" else None
+                pcs = [100.0 * d_["dur"] / d_["dur_max"] for d_ in (g_ or {}).values() if d_.get("dur_max") and d_.get("dur") is not None]
+                if pcs:
+                    pre = min(pcs)
+                    ev = float(self.cfg.get("repair_every_min", 45))
+                    since = (time.time() - getattr(self, "_rep_ok_t", 0)) / 60.0
+                    new = ev
+                    if pre < 40 and since < ev * 1.5:
+                        new = max(12.0, round(min(ev, since) * 0.6))
+                    elif pre > 85 and since >= ev * 0.8:
+                        new = min(90.0, round(ev * 1.25))
+                    if new != ev:
+                        self.cfg["repair_every_min"] = int(new)
+                        cfgmod.save(self.cfg)
+                        self.log(f"🔧 Al llegar, lo más gastado estaba en {int(pre)}%: paso a reparar cada {int(new)} minutos (antes {int(ev)}).")
+            except Exception:
+                pass
             menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 else None
             menu = menu or self._npc_find("smith", "reparar")
             if not menu:
@@ -9706,6 +9738,8 @@ class Bot:
                 winapi.click(*self.abs_pt(yes[1], yes[2]))
                 time.sleep(1.5)
                 self.log(f"🔧 Reparé todo el equipo" + (f" por {cost} de oro." if cost else "."))
+                self._rep_ok_t = time.time()
+                self._rep_nocartel = 0
                 self._bag_mem = []
             elif yes:
                 no = next((w for w in ws if norm(w[0]) == "no" and abs(w[2] - yes[2]) < 15), None)
@@ -9714,8 +9748,17 @@ class Bot:
                 self.log(f"🔧 Reparar cuesta {cost} y tengo {gold}: no me alcanza.")
                 return
             else:
-                self.log("🔧 No vi el cartel de 'Reparar todo' (o no había nada para reparar): guardé la captura. Reintento en 5 minutos.")
-                self._rep_retry = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 300)
+                if pre is not None and pre >= 90:
+                    self.log(f"🔧 Nada para reparar (lo más gastado está en {int(pre)}%).")
+                    self._rep_nocartel = 0
+                    self._rep_ok_t = time.time()
+                elif getattr(self, "_rep_nocartel", 0) >= 2:
+                    self.log("🔧 Tres veces sin ver el cartel de 'Reparar todo': sigo con el horario normal.")
+                    self._rep_nocartel = 0
+                else:
+                    self._rep_nocartel = getattr(self, "_rep_nocartel", 0) + 1
+                    self.log("🔧 No vi el cartel de 'Reparar todo' (o no había nada para reparar): guardé la captura. Reintento en 5 minutos.")
+                    self._rep_retry = time.time() - max(0, float(self.cfg.get("repair_every_min", 150)) * 60 - 300)
             # lo que se rompió del todo se salió al bolso y 'Reparar Todo' no lo arregla: va por 'Reparar' (de a uno)
             if time.time() - getattr(self, "_broken_t", 0) < 7200 or self.cfg.get("repair_loose_always", False):
                 try:
