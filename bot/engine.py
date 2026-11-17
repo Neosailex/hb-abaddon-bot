@@ -508,7 +508,12 @@ class Bot:
         # Ningún clic de caminar/pegar/levantar puede caer ahí: lo subo al borde del área de juego.
         try:
             if not bar and self.rect and cfgmod.server_slug(self.cfg) != "abaddon" and y > self.rect[3] * 0.905:
-                y = self.rect[3] * 0.905
+                # excepción: el bolso abierto puede quedar encima de la barra (la ventana se corre); un clic sobre un
+                # objeto del bolso va al bolso, no a la barra. Sin esto los clics al bolso caían en otro objeto.
+                bb = getattr(self, "_bag_box_now", None)
+                inbag = bb and time.time() - bb[4] < 30 and bb[0] <= x <= bb[2] and bb[1] <= y <= bb[3]
+                if not inbag:
+                    y = self.rect[3] * 0.905
         except Exception:
             pass
         return (self.rect[0] + int(x), self.rect[1] + int(y))
@@ -7906,6 +7911,11 @@ class Bot:
         except Exception:
             pass
         self._bag_scan = sc
+        try:
+            bx_ = sc["box"]
+            self._bag_box_now = (bx_[0], bx_[1], bx_[2], bx_[3], time.time())
+        except Exception:
+            pass
         out = []
         d, approx = sc["gold"], sc["gold_approx"]
         gp = sc.get("gold_pile")

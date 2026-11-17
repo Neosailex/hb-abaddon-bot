@@ -1,1 +1,1 @@
-{"version": 345, "notes": "Solo descuenta una pila de pociones si el cartelito dice claramente el nombre de otro objeto del juego."}
+{"version": 346, "notes": "El bolso quedó encima de la barra de abajo: los clics a objetos del bolso ya no se corren hacia arriba (caían en otro objeto, por eso no vendía ni comía bien)."}
