@@ -3218,48 +3218,114 @@ class Bot:
                 sh = None
         return sh if sh and time.time() - sh.get("t", 0) < max_age else None
 
-    def _new_character(self, lvl, old_lvl):
-        """Cambió el personaje (la ficha muestra otro nivel que no puede ser el mismo pj). Lo que es del SERVIDOR queda
-        (mapas, portales, tiendas, nidos, cuánto pega cada bicho, zonas donde se muere, precios); lo que era del
-        PERSONAJE anterior se borra: equipo puesto y comprado, memoria del bolso, misiones hechas, tiempos de matar
-        (dependen del arma), oro y pociones contadas."""
-        self.log(f"🧑 Es otro personaje (nivel {lvl}; el anterior era nivel {old_lvl}): lo que aprendí del servidor queda, "
-                 f"y arranco de cero lo que era del otro (equipo, bolso, misiones, tiempos de pelea).")
+    PJ_KEYS = ("oly_ttk", "fight", "oly_hot", "loot_blind")
+
+    def _pj_dir(self):
+        d = os.path.join(cfgmod.profile_dir(self.cfg), "personajes")
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def _pj_snapshot(self, lvl, stats):
+        """Todo lo que es de UN personaje (no del servidor), para guardarlo y poder volver a él."""
+        snap = {"t": time.time(), "level": int(lvl), "stats": dict(stats or {}),
+                "cfg": {k: self.cfg.get(k) for k in ("worn", "owned_items", "need_weapon", "train_skill_until", "repair_every_min")},
+                "learn": {k: self.world.learn.get(k) for k in self.PJ_KEYS if self.world.learn.get(k) is not None}}
+        try:
+            with open(os.path.join(cfgmod.profile_dir(self.cfg), "bolso.json"), encoding="utf-8") as f:
+                snap["bolso"] = json.load(f)
+        except Exception:
+            pass
+        try:
+            st = self.learner.st or {}
+            snap["quests_done"] = st.get("quests_done")
+        except Exception:
+            pass
+        return snap
+
+    def _new_character(self, lvl, old_lvl, stats=None, prev=None):
+        """Cambió el personaje. NO borro nada: lo del personaje anterior lo guardo en data/servers/<srv>/personajes/
+        (nivel + stats lo identifican). Si el que entró ya lo conozco (mismo nivel o más, stats iguales o mayores, el
+        más parecido), le devuelvo lo suyo; si es nuevo, arranca de cero en lo del personaje y con todo lo del
+        servidor (mapas, nidos, tiendas, cuánto pega cada bicho, dónde se muere)."""
+        d = self._pj_dir()
+        # 1) guardo el anterior
+        try:
+            ps = (prev or {}).get("stats") or {}
+            snap = self._pj_snapshot(old_lvl, ps)
+            tag = f"nivel{int(old_lvl)}_" + "_".join(f"{k}{v}" for k, v in sorted(ps.items()))
+            with open(os.path.join(d, f"{tag}.json"), "w", encoding="utf-8") as f:
+                json.dump(snap, f, ensure_ascii=False)
+            self.log(f"💾 Guardé lo del personaje anterior (nivel {old_lvl}) para poder volver a él.")
+        except Exception as e:
+            self.log(f"💾 No pude guardar lo del personaje anterior: {e!r}")
+        # 2) ¿al que entró lo conozco?
+        best_ = None
+        try:
+            for fn in os.listdir(d):
+                if not fn.endswith(".json"):
+                    continue
+                with open(os.path.join(d, fn), encoding="utf-8") as f:
+                    sn = json.load(f)
+                st_ = sn.get("stats") or {}
+                if int(sn.get("level", 0)) > int(lvl) or not stats:
+                    continue
+                if any(int(st_.get(k, 0)) > int(stats.get(k, 0)) for k in stats):
+                    continue  # los stats nunca bajan: si el guardado tiene más en algo, no es este personaje
+                dist = (int(lvl) - int(sn.get("level", 0))) * 10 + sum(int(stats.get(k, 0)) - int(st_.get(k, 0)) for k in stats)
+                if dist <= 40 and (best_ is None or dist < best_[0]):
+                    best_ = (dist, sn, fn)
+        except Exception:
+            best_ = None
         c = self.cfg
-        c["worn"] = {}
-        c["owned_items"] = []
-        c["need_weapon"] = False
-        c["train_skill_until"] = 0
-        t = c.setdefault("travel", {})
-        t["my_level"] = int(lvl)
+        L = self.world.learn
+        if best_:
+            sn = best_[1]
+            for k, v in (sn.get("cfg") or {}).items():
+                c[k] = v
+            for k in self.PJ_KEYS:
+                if (sn.get("learn") or {}).get(k) is not None:
+                    L[k] = sn["learn"][k]
+                else:
+                    L.pop(k, None)
+            try:
+                if sn.get("bolso"):
+                    with open(os.path.join(cfgmod.profile_dir(c), "bolso.json"), "w", encoding="utf-8") as f:
+                        json.dump(sn["bolso"], f, ensure_ascii=False)
+                if sn.get("quests_done") is not None:
+                    self.learner.st["quests_done"] = sn["quests_done"]
+                    self.learner.save()
+            except Exception:
+                pass
+            self.log(f"🧑 Volvió un personaje que conozco (nivel {sn.get('level')} → {lvl}): le devuelvo su equipo, bolso, misiones y tiempos de pelea.")
+        else:
+            self.log(f"🧑 Es otro personaje (nivel {lvl}; el anterior era nivel {old_lvl}): lo que aprendí del servidor queda, "
+                     f"y lo del personaje arranca de cero (lo del anterior quedó guardado).")
+            c["worn"] = {}
+            c["owned_items"] = []
+            c["need_weapon"] = False
+            c["train_skill_until"] = 0
+            for k in self.PJ_KEYS:
+                L.pop(k, None)
+            try:
+                os.remove(os.path.join(cfgmod.profile_dir(c), "bolso.json"))
+            except Exception:
+                pass
+            try:
+                if self.learner.st and self.learner.st.get("quests_done"):
+                    self.learner.st["quests_done"] = {} if isinstance(self.learner.st["quests_done"], dict) else []
+                    self.learner.save()
+            except Exception:
+                pass
+        c.setdefault("travel", {})["my_level"] = int(lvl)
         try:
             cfgmod.save(c)
-        except Exception:
-            pass
-        try:
-            os.remove(os.path.join(cfgmod.profile_dir(c), "bolso.json"))
-        except Exception:
-            pass
-        try:
-            L = self.world.learn
-            old = L.setdefault("pj_anterior", {})
-            for k in ("oly_ttk", "fight", "oly_hot", "loot_blind"):
-                if L.get(k):
-                    old[k] = L.pop(k)
-            # bicho que mató dos veces al otro pj: sigue vetado solo si este es de menor nivel (lo decide _killer)
             self.world.save()
-        except Exception:
-            pass
-        try:
-            st = self.learner.st
-            if st and st.get("quests_done"):
-                st.setdefault("pj_anterior", {})["quests_done"] = st.pop("quests_done")
-                self.learner.save()
         except Exception:
             pass
         for a, v in (("_bag_mem", None), ("_gold", None), ("_pot_est", None), ("_left", {}), ("_gear_t", 0), ("_gear_sig", None),
                      ("_audit_t", 0), ("_quests_sig", None), ("_exp_off", 0), ("_bag_sell", []), ("_worn_seen", 0),
-                     ("_hunger", None), ("_gold_rel", None), ("_buy_chk", None), ("_pot_stuck_until", 0), ("_stats_vals", None)):
+                     ("_hunger", None), ("_gold_rel", None), ("_buy_chk", None), ("_pot_stuck_until", 0), ("_stats_vals", None),
+                     ("_stack_names", {}), ("_brain_t", 0)):
             try:
                 setattr(self, a, v)
             except Exception:
@@ -3427,7 +3493,7 @@ class Bot:
                 self._census_t = time.time() - 10 ** 6  # la releo enseguida para confirmar
                 return None
             self._pj_cand = None
-            self._new_character(lvl, prev["level"])
+            self._new_character(lvl, prev["level"], {n: best[n] for n in names}, prev)
             prev = None
         else:
             self._pj_cand = None
