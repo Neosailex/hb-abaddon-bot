@@ -8720,7 +8720,7 @@ class Bot:
         def anchor():
             im = self.screen.grab(self.rect)
             H, W = im.shape[:2]
-            ws = ocr.read_words(im, {"x1": int(W * 0.12), "y1": int(H * 0.1), "x2": int(W * 0.62), "y2": int(H * 0.86)}, scale=1.0)
+            ws = ocr.read_words(im, {"x1": int(W * 0.12), "y1": int(H * 0.1), "x2": int(W * 0.62), "y2": int(H * 0.86)}, scale=1.0, prefer="windows")
             nv = next((w for w in ws if w[0].strip().lower().startswith("nivel")), None)
             if nv and any(w[0].strip().lower().startswith(("talentos", "hambre", "exp")) for w in ws):
                 return nv
@@ -8752,7 +8752,7 @@ class Bot:
                 time.sleep(0.25)
                 x1, y1 = max(0, int(x - 14 * kx)), max(0, int(y + 44 * ky))
                 box = {"x1": x1, "y1": y1, "x2": min(im2.shape[1], int(x + 470 * kx)), "y2": min(im2.shape[0], int(y + 190 * ky))}
-                tw = ocr.read_words(im2, box, scale=1.0)
+                tw = ocr.read_words(im2, box, scale=1.0, prefer="windows")
                 # renglones del cartelito: arrancan pegados a su borde izquierdo; lo que quede a la derecha tras un hueco
                 # grande es texto de la ficha que se ve atrás
                 lines = []
