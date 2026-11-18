@@ -1,1 +1,1 @@
-{"version": 378, "notes": "Arreglos: aprieta 'Vender ítems' aunque no lo lea; no compra equipo que ya tiene en el bolso; si una pieza desplaza a otra (Shirt/Leather) se queda con la puesta en vez de ir y venir al herrero."}
+{"version": 379, "notes": "Arreglo: mientras va vendiendo, la alarma de 'compra/venta colgada' no la corta (la cortaba a mitad y no compraba pociones)."}

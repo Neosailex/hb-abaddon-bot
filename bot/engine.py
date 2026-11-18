@@ -933,7 +933,8 @@ class Bot:
         # hilo de compras/ventanas colgado
         if getattr(self, "_busy_ui", False):
             self._busy_t0 = getattr(self, "_busy_t0", None) or now
-            if now - self._busy_t0 > 300:
+            # mientras venda/compre algo (latido), no está colgada: la cuento desde la última venta
+            if now - max(self._busy_t0, getattr(self, "_busy_beat", 0)) > 300:
                 self._busy_ui = False
                 self.mission = None
                 self._busy_t0 = None
@@ -8587,6 +8588,7 @@ class Bot:
             return
         click(btn[1] + 30 * kx, btn[2])
         time.sleep(1.5)
+        self._busy_beat = time.time()
         self.log("🛒 Vendí: " + ", ".join(l[0] for l in ls) + (f" (recibí {tot})" if tot else "") + ".")
         self._bag_mem = []
         self._bag_sell = []
@@ -11517,7 +11519,9 @@ class Bot:
                  if o.get("kind") == "item"}
         have_ |= {norm(w.get("name") or "") for w in (self.cfg.get("worn") or {}).values() if isinstance(w, dict)}
         have_ |= {norm(w.get("name") or "") for w in (self.cfg.get("worn_best") or {}).values() if isinstance(w, dict)}
-        items = [i for i in items if norm(i["name"]) not in have_]
+        have_ = {h_ for h_ in have_ if h_}
+        # el nombre puede estar cortado ('Leather' por 'Leather Armor(M)'): alcanza con que arranque igual
+        items = [i for i in items if not any(norm(i["name"]).startswith(h_[:7]) and len(h_) >= 5 for h_ in have_)]
         if not items:
             return
         if time.time() - getattr(self, "_buy_trip_t", 0) < 1800:
