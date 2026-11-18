@@ -1,1 +1,1 @@
-{"version": 379, "notes": "Arreglo: mientras va vendiendo, la alarma de 'compra/venta colgada' no la corta (la cortaba a mitad y no compraba pociones)."}
+{"version": 380, "notes": "Arreglo: el choque de equipo (una pieza saca a otra) solo cuenta si es uno por uno y se repite; tras la muerte no marca falsos choques."}

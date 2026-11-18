@@ -8972,7 +8972,14 @@ class Bot:
         # me quedo con lo que está puesto y anoto el choque para no volver a cambiarlos de ida y vuelta
         prev_names_ = {str(w.get("name")) for w in prev.values() if isinstance(w, dict)}
         new_ = [w["name"] for sl_, w in worn.items() if not sl_.startswith("otro:") and w.get("name") not in prev_names_]
-        if missing and new_ and prev:
+        # solo un par uno-por-uno y visto 2 veces (ida y vuelta) cuenta como choque: después de una muerte o una mala
+        # lectura de la ficha 'faltan' varias cosas a la vez y no es eso
+        pair_ = (missing[0], new_[0]) if len(missing) == 1 and len(new_) == 1 else None
+        if pair_:
+            seen_ = self.cfg.setdefault("gear_clash_seen", {})
+            k_ = " | ".join(sorted(pair_))
+            seen_[k_] = int(seen_.get(k_, 0)) + 1
+        if pair_ and int(self.cfg.get("gear_clash_seen", {}).get(" | ".join(sorted(pair_)), 0)) >= 2 and prev:
             clash = self.cfg.setdefault("gear_clash", {})
             for m_ in list(missing):
                 for n_ in new_:
