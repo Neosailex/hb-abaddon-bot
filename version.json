@@ -1,1 +1,1 @@
-{"version": 380, "notes": "Arreglo: el choque de equipo (una pieza saca a otra) solo cuenta si es uno por uno y se repite; tras la muerte no marca falsos choques."}
+{"version": 381, "notes": "Arreglo: nunca se reinicia para actualizarse con poca vida o mientras le pegan."}

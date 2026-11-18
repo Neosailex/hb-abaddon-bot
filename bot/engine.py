@@ -385,7 +385,9 @@ class Bot:
                     if not changed_at:
                         changed_at = time.time()
                     elif time.time() - changed_at > 8 and not getattr(self, "_busy_ui", False) and (
-                            time.time() - changed_at > 420 or not self.running or cfgmod.server_slug(self.cfg) == "abaddon"
+                            # pasados 7 min me reinicio igual, pero nunca con poca vida o mientras me pegan
+                            (time.time() - changed_at > 420 and not self._under_attack() and (self.bars.get("hp") or 100) >= 50)
+                            or not self.running or cfgmod.server_slug(self.cfg) == "abaddon"
                             or (self._mobs_within(8) == 0 and not self._under_attack() and (self.bars.get("hp") or 100) >= 80)):
                         self.log("Hay una versión nueva del bot: me reinicio solo.")
                         self.restart_app()
