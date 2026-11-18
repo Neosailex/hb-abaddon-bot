@@ -8768,6 +8768,16 @@ class Bot:
             return ("equip", "no tengo arma comprobada puesta: cualquiera es mejor que pegar a mano", it, slot, val)
         if slot == "arma" and fam and str(it.get("family") or "").lower() != fam:
             return ("sell", f"no es {fam} (mi talento): no es de la guía", it, slot, val)
+        if slot == "arma" and worn:
+            # lo puesto no es de mi talento (ej. una varita que se equipó por error): cualquier arma de mi talento
+            # que pueda usar va antes, sin comparar puntajes (y nunca se vende por 'no mejorar')
+            gw_ = self._game_item(str(worn.get("name") or "")) or {}
+            wn_ = str(worn.get("name") or "").lower()
+            if (gw_ and fam and str(gw_.get("family") or "").lower() not in ("", fam)) or \
+                    (not gw_ and any(k in wn_ for k in ("wand", "staff", "bow", "varita"))):
+                if int(it.get("level") or 0) > lvl:
+                    return ("keep", f"pide nivel {it['level']}", it, slot, val)
+                return ("equip", f"es {fam} y lo que tengo puesto no", it, slot, val)
         if slot == "arma" and str(it.get("slot") or "") == "arma" and self.cfg.get("two_handed", True) \
                 and any(str((self._game_item(w_.get("name")) or {}).get("slot") or "") == "arma2m" for w_ in [worn or {}]):
             return ("sell", "es de una mano y la guía es a dos manos", it, slot, val)
