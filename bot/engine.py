@@ -8889,6 +8889,8 @@ class Bot:
                         "dur": d.get("dur"), "dur_max": d.get("dur_max")}
             if sl == "arma":
                 weapon = d
+        if weapon and (weapon.get("dur") is None or weapon["dur"] > 45):
+            self._weapon_ok_t = now
         prev = self.cfg.get("worn") or {}
         missing = [f"{prev[sl].get('name')}" for sl in prev if isinstance(prev[sl], dict) and prev[sl].get("ok") and sl not in worn
                    and not str(prev[sl].get("name") or "").startswith("?") and not sl.startswith("otro:") and sl != "capa"]
@@ -11095,8 +11097,24 @@ class Bot:
                 lim75 = 75.0
             if (a0 and now - max(a0, getattr(self, "_last_kill_t", 0)) > lim75 and self.running
                     and now - getattr(self, "_nokill_town", 0) > 600 and getattr(self, "_town_done", True)):
-                self._nokill_town = now
                 self._adj_since = 0
+                wok = getattr(self, "_weapon_ok_t", 0)
+                if now - wok < 300 and getattr(self, "_broken_t", 0) <= wok:
+                    # la ficha dice que el arma está puesta y sana: el problema es el bicho (élite, trabado detrás de
+                    # algo), no el arma. Lo dejo y me muevo, sin ir al pueblo.
+                    self.log("🔧 Pego sin matar pero el arma está bien puesta: dejo ese bicho y me muevo.")
+                    self._nokill_town = now - 300
+                    self.target, self.state = None, "seek"
+                    return
+                if now - getattr(self, "_nokill_chk", 0) > 300:
+                    # antes de ir al pueblo confirmo con la ficha (el chequeo de equipo manda al pueblo si falta)
+                    self._nokill_chk = now
+                    self.log("🔧 Hace más de un minuto que pego sin matar: miro la ficha a ver si tengo el arma.")
+                    self._gear_t = 0
+                    self._nokill_town = now - 480
+                    self.target, self.state = None, "seek"
+                    return
+                self._nokill_town = now
                 self.log("🔧 Hace más de un minuto que le pego a un bicho y no muere: el arma no está o se rompió. Voy al pueblo a reparar y ponérmela.")
                 self._kite = None
                 self._town_need("dejé de matar")
