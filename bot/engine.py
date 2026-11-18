@@ -8949,8 +8949,17 @@ class Bot:
                 w["miss"] = int(w.get("miss", 0)) + 1
                 w["t"] = time.time()
             if w["miss"] > 3:
-                self.log(f"🛡 {w['name']} no aparece hace varias revisiones: lo doy por perdido.")
+                self.log(f"🛡 {w['name']} no aparece hace varias revisiones: lo doy por perdido (lo vuelvo a comprar si me alcanza).")
                 wb.pop(sl, None)
+                try:
+                    oi = self.cfg.get("owned_items") or []
+                    g_ = self._game_item(w["name"]) or {}
+                    for nm_ in (w["name"], g_.get("name")):
+                        while nm_ and nm_ in oi:
+                            oi.remove(nm_)
+                    self._brain_t = 0
+                except Exception:
+                    pass
             else:
                 missing.append(w["name"])
         low = [d for d in items if d.get("dur_max") and d.get("dur") is not None and d["dur"] <= max(0.15 * d["dur_max"], 45)]
