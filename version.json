@@ -1,1 +1,1 @@
-{"version": 366, "notes": "Arreglo: si se sale una pieza del equipo y no vuelve, la sigue reclamando (reparar y ponérsela) en vez de olvidarla."}
+{"version": 367, "notes": "Arreglo: reconoce piezas del equipo con el nombre cortado (Leather → Leather Armor) y no da falsas alarmas."}

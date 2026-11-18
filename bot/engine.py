@@ -8846,6 +8846,11 @@ class Bot:
         if it.get("slot"):
             return it["slot"]
         low = d["name"].lower()
+        # nombre cortado o mal leído ('Leather', 'Leather Armar'): si arranca como algo que ya tuve puesto, es eso
+        if len(low) >= 6:
+            for sl_, w_ in (self.cfg.get("worn_best") or {}).items():
+                if str(w_.get("name") or "").lower().startswith(low[:6]):
+                    return sl_
         for k, sl in (("shield", "escudo"), ("cape", "capa"), ("cap(", "cabeza"), ("helm", "cabeza"), ("hat", "cabeza"), ("shoes", "pies"),
                       ("boots", "pies"), ("trousers", "piernas"), ("hose", "piernas"), ("leggings", "piernas"), ("hauberk", "brazos"),
                       ("shirt", "pecho"), ("tunic", "pecho"), ("armor", "pecho"), ("mail", "pecho"), ("robe", "pecho")):
