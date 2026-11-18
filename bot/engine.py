@@ -1730,7 +1730,9 @@ class Bot:
             # Reiniciar sigue mandando siempre)
             if not getattr(self, "_cover_since", 0):
                 self._cover_since = now
-            if hm is not None or now - self._cover_since < 15:
+            # Olympia: la vida en memoria no siempre está (hm None). Ahí la barra sola NO alcanza para darme por muerto
+            # (la tienda o el chat la tapan y me 'moría' adentro de la tienda): manda el botón 'Reiniciar'
+            if hm is not None or cfgmod.server_slug(self.cfg) != "abaddon" or now - self._cover_since < 15:
                 scr_dead = False
             if not scr_dead and now - getattr(self, "_cover_t", 0) > 6:
                 self._cover_t = now
@@ -1955,7 +1957,10 @@ class Bot:
                 self._stand_pot_t = now
                 self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
                 self.stats["hp_pots"] += 1
-        if (not stand_) and hp is not None and hp <= panic and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0) \
+        # vida en 0 justo con maná/energía visibles = barra tapada por una ventana (vivo con 0 no se puede estar):
+        # no huyo ni tomo pociones por eso
+        covered_ = hp is not None and hp <= 0.5 and ((self.bars.get("mp") or 0) > 0 or (self.bars.get("sp") or 0) > 0)
+        if (not stand_) and not covered_ and hp is not None and hp <= panic and cfg.get("panic_action") == "flee" and now > getattr(self, "_flee_block", 0) \
                 and not (cfgmod.server_slug(cfg) != "abaddon" and "beginner" in (self.pos.get("map") or "").lower()):
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self._flee_until = now + cfg.get("flee_max_sec", 600)
