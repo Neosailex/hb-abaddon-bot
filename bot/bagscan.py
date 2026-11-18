@@ -33,7 +33,7 @@ def _colors(px):
             "oro": int(((r > 150) & (g > 140) & (b < 130)).sum())}
 
 
-SMALL = True  # opción del juego 'Ítems pequeños' (engranaje del bolso): íconos chicos y oscuros
+SMALL = False  # opción del juego 'Ítems pequeños' (engranaje del bolso): íconos chicos y oscuros
 
 
 def scan(img, pw, words=(), readnum=None):
