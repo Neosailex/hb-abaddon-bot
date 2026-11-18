@@ -1,1 +1,1 @@
-{"version": 372, "notes": "Arreglo: si una ventana tapa la barra de vida y la memoria dice que está vivo, cierra ventanas en vez de creerse muerto."}
+{"version": 373, "notes": "Arreglo: recién arrancado (sin vida en memoria) tampoco se cree muerto por una ventana tapando la barra; primero cierra ventanas."}
