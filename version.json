@@ -1,1 +1,1 @@
-{"version": 375, "notes": "Arreglo: en Olympia la barra de vida tapada (tienda, chat) ya no lo da por muerto ni lo hace huir; la muerte la confirma el botón Reiniciar."}
+{"version": 376, "notes": "Arreglo: con la barra de vida tapada no toma pociones de pánico (las gastaba en la tienda) y cierra lo que la tapa."}

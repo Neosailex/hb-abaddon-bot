@@ -1979,7 +1979,17 @@ class Bot:
             self.state, self.target = "seek", None
             self.log(f"¡Vida {hp:.0f}%! Me alejo a descansar.")
             return False
-        if (not stand_) and hp is not None and hp <= panic:
+        if covered_:
+            # barra tapada: cierro lo que la tape (tienda olvidada, chat, habilidades) si no hay un encargo usándola
+            if now - getattr(self, "_cover_t", 0) > 6 and not getattr(self, "_busy_ui", False) and not self._ui_th_alive():
+                self._cover_t = now
+                self._junk_t = 0
+                try:
+                    if not self._close_junk_windows():
+                        self._ui_clear()
+                except Exception:
+                    pass
+        if (not stand_) and not covered_ and hp is not None and hp <= panic:
             self.panic_count += 1
             self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
             self.stats["hp_pots"] += 1
