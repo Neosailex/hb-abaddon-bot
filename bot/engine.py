@@ -1509,7 +1509,7 @@ class Bot:
     def _close_junk_windows(self):
         """Ventanas que el bot no usa (ej. 'Resumen de Muerte' de Olympia): las cierro con click derecho
         sobre la ventana. Miro cada ~8 s, solo si no estoy peleando."""
-        titles = list(self.cfg.get("close_windows") or []) + ["Heldenian"]
+        titles = list(self.cfg.get("close_windows") or []) + ["Heldenian", "Registro de chat", "Habilidades", "Magia"]
         if not titles or not self.rect or self.state == "attack" or getattr(self, "_busy_ui", False):
             return False
         now = time.time()
@@ -1721,6 +1721,18 @@ class Bot:
         hm = self._hp_mem()
         scr_dead = b.get("hp") == 0 and ((b.get("mp") or 0) > 0 or (b.get("sp") or 0) > 0)
         # la memoria a veces vuelve a la vida llena mientras sigo tirado (Olympia): la barra en 0 manda
+        if scr_dead and hm is not None and hm > 0:
+            # la barra se lee en 0 pero la memoria dice que tengo vida: casi siempre es una ventana (chat, habilidades,
+            # magia, bolso) tapando la barra. Cierro ventanas en vez de 'revivir' (el botón Reiniciar sigue mandando)
+            scr_dead = False
+            if now - getattr(self, "_cover_t", 0) > 6:
+                self._cover_t = now
+                self._junk_t = 0
+                try:
+                    if not self._close_junk_windows():
+                        self._ui_clear()
+                except Exception:
+                    pass
         dead = (hm == 0) or scr_dead
         if not dead and cfgmod.server_slug(self.cfg) != "abaddon" and self.rect and getattr(self, "img", None) is not None \
                 and now - getattr(self, "_rq_t", 0) > 5:

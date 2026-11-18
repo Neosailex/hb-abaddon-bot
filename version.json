@@ -1,1 +1,1 @@
-{"version": 371, "notes": "Arreglo: una pieza del equipo que se salió se da por perdida solo después de 3 pasadas por el herrero (no por reinicios)."}
+{"version": 372, "notes": "Arreglo: si una ventana tapa la barra de vida y la memoria dice que está vivo, cierra ventanas en vez de creerse muerto."}
