@@ -8569,6 +8569,19 @@ class Bot:
             tot = "".join(v[0] for v in sorted([v for v in ws if abs(v[2] - rec[2]) < 8 * ky and v[1] > rec[1]], key=lambda v: v[1]))
         btn = next((w for w in ws if norm(w[0]).startswith("vender") and w[2] > tabp[2] + 300 * ky), None)
         if not btn:
+            # el botón queda gris claro sobre la barra de abajo y el OCR de Windows a veces no lo lee: pruebo RapidOCR
+            # y, si tampoco, el lugar fijo del botón respecto de la pestaña 'Vender' (misma ventana, siempre igual)
+            try:
+                im_ = grab()
+                rw_ = ocr.read_words_rapid(im_, {"x1": max(0, int(tabp[1] - 420 * kx)), "y1": int(tabp[2] + 300 * ky),
+                                                 "x2": int(tabp[1] + 200 * kx), "y2": min(im_.shape[0], int(tabp[2] + 720 * ky))}) or []
+                btn = next((w for w in rw_ if norm(w[0]).startswith("vender")), None)
+            except Exception:
+                btn = None
+            if not btn:
+                btn = ("vender", tabp[1] - 208 * kx, tabp[2] + 650 * ky)
+                self.log("🛒 No leo el botón 'Vender ítems': lo aprieto en su lugar de siempre.")
+        if not btn:
             self.log("🛒 No veo el botón 'Vender ítems': no vendo y vacío la lista.")
             self._sell_list_clear(listed, click, kx)
             return
@@ -8952,6 +8965,23 @@ class Bot:
         # 'worn', antes se olvidaba (pasó: la Leather Armor rota quedó en el bolso y siguió cazando sin pechera).
         # Lo sigo reclamando hasta 3 viajes; si no aparece, lo doy por perdido.
         wb = self.cfg.setdefault("worn_best", {})
+        # si en la misma revisión apareció algo nuevo puesto y se 'salió' otra cosa, no se rompió: lo desplazó (pasa con
+        # la Shirt y la Leather Armor, que ocupan el mismo lugar del cuerpo). No lo reclamo ni voy al herrero por eso:
+        # me quedo con lo que está puesto y anoto el choque para no volver a cambiarlos de ida y vuelta
+        prev_names_ = {str(w.get("name")) for w in prev.values() if isinstance(w, dict)}
+        new_ = [w["name"] for sl_, w in worn.items() if not sl_.startswith("otro:") and w.get("name") not in prev_names_]
+        if missing and new_ and prev:
+            clash = self.cfg.setdefault("gear_clash", {})
+            for m_ in list(missing):
+                for n_ in new_:
+                    clash.setdefault(m_, [])
+                    if n_ not in clash[m_]:
+                        clash[m_].append(n_)
+                for sl_, w_ in list(wb.items()):
+                    if w_.get("name") == m_:
+                        wb.pop(sl_, None)
+            self.log(f"🛡 {', '.join(new_)} desplazó a {', '.join(missing)} (van en el mismo lugar): me quedo con lo puesto.")
+            missing = []
         for sl, w in worn.items():
             if not sl.startswith("otro:") and not str(w.get("name") or "").startswith("?"):
                 wb[sl] = {"name": w["name"], "miss": 0}
@@ -9167,6 +9197,9 @@ class Bot:
 
     def _equip_from_bag(self, name):
         """Me pongo un objeto del bolso con Ctrl + click (wiki: equipa lo que se pueda equipar)."""
+        worn_n_ = {str(w.get("name")) for w in (self.cfg.get("worn") or {}).values() if isinstance(w, dict)}
+        if any(c_ in worn_n_ for c_ in (self.cfg.get("gear_clash") or {}).get(name or "", [])):
+            return False  # va en el mismo lugar que algo que ya tengo puesto (ver gear_clash): no los cambio de ida y vuelta
         img = self.screen.grab(self.rect)
         if not bool(self._bag_open(img)):
             winapi.press("F6")
@@ -11479,6 +11512,17 @@ class Bot:
             return
         if self.cfg.get("gear_hold"):
             return  # Juan lo equipó a mano y todavía no sé qué tiene puesto: no compro nada que lo reemplace
+        # no compro lo que ya tengo en el bolso o puesto (pasó: la confirmación no se leyó y compró 3 Leather Armor)
+        have_ = {norm(re.sub(r"^\s*\d+\s*", "", o.get("name") or "")) for o in (getattr(self, "_bag_mem", None) or [])
+                 if o.get("kind") == "item"}
+        have_ |= {norm(w.get("name") or "") for w in (self.cfg.get("worn") or {}).values() if isinstance(w, dict)}
+        have_ |= {norm(w.get("name") or "") for w in (self.cfg.get("worn_best") or {}).values() if isinstance(w, dict)}
+        items = [i for i in items if norm(i["name"]) not in have_]
+        if not items:
+            return
+        if time.time() - getattr(self, "_buy_trip_t", 0) < 1800:
+            return  # una compra de equipo por media hora como mucho
+        self._buy_trip_t = time.time()
         inside = lambda: any(k in (self.pos.get("map") or "").lower() for k in pl["inside"])
         bought = []
         try:

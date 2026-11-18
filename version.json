@@ -1,1 +1,1 @@
-{"version": 377, "notes": "Arreglo (idea de Juan): lo que falta en la ficha del personaje es lo roto; en el herrero repara eso del bolso aunque el cartelito del bolso no diga durabilidad 0."}
+{"version": 378, "notes": "Arreglos: aprieta 'Vender ítems' aunque no lo lea; no compra equipo que ya tiene en el bolso; si una pieza desplaza a otra (Shirt/Leather) se queda con la puesta en vez de ir y venir al herrero."}
