@@ -1,1 +1,1 @@
-{"version": 370, "notes": "Arreglo: no se sale de la tienda antes de comprar/vender (solo sale cuando terminó o tiene que ir a otro lado)."}
+{"version": 371, "notes": "Arreglo: una pieza del equipo que se salió se da por perdida solo después de 3 pasadas por el herrero (no por reinicios)."}

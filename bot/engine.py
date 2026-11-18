@@ -8924,7 +8924,11 @@ class Bot:
         for sl, w in list(wb.items()):
             if sl in worn or sl == "capa" or w.get("name") in missing:
                 continue
-            w["miss"] = int(w.get("miss", 0)) + 1
+            # cuento una falta solo si pasé por el herrero desde la última (ahí se repara y se vuelve a poner);
+            # las revisiones seguidas o los reinicios no cuentan
+            if float(getattr(self, "_smith_visit_t", 0) or 0) > float(w.get("t", 0)):
+                w["miss"] = int(w.get("miss", 0)) + 1
+                w["t"] = time.time()
             if w["miss"] > 3:
                 self.log(f"🛡 {w['name']} no aparece hace varias revisiones: lo doy por perdido.")
                 wb.pop(sl, None)
@@ -10324,6 +10328,7 @@ class Bot:
             if not inside():
                 self.log("🔧 No llegué al herrero.")
                 return
+            self._smith_visit_t = time.time()
             self._busy_ui = True
             self._release()
             time.sleep(1.5)
