@@ -1103,7 +1103,10 @@ class Bot:
             # zona segura (adentro de tienda, herrería o almacén, sin bichos): ahí todo se lee con RapidOCR, que es
             # más lento pero más certero (comprar, vender, reparar, ordenar el bolso). Afuera, Windows (combate).
             mp_ = (self.pos.get("map") or "").lower()
-            safe_ = any(k in mp_ for k in ("shop", "blacksmith", "warehouse", "smith")) and self._mobs_within(8) == 0
+            # solo mientras de verdad estoy usando una ventana del local (_busy_ui): parado o caminando adentro, RapidOCR
+            # hacía cada vuelta de 3-4 s, la posición quedaba vieja y no encontraba la salida (clavado en la tienda)
+            safe_ = any(k in mp_ for k in ("shop", "blacksmith", "warehouse", "smith")) and self._mobs_within(8) == 0 \
+                and bool(getattr(self, "_busy_ui", False))
             if safe_ != ocr.SAFE:
                 ocr.SAFE = safe_
                 if want_ == "mixto":

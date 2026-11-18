@@ -1,1 +1,1 @@
-{"version": 368, "notes": "Arreglos: sale del local cuando tiene que ir a otro lado (de la tienda al herrero); las pilas ('6 Slime Jelly') ya no se sacan de la lista de venta."}
+{"version": 369, "notes": "Arreglo: RapidOCR solo mientras usa la ventana de la tienda/herrero; caminando adentro usa el lector rápido y encuentra la salida."}
