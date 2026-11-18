@@ -419,3 +419,27 @@ def type_text(text, delay=0.03):  # noqa: F811
     for ch in text:
         _post(WM_CHAR, ord(ch), 1)
         time.sleep(delay)
+
+
+# ── Interruptor general ──────────────────────────────────────────────────────────────────────────────
+# Con el bot apagado NO sale ni un clic ni una tecla, aunque haya quedado corriendo algún encargo de pueblo
+# (tienda, herrero, ordenar el bolso) en otro hilo. Soltar teclas/botones sí se permite (es lo seguro).
+OFF = False
+
+
+def _guard(fn):
+    def w(*a, **k):
+        if OFF:
+            return None
+        return fn(*a, **k)
+    w.__name__ = getattr(fn, "__name__", "w")
+    return w
+
+
+click = _guard(click)  # noqa: F811
+press = _guard(press)  # noqa: F811
+key_down = _guard(key_down)  # noqa: F811
+left_down = _guard(left_down)  # noqa: F811
+move = _guard(move)  # noqa: F811
+type_text = _guard(type_text)  # noqa: F811
+right_down = _guard(right_down)  # noqa: F811

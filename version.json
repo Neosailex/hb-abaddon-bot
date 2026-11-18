@@ -1,1 +1,1 @@
-{"version": 390, "notes": "Bolso: íconos grandes y ventana desbloqueada (Juan)."}
+{"version": 391, "notes": "Arreglo grave: con el bot apagado no sale ni un clic ni una tecla (antes un encargo de pueblo en otro hilo seguía operando)."}

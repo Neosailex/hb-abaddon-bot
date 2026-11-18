@@ -230,6 +230,7 @@ class Bot:
     # ----------------------------------------------------------- on / off
     def start(self):
         self._manual_off = False
+        winapi.OFF = False
         with self.lock:
             if self.running:
                 return
@@ -278,6 +279,9 @@ class Bot:
             was = self.running
             self.running = False
             self._release()
+            # apagado = apagado: corto toda entrada de mouse/teclado, también la de encargos que sigan en otro hilo
+            winapi.OFF = True
+            self._busy_ui = False
             winapi.set_background(None)
             self.stats["state"] = "apagado"
             self.stats["target"] = ""
@@ -11486,6 +11490,8 @@ class Bot:
     def _wheel(self, x, y, n):
         """Rueda del mouse sobre el juego (n > 0 sube). Ojo: el juego a veces pierde muescas, no sirve para contar."""
         import ctypes
+        if winapi.OFF:
+            return
         sc = self.rect[2] / 1280.0
         ax, ay = self.abs_pt(x * sc, y * sc)
         winapi.move(ax, ay)
