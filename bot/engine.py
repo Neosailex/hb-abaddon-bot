@@ -11681,6 +11681,44 @@ class Bot:
                         break
                     self._wheel(t_ref[1] + 150, t_ref[2] + 250, -120)
                     time.sleep(0.35)
+                if not row and (it.get("slot") in ("arma", "arma2m") or self.cfg.get("need_weapon")):
+                    # el arma del plan no está (o subió de precio): me quedo con la mejor de mi talento, a dos manos, que
+                    # vi en la lista, que pueda usar por nivel y pagar dejando 500 para pociones
+                    try:
+                        fam_ = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
+                        lvl_ = int(self._level_mem() or int(self.cfg.get("travel", {}).get("my_level", 1)))
+                        gold_ = int(getattr(self, "_gold", 0) or 0)
+                        best_ = None
+                        for k_, v_ in seen_rows.items():
+                            g_ = self._game_item(k_) or {}
+                            if not g_ or (fam_ and str(g_.get("family") or "").lower() != fam_):
+                                continue
+                            if self.cfg.get("two_handed", True) and str(g_.get("slot") or "") != "arma2m":
+                                continue
+                            if int(g_.get("level") or 0) > lvl_ or (gold_ and v_ > gold_ - 500):
+                                continue
+                            sc_ = self._gear_score(g_.get("name") or k_)
+                            if not best_ or sc_ > best_[0]:
+                                best_ = (sc_, k_, v_)
+                        if best_:
+                            self.log(f"🛍 En su lugar compro {best_[1]} ({best_[2]}): la mejor de mi talento que veo y puedo pagar.")
+                            want = norm(best_[1])
+                            for _ in range(45):
+                                self._wheel(t_ref[1] + 150, t_ref[2] + 250, 120)
+                                time.sleep(0.05)
+                            time.sleep(0.4)
+                            for _pg in range(40):
+                                winapi.move(*self.abs_pt(t_ref[1] + 700, t_ref[2] + 500))
+                                time.sleep(0.3)
+                                rows = self._shop_rows(self.screen.grab(self.rect), t_ref)
+                                row = next((r for r in rows if norm(r[0]) == want and r[1] == best_[2]), None)
+                                if row:
+                                    it = dict(it, name=best_[1], price=best_[2])
+                                    break
+                                self._wheel(t_ref[1] + 150, t_ref[2] + 250, -120)
+                                time.sleep(0.35)
+                    except Exception:
+                        row = None
                 if not row:
                     near_ = [f"{k} {v}" for k, v in seen_rows.items() if any(t_ in norm(k) for t_ in ("bastard", "sword", "claymore"))][:8]
                     self.log(f"🛍 No encontré '{it['name']}' a {it['price']} en la lista (vi {len(seen_rows)} filas"

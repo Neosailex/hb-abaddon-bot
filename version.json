@@ -1,1 +1,1 @@
-{"version": 384, "notes": "Arreglo grave: nunca vende un arma/escudo igual al que figura puesto (vendió la Superior Claymore); si tiene puesta un arma que no es de su talento (varita), busca la suya o compra una."}
+{"version": 385, "notes": "Si el arma del plan no está en el herrero, compra la mejor de su talento que vea y pueda pagar."}
