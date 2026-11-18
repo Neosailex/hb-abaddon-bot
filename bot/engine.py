@@ -8988,6 +8988,7 @@ class Bot:
             self._gear_sig, self._gear_said = sig, now
             self.log("🛡 Tengo puesto: " + ("; ".join(f"{w['name']}" + (f" {w['dur']}/{w['dur_max']}" if w.get("dur_max") else "")
                                                     for sl, w in sorted(worn.items())) or "NADA") + ".")
+        self._gear_missing = list(missing)
         if not weapon:
             self.log("⛔ SIN ARMA: no peleo así. Voy al pueblo a reparar/ponerme una.")
             self._worn_suspect_until = now + 900
@@ -10585,7 +10586,16 @@ class Bot:
         bag = self._oly_bag() or []
         # roto = durabilidad 0 (aunque no le haya leído bien el nombre) o equipo grande sin cartelito (lo roto/marcado a
         # veces no lo muestra). Lo que no esté dañado no aparece en la lista y no pasa nada.
+        # lo que la ficha del personaje dice que se me salió (regla de Juan: la durabilidad se ve en la pantalla de
+        # personaje). Si falta de la ficha y está en el bolso, es lo roto: va a la lista aunque el cartelito del bolso
+        # no diga 'durabilidad 0'
+        miss_ = [norm(n_)[:8] for n_ in (getattr(self, "_gear_missing", None) or []) if n_]
+
+        def is_missing(o):
+            nm_ = norm(re.sub(r"^\s*\d+\s*", "", o.get("name") or ""))
+            return bool(nm_) and any(nm_.startswith(m_) or m_.startswith(nm_[:8]) for m_ in miss_)
         brk = [o for o in bag if o["kind"] == "item" and (o.get("dur") == 0 or (o.get("name") and self._bag_judge(o)[0] == "broken")
+                                                         or is_missing(o)
                                                          or (not o.get("name") and (o.get("area") or 0) >= 1200 * kx * ky))][:8]
         if not brk and not fixed:
             self.log("🔧 En el bolso no veo nada roto para reparar.")
