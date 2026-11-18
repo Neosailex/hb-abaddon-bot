@@ -8747,6 +8747,8 @@ class Bot:
                 # puesto) y me hacía ir al herrero una y otra vez. Lo vendo.
                 return ("sell", "repuesto roto de lo que ya tengo puesto", it, slot, val)
             if slot in ("arma", "escudo"):
+                # NUNCA vendo un arma o escudo igual al que figura puesto: pasó (18/11) que un doble clic equipó otra
+                # cosa, la ficha vieja seguía diciendo 'Superior Claymore' y vendió la de verdad como 'repuesto'
                 # puede ser el mismo que tenía puesto y se salió solo al romperse (ya reparado). Solo me lo pongo si
                 # hay motivo para dudar (dejé de matar, me mataron) y una sola vez: si es un repuesto, cambiarlo en
                 # cada revisión es perder un minuto y arriesgar quedar sin arma.
@@ -8756,7 +8758,7 @@ class Bot:
                     if now_ - last_ > 600:
                         self._same_eq_t = now_
                     return ("equip", "igual al que tenía puesto: me lo pongo por si se había salido", it, slot, val)
-                return ("sell", "repuesto igual al que tengo puesto (ocupa lugar en el bolso)", it, slot, val)
+                return ("keep", "igual al arma/escudo que figura puesto: no lo vendo nunca", it, slot, val)
             return ("sell", "es igual a lo que tengo puesto", it, slot, val)
         if slot == "arma" and not worn:
             if o.get("dur") == 0:
@@ -9039,6 +9041,22 @@ class Bot:
             self.log("🛡 Tengo puesto: " + ("; ".join(f"{w['name']}" + (f" {w['dur']}/{w['dur_max']}" if w.get("dur_max") else "")
                                                     for sl, w in sorted(worn.items())) or "NADA") + ".")
         self._gear_missing = list(missing)
+        # arma de otra familia puesta (ej. una varita que se equipó por un doble clic): para el plan es como no tener
+        # arma de mi talento. Busco la mía en el bolso o la compro.
+        try:
+            fam_ = str(self._load_json("tiendas.json").get("talent") or "").strip().lower()
+            gw_ = self._game_item((weapon or {}).get("name")) or {}
+            off_ = (gw_ and str(gw_.get("family") or "").lower() not in ("", fam_)) or \
+                (not gw_ and any(k in str((weapon or {}).get("name") or "").lower() for k in ("wand", "staff", "bow", "varita")))
+            if weapon and fam_ and off_:
+                (self.cfg.get("worn_best") or {}).pop("arma", None)
+                self.log(f"⛔ Tengo puesta {weapon.get('name')}, que no es {fam_}: busco la mía en el bolso o compro una.")
+                self.cfg["need_weapon"] = True
+                self._worn_suspect_until = time.time() + 900
+                cfgmod.save(self.cfg)
+                weapon = None
+        except Exception:
+            pass
         if not weapon:
             self.log("⛔ SIN ARMA: no peleo así. Voy al pueblo a reparar/ponerme una.")
             self._worn_suspect_until = now + 900
