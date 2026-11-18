@@ -33,18 +33,22 @@ def _colors(px):
             "oro": int(((r > 150) & (g > 140) & (b < 130)).sum())}
 
 
+SMALL = True  # opción del juego 'Ítems pequeños' (engranaje del bolso): íconos chicos y oscuros
+
+
 def scan(img, pw, words=(), readnum=None):
     """img: captura del juego; pw: (x, y) de la palabra 'Peso:' del bolso; words: palabras del OCR de la ventana
     [(texto, x, y)]; readnum(img, x1, y1, x2, y2) -> número o None.
     Devuelve {'gold', 'gold_approx', 'pots': {vida, maná, energía}, 'unknown', 'items': [{x, y, area, w, h}]}."""
     H, W = img.shape[:2]
     kx, ky = W / 1920.0, H / 1080.0
-    x1, y1 = max(0, int(pw[0] - 40 * kx)), int(pw[1] + 15 * ky)
+    x1, y1 = max(0, int(pw[0] - (28 if SMALL else 40) * kx)), int(pw[1] + 15 * ky)
     x2, y2 = min(W, int(pw[0] + 440 * kx)), min(H, int(pw[1] + 330 * ky))
     roi = img[y1:y2, x1:x2]
     b, g, r = [roi[:, :, i].astype(int) for i in range(3)]
     mx = np.maximum(np.maximum(r, g), b)
-    green = (g > 115) & (g - r > 40) & (g - b > 40)
+    # verde de las cantidades (con 'Ítems pequeños' es un verde más claro: 165/225/185)
+    green = (g > 115) & (g - r > (30 if SMALL else 40)) & (g - b > (22 if SMALL else 40))
     out = {"gold": None, "gold_approx": False, "pots": {"vida": 0, "maná": 0, "energía": 0}, "unknown": False,
            "items": [], "box": (x1, y1, x2, y2)}
     taken = np.zeros(roi.shape[:2], np.uint8)  # lo que ya sé qué es (frascos, números, oro): no es un objeto suelto
@@ -55,7 +59,7 @@ def scan(img, pw, words=(), readnum=None):
         bb = roi[max(0, o[1] - int(36 * ky)):max(0, o[1] - int(4 * ky)), max(0, o[0] - int(30 * kx)):o[0] + int(4 * kx)]
         col = _colors(bb.reshape(-1, 3).astype(int))
         kind = max(("vida", "maná", "energía"), key=lambda k: col[k])
-        if col[kind] < 25:
+        if col[kind] < (3 if SMALL else 25):
             # no veo el frasco (puede estar tapado por otro objeto): guardo la cantidad para decidir al final
             if (o[2] - o[0]) >= 6 * kx:
                 orphans.append(o)
@@ -120,7 +124,8 @@ def scan(img, pw, words=(), readnum=None):
             out["gold_xy"] = (int(wx), int(wy))
             cv2.rectangle(taken, (int(wx - x1 - 26 * kx), int(wy - y1 - 10 * ky)), (int(wx - x1 + 26 * kx), int(wy - y1 + 10 * ky)), 1, -1)
     # 3) lo demás: montón de oro, frascos sueltos sin número (hay uno solo) y objetos
-    solid = ((mx > 90) & (taken == 0)).astype(np.uint8)
+    # con íconos chicos los objetos son oscuros (40-60 de brillo contra 9 del fondo): el umbral baja
+    solid = ((mx > (28 if SMALL else 90)) & (taken == 0)).astype(np.uint8)
     solid = cv2.morphologyEx(solid, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
     n, lab, st, cen = cv2.connectedComponentsWithStats(solid, connectivity=8)
     for i in sorted(range(1, n), key=lambda i: -st[i, 4]):
