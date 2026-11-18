@@ -6,6 +6,23 @@ import webbrowser
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE)
 
+# si el bot se cae, que quede el motivo en data/crash.log (incluso caídas de código nativo)
+try:
+    import faulthandler
+    import threading as _th
+    import traceback as _tb
+    _CRASH = open(os.path.join(BASE, "data", "crash.log"), "a", encoding="utf-8")
+    faulthandler.enable(file=_CRASH, all_threads=True)
+
+    def _hook(et, ev, tb):
+        import time as _t
+        _CRASH.write(_t.strftime("\n%Y-%m-%d %H:%M:%S ") + "".join(_tb.format_exception(et, ev, tb)))
+        _CRASH.flush()
+    sys.excepthook = _hook
+    _th.excepthook = lambda a: _hook(a.exc_type, a.exc_value, a.exc_traceback)
+except Exception:
+    pass
+
 from bot import config as cfgmod  # noqa: E402
 from bot import events as evmod  # noqa: E402
 from bot.engine import Bot  # noqa: E402
@@ -255,6 +272,7 @@ def main():
 
     def on_closed():
         bot.shutdown()
+        _beat(closed=True)
 
     win.events.closed += on_closed
 
@@ -270,6 +288,33 @@ def main():
             os._exit(0)
 
     bot.on_restart = restart
+
+    # latido para el vigía (vigia.py): cada 10 s; si el bot se cae sin cerrarse a mano, el vigía lo vuelve a abrir
+    import json as _json
+    import threading as _thr
+    import time as _time
+
+    def _beat(closed=False):
+        try:
+            with open(os.path.join(BASE, "data", "latido.json"), "w", encoding="utf-8") as f:
+                _json.dump({"t": _time.time(), "pid": os.getpid(), "cerrado": bool(closed)}, f)
+        except Exception:
+            pass
+
+    def _beat_loop():
+        while True:
+            _beat()
+            _time.sleep(10)
+    _thr.Thread(target=_beat_loop, daemon=True).start()
+    try:
+        import subprocess
+        exe = sys.executable
+        if exe.lower().endswith("python.exe") and os.path.exists(exe[:-10] + "pythonw.exe"):
+            exe = exe[:-10] + "pythonw.exe"
+        if sys.platform == "win32" and os.path.exists(os.path.join(BASE, "vigia.py")):
+            subprocess.Popen([exe, os.path.join(BASE, "vigia.py")], cwd=BASE, creationflags=0x00000008 | 0x00000200, close_fds=True)
+    except Exception:
+        pass
     webview.start(debug=False)
     bot.shutdown()
 

@@ -13,3 +13,7 @@ data/debug/
 data/investigacion/
 data/investigacion.zip
 data/plantillas/
+data/latido.json
+data/crash.log
+data/vigia.log
+data/vigia.pid

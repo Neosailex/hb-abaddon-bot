@@ -8524,8 +8524,17 @@ class Bot:
             k = norm(re.sub(r"^\s*\d+\s*[x×]?\s*", "", nm)).rstrip(".")
             # mismo nombre, o casi (una letra mal leída) comparando el MISMO largo desde el principio: 'Trousers(M)' no
             # pasa por 'Knee Trousers(M)', y 'Slime -lelly' sí pasa por 'Slime Jelly'
-            return any(k == w_ or (len(k) >= 8 and w_.startswith(k)) or (abs(len(k) - len(w_)) <= 2 and k[:2] == w_[:2]
-                       and difflib.SequenceMatcher(None, k, w_).ratio() >= 0.84) for w_ in want)
+            if any(k == w_ or (len(k) >= 8 and w_.startswith(k)) or (len(w_) >= 8 and k.endswith(w_[-8:]))
+                   or (abs(len(k) - len(w_)) <= 2 and k[:2] == w_[:2]
+                       and difflib.SequenceMatcher(None, k, w_).ratio() >= 0.84) for w_ in want):
+                return True
+            # la lista de venta de la tienda se lee mejor que los cartelitos del bolso ('Righteous Superior Dagger' vs
+            # 'ghteous...'): si el nombre de la lista, juzgado con las mismas reglas de venta, es 'vender', lo dejo
+            try:
+                nm2 = re.sub(r"^\s*\d+\s*[x×]?\s*", "", nm).strip().rstrip(".").strip()
+                return self._bag_judge({"name": nm2, "kind": "item"})[0] == "sell"
+            except Exception:
+                return False
         def recheck(rows):
             """Lo que Windows leyó como 'no es lo que quería vender', lo releo con RapidOCR (modo mixto) antes de
             sacarlo: 'Slime -nelly' o 'HealthPotion' mal leídos no son objetos equivocados."""
