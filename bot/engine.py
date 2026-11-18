@@ -1197,6 +1197,12 @@ class Bot:
                 self.stats["state"] = "descansando"
             return
         self._join_step()
+        g_ = getattr(self, "goto", None)
+        if g_ and not getattr(self, "_busy_ui", False) and not self._same(self.pos.get("map") or "", g_.get("map") or "") \
+                and time.time() - getattr(self, "_exit_t", 0) > 2.5 and self._exit_building():
+            # tengo que ir a otro mapa y estoy adentro de un local (ej. de la tienda al herrero): primero salgo
+            self._exit_t = time.time()
+            return
         if self._goto_step():
             return
         if self._quest_step():
@@ -6244,8 +6250,7 @@ class Bot:
         t = self.cfg.get("travel", {})
         # adentro de un local sin nada que hacer: salgo aunque la posición tenga unos segundos (parado adentro no se
         # refresca seguido y me quedaba clavado en la tienda)
-        if self.pos.get("map") and time.time() - self.pos.get("t", 0) < 60 and not getattr(self, "_busy_ui", False) \
-                and not self._ui_th_alive():
+        if self.pos.get("map") and time.time() - self.pos.get("t", 0) < 60 and not getattr(self, "_busy_ui", False):
             if time.time() - getattr(self, "_exit_t", 0) > 2.5 and self._exit_building():
                 self._exit_t = time.time()
                 return True
@@ -8385,10 +8390,14 @@ class Bot:
             return
         want = []
         for o in sell:
-            g_ = self._game_item(o.get("name")) or {}
-            # el cartelito de una pila dice '18 Slime Jelly': la cantidad no es parte del nombre
-            nm_ = re.sub(r"^\s*\d+\s*[x×]?\s*", "", g_.get("name") or o.get("name") or "")
-            want.append(norm((g_.get("affix") + " " if g_.get("affix") else "") + nm_))
+            # el cartelito de una pila dice '18 Slime Jelly': la cantidad no es parte del nombre (ni un 'afijo')
+            base_ = re.sub(r"^\s*\d+\s*[x×]?\s*", "", o.get("name") or "")
+            g_ = self._game_item(base_) or {}
+            nm_ = re.sub(r"^\s*\d+\s*[x×]?\s*", "", g_.get("name") or base_)
+            af_ = g_.get("affix") or ""
+            if af_.strip().isdigit():
+                af_ = ""
+            want.append(norm((af_ + " " if af_ else "") + nm_))
         winapi.left_up()
         for o in sell:
             x, y = self.abs_pt(o["x"], o["y"])

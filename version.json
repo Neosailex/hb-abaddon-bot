@@ -1,1 +1,1 @@
-{"version": 367, "notes": "Arreglo: reconoce piezas del equipo con el nombre cortado (Leather → Leather Armor) y no da falsas alarmas."}
+{"version": 368, "notes": "Arreglos: sale del local cuando tiene que ir a otro lado (de la tienda al herrero); las pilas ('6 Slime Jelly') ya no se sacan de la lista de venta."}
