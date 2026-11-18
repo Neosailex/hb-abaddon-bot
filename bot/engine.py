@@ -6253,7 +6253,10 @@ class Bot:
         t = self.cfg.get("travel", {})
         # adentro de un local sin nada que hacer: salgo aunque la posición tenga unos segundos (parado adentro no se
         # refresca seguido y me quedaba clavado en la tienda)
-        if self.pos.get("map") and time.time() - self.pos.get("t", 0) < 60 and not getattr(self, "_busy_ui", False):
+        if self.pos.get("map") and time.time() - self.pos.get("t", 0) < 60 and not getattr(self, "_busy_ui", False) \
+                and not self._ui_th_alive():
+            # (con un encargo de pueblo en marcha no salgo por mi cuenta: si ese encargo tiene que ir a otro mapa,
+            # la salida la hace el paso del viaje, más arriba en la vuelta)
             if time.time() - getattr(self, "_exit_t", 0) > 2.5 and self._exit_building():
                 self._exit_t = time.time()
                 return True
