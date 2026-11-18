@@ -1512,7 +1512,7 @@ class Bot:
     def _close_junk_windows(self):
         """Ventanas que el bot no usa (ej. 'Resumen de Muerte' de Olympia): las cierro con click derecho
         sobre la ventana. Miro cada ~8 s, solo si no estoy peleando."""
-        titles = list(self.cfg.get("close_windows") or []) + ["Heldenian", "Registro de chat", "Habilidades", "Magia"]
+        titles = list(self.cfg.get("close_windows") or []) + ["Heldenian", "Registro de chat", "Habilidades", "Magia", "Mejora de objetos"]
         if not titles or not self.rect or self.state == "attack" or getattr(self, "_busy_ui", False):
             return False
         now = time.time()

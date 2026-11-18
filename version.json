@@ -1,1 +1,1 @@
-{"version": 382, "notes": "Arreglos: en la tienda juzga lo de la lista de venta con sus reglas (ya no saca de la lista lo que sí hay que vender); vigía que reabre el bot si se cae; motivo de caídas en data/crash.log."}
+{"version": 383, "notes": "Cierra sola la ventana 'Mejora de objetos' (se había abierto con la Shirt adentro)."}
