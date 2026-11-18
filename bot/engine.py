@@ -8894,6 +8894,22 @@ class Bot:
         prev = self.cfg.get("worn") or {}
         missing = [f"{prev[sl].get('name')}" for sl in prev if isinstance(prev[sl], dict) and prev[sl].get("ok") and sl not in worn
                    and not str(prev[sl].get("name") or "").startswith("?") and not sl.startswith("otro:") and sl != "capa"]
+        # memoria larga de lo que tuve puesto por lugar: si algo se salió y la lectura siguiente ya no lo tiene en
+        # 'worn', antes se olvidaba (pasó: la Leather Armor rota quedó en el bolso y siguió cazando sin pechera).
+        # Lo sigo reclamando hasta 3 viajes; si no aparece, lo doy por perdido.
+        wb = self.cfg.setdefault("worn_best", {})
+        for sl, w in worn.items():
+            if not sl.startswith("otro:") and not str(w.get("name") or "").startswith("?"):
+                wb[sl] = {"name": w["name"], "miss": 0}
+        for sl, w in list(wb.items()):
+            if sl in worn or sl == "capa" or w.get("name") in missing:
+                continue
+            w["miss"] = int(w.get("miss", 0)) + 1
+            if w["miss"] > 3:
+                self.log(f"🛡 {w['name']} no aparece hace varias revisiones: lo doy por perdido.")
+                wb.pop(sl, None)
+            else:
+                missing.append(w["name"])
         low = [d for d in items if d.get("dur_max") and d.get("dur") is not None and d["dur"] <= max(0.15 * d["dur_max"], 45)]
         sig = tuple(sorted((sl, w["name"]) for sl, w in worn.items()))
         self.cfg["worn"] = worn
