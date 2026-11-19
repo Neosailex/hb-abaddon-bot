@@ -1275,6 +1275,10 @@ class Bot:
         except Exception:
             pass
         try:
+            self._nest_track()
+        except Exception:
+            pass
+        try:
             self._salud()
         except Exception:
             pass
@@ -5178,6 +5182,134 @@ class Bot:
                 except Exception:
                     pass
 
+    # ---------- rendimiento por nido: experiencia por hora REAL (con caminar y descansar) ----------
+    def _nest_rec(self, mk, x, y, mob=None):
+        d = self.world.learn.setdefault("nest_rate", {}).setdefault(mk, {})
+        r = d.setdefault(f"{int(x)},{int(y)}", {"exp": 0, "secs": 0.0})
+        if mob:
+            r["mob"] = mob
+        return r
+
+    def _nest_rate(self, r):
+        """Experiencia por hora de un nido, o None si todavía no lo medí al menos 10 minutos."""
+        if not r or float(r.get("secs", 0)) < 600:
+            return None
+        return 3600.0 * float(r.get("exp", 0)) / float(r["secs"])
+
+    def _nest_track(self):
+        """Cada 20 s le cargo el tiempo al nido en el que estoy (o al que estoy yendo: caminar hasta ahí es parte del
+        costo de elegirlo). La experiencia se le suma al ganarla (_hot_note). El tiempo en el pueblo no cuenta
+        (es de todos). Cada hora reviso si me conviene cambiar de nido (_nest_decide)."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.running or self.pos.get("x") is None:
+            return
+        now = time.time()
+        if now - getattr(self, "_nt_t", 0) < 20:
+            return
+        dt = min(60.0, now - getattr(self, "_nt_t", now)) if getattr(self, "_nt_t", 0) else 0.0
+        self._nt_t = now
+        mk = (self.pos.get("map") or "").strip().lower()
+        if self._in_town() or getattr(self, "_busy_ui", False) or self._ui_th_alive():
+            return  # pueblo/tienda: no es tiempo de ningún nido
+        px, py = self.pos["x"], self.pos["y"]
+        pits = [p for p in self._pits() if (p.get("mob") or p.get("guess"))]
+        pg = getattr(self, "_pit_go", None)
+        act = None
+        if pg and pg.get("p"):
+            act = pg["p"]  # voy hacia este nido: el camino se lo cobro a él
+        else:
+            near = [p for p in pits if max(abs(p["x"] - px), abs(p["y"] - py)) <= 18]
+            if near:
+                act = min(near, key=lambda p: max(abs(p["x"] - px), abs(p["y"] - py)))
+        if act:
+            self._nest_active = {"mk": mk, "x": act["x"], "y": act["y"], "mob": act.get("mob") or act.get("guess")}
+        na = getattr(self, "_nest_active", None)
+        if na and na["mk"] == mk and dt > 0:
+            r = self._nest_rec(mk, na["x"], na["y"], na.get("mob"))
+            r["secs"] = float(r.get("secs", 0)) + dt
+            r["t"] = now
+            if r["secs"] > 7200:  # memoria móvil: pesa más lo reciente (el pj crece, los nidos cambian)
+                r["secs"] *= 0.5
+                r["exp"] = int(r.get("exp", 0) * 0.5)
+        self._nest_decide(mk, pits, now)
+
+    def _nest_decide(self, mk, pits, now):
+        """Cada hora: si hay un nido que nunca medí (o con medición vieja), lo pruebo 15 min. Al terminar la prueba
+        (o si ya están todos medidos) me quedo con el que más experiencia por hora da de los que aguanto, y ese
+        pasa a ser mi zona buena. La misión activa le suma a su bicho. Para cualquier pj y mapa."""
+        if now - getattr(self, "_nd_t", 0) < 60:
+            return
+        self._nd_t = now
+        recs = (self.world.learn.get("nest_rate") or {}).get(mk) or {}
+        tried = self.__dict__.setdefault("_pit_tried", {})
+        ok = []
+        for p in pits:
+            nm = p.get("mob") or p.get("guess")
+            try:
+                if not self._can_face(nm) or self._pit_deadly(p) or tried.get((p["x"], p["y"]), 0) > now:
+                    continue
+            except Exception:
+                continue
+            ok.append((p, nm, recs.get(f"{int(p['x'])},{int(p['y'])}")))
+        if not ok:
+            return
+        pr = getattr(self, "_nest_probe", None)
+        if pr:
+            r = recs.get(pr["k"])
+            done = (r and float(r.get("secs", 0)) - pr["s0"] >= 900) or now - pr["t0"] > 1800
+            if not done:
+                return
+            self._nest_probe = None
+            rt = self._nest_rate(r)
+            self.log(f"🔎 Terminé de probar el nido de {pr['mob']}: "
+                     + (f"{int(rt):,}".replace(",", ".") + " de experiencia por hora." if rt is not None else "no llegué a medirlo.")
+                     + " Comparo con los otros y me quedo con el que más rinde.")
+            self.world.learn.setdefault("oly_hot", {}).pop(mk, None)  # que la comparación de abajo elija de cero
+        elif now - getattr(self, "_nest_probe_t", 0) > 60 * float(self.cfg.get("nest_probe_min", 60)):
+            unk = [(p, nm, r) for p, nm, r in ok if self._nest_rate(r) is None or now - float((r or {}).get("t", 0)) > 6 * 3600]
+            if unk:
+                px, py = self.pos["x"], self.pos["y"]
+                p, nm, r = min(unk, key=lambda c: max(abs(c[0]["x"] - px), abs(c[0]["y"] - py)))
+                k = f"{int(p['x'])},{int(p['y'])}"
+                self._nest_probe = {"k": k, "mob": nm, "t0": now, "s0": float((r or {}).get("secs", 0))}
+                self._nest_probe_t = now
+                self._pit_go = {"k": (p["x"], p["y"]), "t": now, "d": 999, "p": p, "nm": nm}
+                (self.world.learn.setdefault("oly_hot", {}))[mk] = {"x": int(p["x"]), "y": int(p["y"]), "t": now, "exp": 0}
+                self.log(f"🔎 Pasó una hora: pruebo 15 min el nido de {nm} ({p['x']},{p['y']}) para ver si rinde más.")
+                return
+            self._nest_probe_t = now
+        # elijo el mejor medido
+        qm = set()
+        try:
+            qm = self._quest_mob_names() or set()
+        except Exception:
+            pass
+        best = None
+        for p, nm, r in ok:
+            rt = self._nest_rate(r)
+            if rt is None:
+                continue
+            sc = rt * (1.5 if nm in qm else 1.0)
+            if best is None or sc > best[0]:
+                best = (sc, p, nm, rt)
+        if not best:
+            return
+        _sc, p, nm, rt = best
+        hot = self.world.learn.setdefault("oly_hot", {})
+        h = hot.get(mk)
+        cur = None
+        if h:
+            cur = next(((pp, nn, rr) for pp, nn, rr in ok if max(abs(pp["x"] - h["x"]), abs(pp["y"] - h["y"])) <= 18), None)
+        cur_rt = self._nest_rate(cur[2]) if cur else None
+        if cur and cur[0] is p:
+            return
+        if cur_rt is not None and rt < 1.1 * cur_rt:
+            return  # no cambio por menos de 10%
+        hot[mk] = {"x": int(p["x"]), "y": int(p["y"]), "t": now, "exp": 0}
+        self._pit_go = {"k": (p["x"], p["y"]), "t": now, "d": 999, "p": p, "nm": nm}
+        f_ = lambda v: f"{int(v):,}".replace(",", ".")
+        self.log(f"📊 Zona: el nido de {nm} ({p['x']},{p['y']}) da {f_(rt)} de experiencia por hora"
+                 + (f" contra {f_(cur_rt)} del de {cur[1]}" if cur_rt is not None else "") + ": voy ahí.")
+
     def _rinde(self):
         """¿El lugar rinde? Mato seguido (5+ en 10 min) y la vida nunca bajó del 20% en esos 10 min. Si rinde, ni
         las pociones ni el bolso lleno son motivo para cortar: sigo cazando y juntando oro (regla de Juan). Solo
@@ -5291,7 +5423,23 @@ class Bot:
             fighting = self._adjacent_mobs() > 0 or self._under_attack() or now < getattr(self, "_rabia_until", 0)
         except Exception:
             pass
-        return {"running": self.running, "age": int(now - dv["t"]) if dv.get("t") else None, "turno": dv.get("turno"),
+        nests = []
+        try:
+            mk = (self.pos.get("map") or "").strip().lower()
+            hot = (self.world.learn.get("oly_hot") or {}).get(mk) or {}
+            for k, r in ((self.world.learn.get("nest_rate") or {}).get(mk) or {}).items():
+                x_, y_ = (int(v) for v in k.split(","))
+                nests.append({"mob": r.get("mob") or "?", "x": x_, "y": y_, "rate": self._nest_rate(r),
+                              "min": int(float(r.get("secs", 0)) / 60),
+                              "zona": bool(hot) and max(abs(hot.get("x", -99) - x_), abs(hot.get("y", -99) - y_)) <= 18})
+            nests.sort(key=lambda n: -(n["rate"] or -1))
+        except Exception:
+            pass
+        pr = getattr(self, "_nest_probe", None)
+        nxt = getattr(self, "_nest_probe_t", 0)
+        return {"nests": nests, "probe": (pr or {}).get("mob"),
+                "next_probe_min": int(max(0, 60 * float(self.cfg.get("nest_probe_min", 60)) - (now - nxt)) / 60) if nxt else None,
+                "running": self.running, "age": int(now - dv["t"]) if dv.get("t") else None, "turno": dv.get("turno"),
                 "rinde": dv.get("rinde"), "peleando": fighting, "estado": self.stats.get("state"), "mods": mods, "salud": sal}
 
     def _salud(self):
@@ -7217,6 +7365,13 @@ class Bot:
 
     def _hot_note(self, gain):
         """Gané experiencia acá: este lugar pasa a ser (o sigue siendo) mi zona buena del mapa."""
+        try:
+            na = getattr(self, "_nest_active", None)
+            if na and gain > 0:
+                r = self._nest_rec(na["mk"], na["x"], na["y"], na.get("mob"))
+                r["exp"] = r.get("exp", 0) + int(gain)
+        except Exception:
+            pass
         try:
             if self.pos.get("x") is None:
                 return

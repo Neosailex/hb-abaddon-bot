@@ -427,6 +427,12 @@ input[type=range]{accent-color:var(--gold);width:100%}
           <div class="kv" id="brSal" style="margin-top:12px"></div>
           <p class="hint" style="margin-top:10px">Se revisa cada minuto. Si algo básico no se cumple (stats sin repartir, no mata, muere seguido, se traba, bolso lleno sin vender, caza sin pociones) aparece en rojo y también en el Registro con 🚨.</p>
         </div>
+        <div class="card" style="grid-column:1/-1">
+          <h2>Nidos de este mapa (experiencia por hora real)</h2>
+          <div class="chips" style="margin-bottom:10px"><span class="chip" id="brProbe">—</span></div>
+          <div class="kv" id="brNests" style="grid-template-columns:1.4fr 1fr 1fr .8fr"></div>
+          <p class="hint" style="margin-top:10px">Cuenta el tiempo de caminar y descansar, no el del pueblo. Hace falta medir 10 min para tener número. Cada hora prueba 15 min un nido sin medir y se queda con el que más rinde (la misión activa le suma 50% a su bicho).</p>
+        </div>
       </div>
     </section>
 
@@ -601,6 +607,9 @@ async function loadBrain(){
     return [`<span style="${c}">${i+1}. ${esc(m.name)}${m.err?' ⚠':''}${m.slow?' ⏱':''}</span>`,`<span>${m.need}</span>`,`<span>${m.score}</span>`,
       `<span>${m.n}</span>`,`<span>${m.avg_ms==null?'—':m.avg_ms+' ms'}</span>`,`<span>${m.ago==null?'nunca':m.ago+' s'}</span>`].join('')});
   $('#brMods').innerHTML=head.map(h=>`<span style="color:var(--muted)">${h}</span>`).join('')+(rows.join('')||'<span>Todavía no corrió (prendé el bot)</span><span></span><span></span><span></span><span></span><span></span>');
+  $('#brProbe').textContent=b.probe?('🔎 Probando el nido de '+b.probe):(b.next_probe_min==null?'Próxima prueba: —':'Próxima prueba de nido en '+b.next_probe_min+' min');
+  const nh=['Nido','Exp/hora','Medido','Zona'].map(h=>`<span style="color:var(--muted)">${h}</span>`).join('');
+  $('#brNests').innerHTML=nh+((b.nests||[]).map(n=>`<span style="${n.zona?'color:var(--gold,#e7c66b);font-weight:700':''}">${esc(n.mob)} (${n.x},${n.y})</span><span>${n.rate==null?'sin medir':fmtN(Math.round(n.rate))}</span><span>${n.min} min</span><span>${n.zona?'◀ acá':''}</span>`).join('')||'<span>Todavía sin datos</span><span></span><span></span><span></span>');
   const s=b.salud;
   if(!s){$('#brSalOk').textContent='Sin datos todavía';$('#brAlerts').innerHTML='';$('#brSal').innerHTML='';return}
   $('#brSalOk').innerHTML=s.ok?'<span style="color:#5fe08a">✔ Todo en orden</span>':'<span style="color:#ff6b6b">🚨 Hay problemas</span>';
