@@ -4112,8 +4112,15 @@ class Bot:
             time.sleep(0.5)
 
     def _do_stats(self):
-        with winapi.allow_noclick():
-            return self._do_stats_inner()
+        # la ventana de stats se lee con el lector preciso (RapidOCR, ahora por placa de video): los números de las
+        # cajitas con el de Windows salían mal (la cuenta de puntos daba -7). Solo mientras reparto.
+        prev = ocr.SAFE
+        ocr.SAFE = True
+        try:
+            with winapi.allow_noclick():
+                return self._do_stats_inner()
+        finally:
+            ocr.SAFE = prev
 
     def _do_stats_inner(self):
         if cfgmod.server_slug(self.cfg) != "abaddon":
