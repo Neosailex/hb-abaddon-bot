@@ -3131,6 +3131,24 @@ class Bot:
         if name is None:
             return
         mv = self.mem.read_pos() if self.mem.learned else None
+        # control cruzado: si la pantalla muestra la MISMA posición 3 veces seguidas (estoy quieto) y la memoria dice
+        # otra cosa, esa dirección de memoria no es la mía (pasó: una que saltaba de baldosa con el pj quieto).
+        # 4 veces así = la olvido y la busco de nuevo.
+        try:
+            hist = self.__dict__.setdefault("_ocr_hist", [])
+            hist[:] = (hist + [(x, y)])[-3:]
+            if mv and len(hist) == 3 and len(set(hist)) == 1 and mv != (x, y):
+                self._mem_bad = getattr(self, "_mem_bad", 0) + 1
+                if self._mem_bad >= 4:
+                    self._mem_bad = 0
+                    self.log(f"🧠 Memoria: la posición que leía ({mv[0]},{mv[1]}) no coincide con la pantalla ({x},{y}) estando quieto: la busco de nuevo.")
+                    self.mem.reset(keep_saved=False)
+                    self.mem.hwnd = None
+                    mv = None
+            elif mv and mv == (x, y):
+                self._mem_bad = 0
+        except Exception:
+            pass
         if mv:
             x, y = mv  # la memoria es exacta; el OCR solo para el nombre del mapa
         else:

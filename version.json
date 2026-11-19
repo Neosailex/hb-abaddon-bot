@@ -1,1 +1,1 @@
-{"version": 430, "notes": "Posición: si la dirección de memoria deja de leerse 20 s, la vuelve a buscar sola (antes quedaba con la posición vieja y pegaba al aire). El OCR descarta textos que no son un mapa (ej. 'sig. nivel: 532,688')."}
+{"version": 431, "notes": "Control cruzado de la posición: si la pantalla muestra la misma posición 3 veces (quieto) y la memoria dice otra, 4 veces seguidas, descarta esa dirección y busca otra."}
