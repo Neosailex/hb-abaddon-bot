@@ -4595,7 +4595,9 @@ class Bot:
         ghosts = 0
         allv, seen_all = [], set()
         mypos = (self.pos.get("x"), self.pos.get("y"))
+        ox_, oy_ = self._mob_off()
         for x, y, typ, st, oid in raw:
+            x, y = x - ox_, y - oy_  # corrimiento aprendido de la memoria (ver _off_learn)
             if live_after is not None and int(oid) < live_after:
                 ghosts += 1
                 continue
@@ -5228,6 +5230,7 @@ class Bot:
                     lx, ly = getattr(tr, "x", None), getattr(tr, "y", None)
                     if lx is not None and self.pos.get("x") is not None:
                         self._adj_learn(tr.name, max(abs(lx - self.pos["x"]), abs(ly - self.pos["y"])))
+                        self._off_learn(lx - self.pos["x"], ly - self.pos["y"])  # murió pegado a mí
                 except Exception:
                     pass
                 try:
@@ -5803,6 +5806,43 @@ class Bot:
             pass
         self._qm_cache = (now, out)
         return out
+
+    def _mob_off(self):
+        """Corrimiento (x, y) entre dónde la memoria pone a los bichos y dónde están de verdad. Aprendido solo."""
+        try:
+            o = (self.world.learn.get("mob_off") or {}).get("off") or [0, 0]
+            return int(o[0]), int(o[1])
+        except Exception:
+            return 0, 0
+
+    def _off_learn(self, dx, dy):
+        """Cada bicho que mato peleando cuerpo a cuerpo estaba PEGADO a mí (a 1 baldosa). Anoto dónde lo ponía la
+        memoria (sin corregir). Si casi siempre aparece corrido para el mismo lado (ej. una baldosa más abajo), ese
+        es el corrimiento de este cliente: lo resto a todos los bichos. Sirve para cualquier pj, bicho y server, y
+        se sigue midiendo siempre (si el corrimiento cambia, se corrige solo)."""
+        ox, oy = self._mob_off()
+        rx, ry = int(dx) + ox, int(dy) + oy  # vuelvo a la posición cruda de la memoria
+        if max(abs(rx), abs(ry)) > 3:
+            return
+        r = self.world.learn.setdefault("mob_off", {"v": [], "off": [0, 0]})
+        r["v"] = (r.get("v", []) + [[rx, ry]])[-80:]
+        v = r["v"]
+        if len(v) < 20 or len(v) % 5:
+            return
+        score = lambda c: sum(1 for a, b in v if abs(a - c[0]) <= 1 and abs(b - c[1]) <= 1)
+        cands = [(i, j) for i in (-1, 0, 1) for j in (-1, 0, 1)]
+        cur = (ox, oy)
+        best = max(cands, key=lambda c: (score(c), c == cur, c == (0, 0)))
+        # cambio solo con ventaja clara (15% de las muertes) para no ir y venir
+        if best != cur and score(best) >= score(cur) + 0.15 * len(v):
+            r["off"] = [best[0], best[1]]
+            self.world.learn["adj_tol"] = {}  # lo aprendido de 'pegado a 2' era por el corrimiento: empiezo de nuevo
+            self.log(f"🧠 La memoria pone a los bichos corridos ({best[0]:+d},{best[1]:+d}) baldosas: lo corrijo "
+                     f"({score(best)}/{len(v)} muertes lo confirman, sin corregir {score(cur)}).")
+            try:
+                self.world.save()
+            except Exception:
+                pass
 
     def _adj_tol(self, name):
         """A qué distancia (según la memoria) cuento a este bicho como 'pegado'. La memoria marca algunos (largos o
@@ -9920,12 +9960,14 @@ class Bot:
             self.log("⛔ Se rompió " + ", ".join(broke) + " (memoria): voy al herrero.")
             self._broken_t = now
             self._town_need("equipo roto")
-        elif low and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 300 \
-                and self.state != "attack" and not self._under_attack():
+        elif low and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 300:
             self._gm_said = now
             self.log("🔧 Poca durabilidad en " + ", ".join(low) + " (memoria): voy al herrero antes de que se rompa.")
             th = getattr(self, "_rep_th", None)
-            if not (th is not None and th.is_alive()):
+            if self.state == "attack" or self._under_attack():
+                # en un nido lleno nunca estoy 'libre': marco el pueblo y voy apenas termine la pelea
+                self._town_need("poca durabilidad")
+            elif not (th is not None and th.is_alive()):
                 self._rep_th = threading.Thread(target=self._oly_repair_trip, args=("poca durabilidad",), daemon=True)
                 self._rep_th.start()
         return True
