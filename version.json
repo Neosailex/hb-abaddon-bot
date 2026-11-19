@@ -1,1 +1,1 @@
-{"version": 423, "notes": "Clic en el mapa con el bot apagado: solo camina (y se defiende, poción si vida < 30%, menú del juego cada 20 s). Sin comer, misiones ni lecturas de pantalla en cada paso: ya no se frena."}
+{"version": 424, "notes": "Durabilidad del equipo leída de memoria cada 10 s (lo puesto = lo que se gasta). Herrero por memoria con poca durabilidad o roto. La ficha F5 pasa de cada 10 min a cada 90 min y la revisión del bolso de 20 a 120 min."}

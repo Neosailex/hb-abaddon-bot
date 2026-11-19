@@ -9855,6 +9855,75 @@ class Bot:
                 return sl
         return "otro:" + low
 
+    def _gear_mem(self):
+        """Durabilidad del equipo leída de la MEMORIA (sin abrir ventanas). El bolso en memoria incluye lo que está
+        puesto, cada pieza con su durabilidad. Lo puesto se reconoce solo: es la pieza que se gasta mientras cazo
+        (las de repuesto no se gastan). El máximo de cada item es el mayor valor visto (tras el herrero vuelve al
+        tope) o el de la tabla del juego. Sirve para cualquier pj y equipo. Devuelve True si la memoria anda."""
+        now = time.time()
+        if now - getattr(self, "_gm_t", 0) < 10:
+            return getattr(self, "_gm_ok", False)
+        self._gm_t = now
+        inv = self._inv_oly()
+        if inv is None:
+            self._gm_ok = False
+            return False
+        idb = self._items_db()
+        mx = self.cfg.setdefault("dur_max_seen", {})
+        prev = self.__dict__.setdefault("_gm_prev", {})
+        worn = self.__dict__.setdefault("_gm_worn", {})
+        cur, changed = {}, False
+        for it in inv:
+            g = idb.get(it["id"]) or {}
+            if int(g.get("type") or 0) != 2 or not g.get("slot"):
+                continue  # solo equipo (armas, armaduras, escudos, joyas)
+            k = f"{it['slot']}:{it['id']}"
+            cur[k] = it["dur"]
+            ks = str(it["id"])
+            if it["dur"] > int(mx.get(ks, 0)):
+                mx[ks] = int(it["dur"])
+                changed = True
+            p_ = prev.get(k)
+            if p_ is not None and it["dur"] < p_:
+                worn[k] = now  # se gastó: la tengo puesta
+        for k in list(worn):
+            if k not in cur or now - worn[k] > 6 * 3600:
+                worn.pop(k, None)
+        self._gm_prev = cur
+        if changed:
+            try:
+                cfgmod.save(self.cfg)
+            except Exception:
+                pass
+        low, broke = [], []
+        for k in worn:
+            iid = int(k.split(":")[1])
+            g = idb.get(iid) or {}
+            top = max(int(mx.get(str(iid), 0)), int(g.get("dur") or 0))
+            d = cur.get(k, 0)
+            if top <= 1:
+                continue
+            nm = f"{g.get('name') or iid} ({d}/{top})"
+            if d == 0:
+                broke.append(nm)
+            elif d <= max(0.15 * top, 45):
+                low.append(nm)
+        self._gm_view = {"t": now, "worn": {k: cur.get(k) for k in worn}, "low": low, "broke": broke}
+        self._gm_ok = True
+        if broke and now - getattr(self, "_gm_said", 0) > 300:
+            self._gm_said = now
+            self.log("⛔ Se rompió " + ", ".join(broke) + " (memoria): voy al herrero.")
+            self._broken_t = now
+            self._town_need("equipo roto")
+        elif low and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 300:
+            self._gm_said = now
+            self.log("🔧 Poca durabilidad en " + ", ".join(low) + " (memoria): voy al herrero antes de que se rompa.")
+            th = getattr(self, "_rep_th", None)
+            if not (th is not None and th.is_alive()):
+                self._rep_th = threading.Thread(target=self._oly_repair_trip, args=("poca durabilidad",), daemon=True)
+                self._rep_th.start()
+        return True
+
     def _gear_check(self, force=False):
         """SUPERVIVENCIA: cada 10 minutos (y enseguida si dejé de matar, me mataron o volví del herrero) leo qué tengo
         puesto. Sin arma no se pelea: pueblo ya. Si se salió una pieza: reparar y volver a ponerla. Si a algo le queda
@@ -9863,6 +9932,12 @@ class Bot:
             return
         now = time.time()
         every = float(self.cfg.get("gear_check_min", 10)) * 60
+        # con la durabilidad en memoria la ficha (F5) casi no hace falta: solo cada 90 min o cuando algo lo pide
+        try:
+            if self._gear_mem():
+                every = float(self.cfg.get("gear_check_mem_min", 90)) * 60
+        except Exception:
+            pass
         if not force and now - getattr(self, "_gear_t", 0) < every:
             return
         if getattr(self, "mission", None) or getattr(self, "_busy_ui", False) or getattr(self, "goto", None):
@@ -10010,6 +10085,8 @@ class Bot:
             return
         now = time.time()
         every = 300 if now - getattr(self, "_worn_seen", 0) < 600 else float(self.cfg.get("bag_audit_min", 20)) * 60
+        if getattr(self, "_gm_ok", False) and now - getattr(self, "_worn_seen", 0) >= 600:
+            every = float(self.cfg.get("bag_audit_mem_min", 120)) * 60  # lo roto ya lo veo en memoria
         if now - getattr(self, "_audit_t", 0) < every:
             return
         for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th", "_audit_th"):
