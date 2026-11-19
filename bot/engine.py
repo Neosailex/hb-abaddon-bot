@@ -3333,6 +3333,12 @@ class Bot:
             st = dict(sh["stats"])
             st["CHR"] = st.get("LUK")
             return st
+        # sin ficha: los últimos stats confirmados en la ventana 'Subir nivel' (solo suben: sirven aunque sean viejos)
+        sl = self.cfg.get("stats_last") or {}
+        if sl.get("STR"):
+            st = {k: v for k, v in sl.items() if k != "t"}
+            st["CHR"] = st.get("LUK")
+            return st
         return {}
 
     # ---------- ficha del pj leída de la pantalla (servers sin estructura de memoria conocida) ----------
@@ -4094,6 +4100,13 @@ class Bot:
         click(ap[1], ap[2])
         time.sleep(1.0)
         self.log("📈 Stats (guía 2H): " + ", ".join(f"+{v} {k}" for k, v in added.items()) + ".")
+        try:
+            # los stats quedaron confirmados (los puntos bajaron justo lo que sumé): los guardo para el plan de equipo
+            self.cfg["stats_last"] = {k: int(v) for k, v in plan_vals.items() if k in ("STR", "VIT", "DEX", "INT", "MAG", "LUK") and v is not None}
+            self.cfg["stats_last"]["t"] = time.time()
+            cfgmod.save(self.cfg)
+        except Exception:
+            pass
         self._sal_stats_t = time.time()
         self._stats_fail = 0
         img3 = grab()
@@ -10815,6 +10828,16 @@ class Bot:
                 owned = [idb[i["id"]]["name"] for i in inv if i["id"] in idb]
             elif cfgmod.server_slug(self.cfg) != "abaddon":
                 owned = list(self.cfg.get("owned_items") or [])  # pj de otro server: no heredo el equipo del de Abaddon
+                # el bolso leído de la memoria (puesto + guardado): los números de objeto son los del juego base, así que
+                # la tabla de items los traduce. Sin esto el plan creía que no tenía nada ('mejora: Broad Sword' con
+                # una Great Sword puesta).
+                try:
+                    for it_ in (self._inv_oly() or []):
+                        nm_ = (idb.get(it_["id"]) or {}).get("name")
+                        if nm_ and nm_ not in owned:
+                            owned.append(nm_)
+                except Exception:
+                    pass
                 # lo que tengo puesto y comprobado también es mío: no lo compro de nuevo
                 for v_ in (self.cfg.get("worn") or {}).values():
                     if isinstance(v_, dict) and v_.get("ok") and v_.get("name"):
