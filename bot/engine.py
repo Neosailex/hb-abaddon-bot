@@ -5673,6 +5673,10 @@ class Bot:
         now = time.time()
         tried = self.__dict__.setdefault("_pit_tried", {})
         best = None
+        try:
+            strict_q = bool(qm) and self._quest_strict() and any((p_.get("mob") or p_.get("guess")) in qm for p_ in self._pits())
+        except Exception:
+            strict_q = False
         for p in self._pits():
             nm = p.get("mob") or p.get("guess")
             dist = max(abs(p["x"] - px), abs(p["y"] - py))
@@ -5690,6 +5694,8 @@ class Bot:
             if now < float(self.cfg.get("train_skill_until", 0) or 0) and nm != "Slime":
                 continue  # arma de otro tipo recién puesta: subo la habilidad con lo más fácil antes de ir a lo serio
             # el nido del bicho de la misión pesa mucho más: una misión de 200 orcos se hace en el nido de orcos
+            if qm and nm not in qm and strict_q:
+                continue  # misión estricta: solo nidos de su bicho (si hay alguno conocido)
             score = (5.0 if nm in qm else 1.0) * (1.3 if p.get("mob") else 1.0) / (1.0 + dist / 80.0)
             if best is None or score > best[0]:
                 best = (score, p, nm)
