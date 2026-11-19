@@ -1,1 +1,1 @@
-{"version": 400, "notes": "El lector de texto preciso (RapidOCR) usa la placa de video si está onnxruntime-directml en data\\ortdml (4 veces más rápido, casi sin procesador). Si no, procesador como siempre."}
+{"version": 401, "notes": "Las misiones de cazar ya no frenan el reparto de stats ni la lectura de la ficha (nivel quedó en 56 siendo 60, 10 puntos sin repartir). Si aparece la ventana 'Subir nivel', reparto apenas esté tranquilo."}

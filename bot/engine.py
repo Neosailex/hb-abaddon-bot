@@ -1176,11 +1176,16 @@ class Bot:
             mn_ = (self.pos.get("map") or "").lower()
             indoors = any(k in mn_ for k in ("shop", "blacksmith", "cityhall", "city hall", "warehouse", "guild", "church", "magic tower", "barrack", "jail", "command hall"))
             wait_ = 20 if getattr(self, "_stats_fail", 0) < 2 else 180
-            if (not indoors and not getattr(self, "mission", None) and (lu_pts or vision.find_level_up(self.img))
+            # una misión de cazar (casi siempre hay una activa) NO frena los stats ni la ficha: solo una misión que
+            # está usando ventanas (hold_ui) o un viaje en curso. Antes: con misiones siempre activas el nivel quedó
+            # clavado en 56 (era 60) y 10 puntos sin repartir toda la noche.
+            ms_ = getattr(self, "mission", None)
+            busy_m = bool(getattr(self, "goto", None)) or bool(ms_ and ms_.get("hold_ui"))
+            if (not indoors and not busy_m and (lu_pts or vision.find_level_up(self.img))
                     and time.time() - getattr(self, "_stats_done", 0) > wait_):
                 self._last_stats = 0
             # servers sin memoria del pj: la ficha (F5) dice el nivel, la exp y si hay puntos por repartir
-            if not indoors and not getattr(self, "mission", None) and self._census():
+            if not indoors and not busy_m and self._census():
                 return
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0 \
                 and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or self._mobs_within(3) > 0
@@ -1586,7 +1591,10 @@ class Bot:
                 winapi.click(*self.abs_pt(rb_[1], rb_[2] - 120 * self.rect[3] / 1080.0), button="right")
                 time.sleep(0.5)
                 self.log("Cierro la ventana 'Subir nivel' que había quedado abierta (sin aplicar nada).")
-                self._stats_t = 0  # que el reparto de stats vuelva a probar enseguida
+                # si estaba abierta es que hay puntos (el cartel 'Subir de Nivel' queda en pantalla y un clic perdido
+                # la abre): reparto en el próximo momento tranquilo y releo la ficha (nivel real)
+                self._last_stats = 0
+                self._census_t = 0
                 return True
         except Exception:
             pass
