@@ -1305,6 +1305,11 @@ class Bot:
             self._salud()
         except Exception:
             pass
+        try:
+            if self.running:
+                self._gear_mem()  # durabilidad por memoria (cada 10 s, sin ventanas)
+        except Exception:
+            pass
         if fighting_:
             self._close_junk_windows()
         elif self._director():
@@ -9915,7 +9920,8 @@ class Bot:
             self.log("⛔ Se rompió " + ", ".join(broke) + " (memoria): voy al herrero.")
             self._broken_t = now
             self._town_need("equipo roto")
-        elif low and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 300:
+        elif low and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 300 \
+                and self.state != "attack" and not self._under_attack():
             self._gm_said = now
             self.log("🔧 Poca durabilidad en " + ", ".join(low) + " (memoria): voy al herrero antes de que se rompa.")
             th = getattr(self, "_rep_th", None)
