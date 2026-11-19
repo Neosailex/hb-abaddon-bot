@@ -1580,16 +1580,7 @@ class Bot:
         # parado horas). Si nadie está repartiendo stats: deshago lo pendiente ('Restablecer', nada se aplicó) y la
         # cierro con click derecho. El reparto de stats la vuelve a abrir bien cuando le toque.
         try:
-            # el OCR da palabras sueltas: la ventana se reconoce por 'Restablecer' + 'Aplicar' en la misma fila
-            rb_ = next((w for t, w in txt if t.startswith("restablecer")), None)
-            ap_ = next((w for t, w in txt if t == "aplicar"), None)
-            pa_ = rb_ if (rb_ and ap_ and abs(rb_[2] - ap_[2]) < 30 and 0 < ap_[1] - rb_[1] < 400 * self.rect[2] / 1920.0) else None
-            if pa_ and not getattr(self, "_stats_force", None):
-                winapi.click(*self.abs_pt(rb_[1], rb_[2]))
-                time.sleep(0.5)
-                # click derecho adentro de la ventana, en la zona vacía de arriba del botón (cierra el menú)
-                winapi.click(*self.abs_pt(rb_[1], rb_[2] - 120 * self.rect[3] / 1080.0), button="right")
-                time.sleep(0.5)
+            if not getattr(self, "_stats_force", None) and self._stats_win_close(words):
                 self.log("Cierro la ventana 'Subir nivel' que había quedado abierta (sin aplicar nada).")
                 # si estaba abierta es que hay puntos (el cartel 'Subir de Nivel' queda en pantalla y un clic perdido
                 # la abre): reparto en el próximo momento tranquilo y releo la ficha (nivel real)
@@ -4043,6 +4034,7 @@ class Bot:
                 self.log(f"Stats: leí {pts} puntos, la cuenta da {exp_pts}; uso el menor.")
                 pts = min(p_ for p_ in (pts, exp_pts) if p_ is not None)
         if not pts or pts <= 0:
+            click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro (no la dejo tapando el juego)
             return
         plan_vals = dict(vals, CHR=vals.get("LUK"))
         added = {}
@@ -4115,12 +4107,7 @@ class Bot:
                 self._stats_force = None
                 # nunca dejar 'Subir nivel' abierta (tapa el juego): si sigue ahí, click derecho adentro
                 try:
-                    im_ = self.screen.grab(self.rect)
-                    ws_ = ocr.read_words(im_, {"x1": 0, "y1": 0, "x2": im_.shape[1], "y2": int(im_.shape[0] * 0.6)}, scale=1.0)
-                    asg_ = next((w for w in ws_ if "".join(c for c in w[0].lower() if c.isalnum()).startswith("asignar")), None)
-                    if asg_:
-                        winapi.click(*self.abs_pt(asg_[1] + 300 * self.rect[2] / 1920.0, asg_[2]), button="right")
-                        time.sleep(0.4)
+                    self._stats_win_close()  # el click derecho de antes caía sobre 'Restablecer' y no la cerraba
                 except Exception:
                     pass
                 self._junk_t = 0  # revisar ya que no haya quedado ninguna ventana abierta
@@ -5127,6 +5114,45 @@ class Bot:
                     self._risk_judge(tr.name)
                 except Exception:
                     pass
+
+    def _stats_win_close(self, words=None):
+        """Cierra la ventana 'Subir nivel' si está abierta: primero 'Restablecer' (deshace lo pendiente, nada se
+        aplica), después click derecho en la fila 'Puntos por asignar' (zona vacía de la ventana; así la cerraba el
+        reparto de stats cuando andaba bien). Verifica; si sigue, ESC. True = la vi y la cerré."""
+        norm = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
+
+        def find(ws):
+            rb = next((w for w in ws if norm(w[0]).startswith("restablecer")), None)
+            ap = next((w for w in ws if norm(w[0]) == "aplicar"), None)
+            if rb and ap and abs(rb[2] - ap[2]) < 30 and 0 < ap[1] - rb[1] < 400 * self.rect[2] / 1920.0:
+                return rb, ap
+            return None
+
+        def read():
+            im = self.screen.grab(self.rect)
+            return ocr.read_words(im, {"x1": 0, "y1": 0, "x2": im.shape[1], "y2": int(im.shape[0] * 0.85)}, scale=1.0)
+
+        try:
+            ws = words if words is not None else read()
+            f = find(ws)
+            if not f:
+                return False
+            rb, ap = f
+            ky = self.rect[3] / 1080.0
+            winapi.click(*self.abs_pt(rb[1], rb[2]))
+            time.sleep(0.5)
+            for how in ("right", "esc", "right2"):
+                if how == "esc":
+                    winapi.press("ESC")
+                else:
+                    y_ = rb[2] - (607 if how == "right" else 650) * ky  # fila 'Puntos por asignar' / pestañas de arriba
+                    winapi.click(*self.abs_pt((rb[1] + ap[1]) / 2, y_), button="right")
+                time.sleep(0.6)
+                if not find(read()):
+                    return True
+            return True
+        except Exception:
+            return False
 
     def _quest_mobs(self):
         """Bichos que piden mis misiones del cartel (cruzadas con la base de misiones: 'Epidemic' -> Snake,

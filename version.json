@@ -1,1 +1,1 @@
-{"version": 402, "notes": "Misiones: con 'quest_strict' también las de juntar objetos (caza su bicho, 45 min sin avanzar antes de soltarla). Levanto lo que cae hasta 10 min después de cada muerte, y de los bichos de misión siempre."}
+{"version": 403, "notes": "Ventana 'Subir nivel': se cierra de verdad (Restablecer + click derecho en zona vacía, verifica, ESC si hace falta). Antes el click caía sobre 'Restablecer' y quedaba abierta."}
