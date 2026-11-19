@@ -1571,6 +1571,23 @@ class Bot:
             pass
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         txt = [(norm(w[0]), w) for w in words]
+        # ventana 'Subir nivel' olvidada abierta (tapa el juego: los clics para caminar caen adentro y el pj queda
+        # parado horas). Si nadie está repartiendo stats: deshago lo pendiente ('Restablecer', nada se aplicó) y la
+        # cierro con click derecho. El reparto de stats la vuelve a abrir bien cuando le toque.
+        try:
+            pa_ = next((w for t, w in txt if t.startswith("puntosporasignar")), None)
+            if pa_ and not getattr(self, "_stats_force", None):
+                rb_ = next((w for t, w in txt if t.startswith("restablecer")), None)
+                if rb_:
+                    winapi.click(*self.abs_pt(rb_[1], rb_[2]))
+                    time.sleep(0.5)
+                winapi.click(*self.abs_pt(pa_[1] + 300 * self.rect[2] / 1920.0, pa_[2]), button="right")
+                time.sleep(0.5)
+                self.log("Cierro la ventana 'Subir nivel' que había quedado abierta (sin aplicar nada).")
+                self._stats_t = 0  # que el reparto de stats vuelva a probar enseguida
+                return True
+        except Exception:
+            pass
         # carteles peligrosos: '¿tirar este objeto?' / '¿cuánto oro tirar?' y elegir talento → siempre No/Cancelar
         for key in ("tirar", "talento", "unirte"):
             hit = next((w for t, w in txt if key in t), None)
