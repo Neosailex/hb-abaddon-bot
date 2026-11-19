@@ -1,1 +1,1 @@
-{"version": 410, "notes": "Stats: la ventana 'Subir nivel' se lee con el lector preciso (placa de video) mientras reparto."}
+{"version": 411, "notes": "Tablero de salud: cada minuto reviso stats sin repartir, bolso lleno sin vender, sin matar, muertes, trabadas y caza sin pociones. Si algo falla lo digo con 🚨 en el log y en data/salud.json."}

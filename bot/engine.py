@@ -1016,6 +1016,7 @@ class Bot:
         self._release()
         self.state, self.target, self._track = "seek", None, None
         why = "no me muevo hace 40 s" if stuck_pos else "hace 3 minutos que no gano experiencia"
+        self.__dict__.setdefault("_sal_stuck", []).append(now)
         if no_exp or len(n) >= 3:
             # la zona no rinde o me trabo seguido acá: la dejo descansar y busco otra
             zg = getattr(self, "_zone_goal", None)
@@ -1262,6 +1263,10 @@ class Bot:
             fighting_ = False
         try:
             self._pot_pace()
+        except Exception:
+            pass
+        try:
+            self._salud()
         except Exception:
             pass
         if fighting_:
@@ -4105,6 +4110,7 @@ class Bot:
         click(ap[1], ap[2])
         time.sleep(1.0)
         self.log("📈 Stats (guía 2H): " + ", ".join(f"+{v} {k}" for k, v in added.items()) + ".")
+        self._sal_stats_t = time.time()
         self._stats_fail = 0
         img3 = grab()
         if find_win(img3):
@@ -5174,6 +5180,67 @@ class Bot:
                     self._risk_judge(tr.name)
                 except Exception:
                     pass
+
+    def _salud(self):
+        """TABLERO DE SALUD: cada minuto miro si las funciones básicas se están cumpliendo y, si una no, lo digo
+        FUERTE en el log (🚨) y en data/salud.json. Nada falla en silencio (los stats estuvieron apagados horas sin
+        que nadie se enterara). Solo lee contadores y memoria: no clickea ni abre nada. Para cualquier pj."""
+        now = time.time()
+        if now - getattr(self, "_sal_t", 0) < 60 or not self.running:
+            return
+        self._sal_t = now
+        st = self.__dict__.setdefault("_sal", {"t0": now})
+        k = int(self.stats.get("kills", 0) or 0)
+        d = int(self.stats.get("deaths", 0) or 0)
+        kh = st.setdefault("kills", []); dh = st.setdefault("deaths", [])
+        if k != st.get("lk", k):
+            kh.append(now)
+        if d > st.get("ld", d):
+            dh.append(now)
+        st["lk"], st["ld"] = k, d
+        kh[:] = [t for t in kh if now - t < 3600][-500:]
+        dh[:] = [t for t in dh if now - t < 3600]
+        lvl = int((self.cfg.get("travel") or {}).get("my_level") or 0)
+        if lvl != st.get("lvl"):
+            if st.get("lvl") and lvl > st["lvl"]:
+                st["lvl_up_t"] = now
+            st["lvl"] = lvl
+        stuck = [t for t in getattr(self, "_sal_stuck", []) if now - t < 600]
+        self._sal_stuck = stuck
+        try:
+            sm = self._supplies_mem()
+        except Exception:
+            sm = None
+        st_name = str(self.stats.get("state") or "")
+        town = any(w in st_name for w in ("compr", "repar", "vend", "tienda", "herrer", "yendo a"))
+        alerts = []
+        up = st.get("lvl_up_t", 0)
+        if up and now - up > 1800 and getattr(self, "_sal_stats_t", 0) < up:
+            alerts.append(("stats", f"subí de nivel hace {int((now - up) / 60)} min y no repartí los puntos"))
+        if sm and sm.get("items", 0) >= 48 and now - st["t0"] > 1200 and now - getattr(self, "_sal_sold_t", 0) > 1800:
+            alerts.append(("bolso", f"bolso lleno ({sm['items']}/50) hace rato y no vendí nada"))
+        if now - st["t0"] > 900 and not town and not any(now - t < 600 for t in kh):
+            alerts.append(("kills", "hace 10 min que no mato nada"))
+        if len([t for t in dh if now - t < 3600]) >= 2:
+            alerts.append(("muertes", f"me mataron {len([t for t in dh if now - t < 3600])} veces en la última hora"))
+        if len(stuck) >= 5:
+            alerts.append(("trabado", f"me trabé {len(stuck)} veces en 10 min"))
+        if sm and sm.get("pot") == 0 and not town:
+            alerts.append(("pociones", "estoy cazando sin pociones"))
+        said = st.setdefault("said", {})
+        for key, msg in alerts:
+            if now - said.get(key, 0) > 900:
+                said[key] = now
+                self.log(f"🚨 SALUD: {msg}.")
+        try:
+            with open(os.path.join(cfgmod.DATA, "salud.json"), "w", encoding="utf-8") as f:
+                json.dump({"t": time.strftime("%H:%M:%S"), "ok": not alerts, "alertas": [m for _, m in alerts],
+                           "kills_10m": sum(1 for t in kh if now - t < 600), "kills_1h": len(kh),
+                           "muertes_1h": len(dh), "trabadas_10m": len(stuck), "nivel": lvl,
+                           "bolso": (sm or {}).get("items"), "pociones": (sm or {}).get("pot"),
+                           "oro": self._gold_mem(), "estado": st_name}, f, ensure_ascii=False)
+        except Exception:
+            pass
 
     def _stats_win_close(self, words=None):
         """Cierra la ventana 'Subir nivel' si está abierta: primero 'Restablecer' (deshace lo pendiente, nada se
@@ -8923,6 +8990,7 @@ class Bot:
         time.sleep(1.5)
         self._busy_beat = time.time()
         self.log("🛒 Vendí: " + ", ".join(l[0] for l in ls) + (f" (recibí {tot})" if tot else "") + ".")
+        self._sal_sold_t = time.time()
         self._bag_mem = []
         self._bag_sell = []
         return True
