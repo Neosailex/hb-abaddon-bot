@@ -1,1 +1,1 @@
-{"version": 437, "notes": "Si la ficha (F5) no muestra una pieza pero la memoria dice que se viene gastando, la tengo puesta: no va al pueblo por eso (antes: 'se salió Chain Hose' con el Chain Hose puesto, viaje tras viaje)."}
+{"version": 438, "notes": "Diagnóstico del 'me pegan y no estaba pegando': anota qué pasaba en cada caso (data/reflejo.json) y cada 10 casos escribe en el log el resumen de causas."}

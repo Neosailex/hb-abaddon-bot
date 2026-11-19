@@ -4997,6 +4997,60 @@ class Bot:
               and i["name"] not in getattr(self, "_buy_failed", [])]
         return max(ok, key=lambda i: (float(i.get("avg") or 0), -int(i.get("price") or 0))) if ok else None
 
+    def _aq_diag(self, ents, px, py, now):
+        """Diagnóstico del 'me pegan y no estaba pegando': anoto qué pasaba justo en ese momento, para saber la causa
+        de verdad (en vez de adivinar). Va a data/reflejo.json (últimos 300) y un resumen al log cada 10 casos."""
+        if now - getattr(self, "_aq_t", 0) < 3:
+            return
+        self._aq_t = now
+        d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
+        near = sorted(ents, key=d)[:4]
+        ths = [a for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th", "_audit_th", "_town_th")
+               if getattr(self, a, None) is not None and getattr(self, a).is_alive()]
+        mv = None
+        try:
+            mv = self.mem.read_pos() if self.mem.learned else None
+        except Exception:
+            pass
+        rec = {"t": time.strftime("%H:%M:%S"), "state": self.stats.get("state"), "busy_ui": bool(getattr(self, "_busy_ui", False)),
+               "threads": ths, "since_atk": round(now - getattr(self, "_atk_t", 0), 1),
+               "since_kill": round(now - getattr(self, "_last_kill_t", 0), 1),
+               "near": [[e[2]["name"], e[0] - px, e[1] - py] for e in near],
+               "d0": any(d(e) == 0 for e in ents), "pos": [px, py], "mem": list(mv) if mv else None,
+               "ocr": self.pos.get("text"), "pos_age": round(now - self.pos.get("t", 0), 1),
+               "loot": bool(getattr(self, "_kill_q", None)), "mode": self.bot_mode()}
+        # causa probable, en el orden de las sospechas
+        if ths or rec["busy_ui"]:
+            why = "ventana/viaje ocupado"
+        elif rec["d0"]:
+            why = "bicho en mi misma baldosa"
+        elif mv and tuple(mv) != (px, py):
+            why = "posición memoria != la que uso"
+        elif not near or d(near[0]) > 3:
+            why = "nadie cerca en memoria (fantasma/no lo veo)"
+        elif "levant" in str(rec["state"]).lower() or "loot" in str(rec["state"]).lower():
+            why = "juntando loot"
+        else:
+            why = f"el más cercano a {d(near[0])} baldosas"
+        rec["why"] = why
+        try:
+            fn = os.path.join(cfgmod.DATA, "reflejo.json")
+            L = []
+            try:
+                with open(fn, encoding="utf-8") as f:
+                    L = json.load(f)
+            except Exception:
+                pass
+            L = (L + [rec])[-300:]
+            with open(fn, "w", encoding="utf-8") as f:
+                json.dump(L, f, ensure_ascii=False)
+            cnt = self.__dict__.setdefault("_aq_cnt", {})
+            cnt[why] = cnt.get(why, 0) + 1
+            if sum(cnt.values()) % 10 == 0:
+                self.log("🔎 'No estaba pegando', causas: " + "; ".join(f"{k} {v}" for k, v in sorted(cnt.items(), key=lambda x: -x[1])) + ".")
+        except Exception:
+            pass
+
     def _reflex(self):
         """REGLA DE ORO (vale para todo modo, misión u orden, en cualquier juego): nunca me quedo quieto mientras
         me pegan. Si tengo un bicho pegado y nadie le está pegando, le pego YO, sea cual sea (aunque lo haya
@@ -5017,6 +5071,10 @@ class Bot:
             # deja parado: le pego al más cercano a 3 baldosas (la memoria a veces los marca corridos) y, si no hay,
             # barro las 8 baldosas de alrededor.
             near3 = [e for e in ents if d(e) <= 3]
+            try:
+                self._aq_diag(ents, px, py, now)
+            except Exception:
+                pass
             if near3:
                 adj = [min(near3, key=d)]
                 if now - getattr(self, "_aq_said", 0) > 120:
