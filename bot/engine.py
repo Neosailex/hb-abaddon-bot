@@ -1198,6 +1198,11 @@ class Bot:
             if (not ui_busy and not busy_m and (lu_pts or vision.find_level_up(self.img))
                     and time.time() - getattr(self, "_stats_done", 0) > wait_):
                 self._last_stats = 0
+            # sin memoria de los puntos y con la ficha fallando, el cartel 'Subir de Nivel' casi nunca se detecta:
+            # cada 15 minutos miro la ventana de stats igual (si no hay puntos, la cierro y listo)
+            if (cfgmod.server_slug(cfg) != "abaddon" and not ui_busy and not busy_m and lu_pts is None
+                    and time.time() - getattr(self, "_stats_done", 0) > 900):
+                self._last_stats = 0
             # servers sin memoria del pj: la ficha (F5) dice el nivel, la exp y si hay puntos por repartir
             if not ui_busy and not busy_m and (not indoors or time.time() - getattr(self, "_census_in_t", 0) > 300):
                 if indoors:
