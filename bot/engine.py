@@ -5632,7 +5632,9 @@ class Bot:
             # MANUAL (Juan): mata donde lo dejaste y no hace nada más. Solo: cerrar ventanas, leer el equipo y el
             # viaje al herrero para reparar (después vuelve EXACTO a donde estaba). Sin pociones, sin vender, sin
             # misiones, sin cambiar de nido. Si lo matan, vuelve a Automático.
-            for k_ in ("misión cobrar/aceptar", "encargo", "tienda", "chequeo", "estrategia", "bolso", "auditoría",
+            # el 'encargo' (caminar hasta la puerta y entrar) queda: en Manual solo lo crea el viaje al herrero, y sin
+            # él llegaba a la puerta y nunca entraba (equipo roto toda la tarde)
+            for k_ in ("misión cobrar/aceptar", "tienda", "chequeo", "estrategia", "bolso", "auditoría",
                        "plan", "mejoras", "nidos"):
                 w[k_] = -1000
         elif md_ in ("caza", "economico", "cartografo"):
