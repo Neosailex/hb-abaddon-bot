@@ -5285,7 +5285,16 @@ class Bot:
 
     def _pits(self, mk=None):
         mk = mk or (self.pos.get("map") or "").strip().lower()
-        return ((self.world.learn.get("pits") or {}).get(mk) or {}).get("list") or []
+        L = ((self.world.learn.get("pits") or {}).get(mk) or {}).get("list") or []
+        # solo los que caen adentro del mapa (una mala lectura del minimapa dio nidos en (134,171) en un mapa de 170:
+        # el bot quedaba parado 'yendo' a un lugar sin camino)
+        try:
+            m = self.world.map_for(self.pos.get("map") or "") if mk == (self.pos.get("map") or "").strip().lower() else None
+            if m:
+                L = [p for p in L if 0 <= int(p["x"]) < m.w and 0 <= int(p["y"]) < m.h]
+        except Exception:
+            pass
+        return L
 
     def _pits_scan(self):
         """Mapa de nidos sin caminarlo: saco el minimapa (mapa entero) con y sin nidos; lo que cambia son los nidos.
@@ -5353,6 +5362,7 @@ class Bot:
             on = ra if ra[d > 0].max(axis=1).mean() <= rb[d > 0].max(axis=1).mean() else rb  # con nidos: manchas más oscuras
             n, lab, st, cen = cv2.connectedComponentsWithStats(d)
             pits = []
+            n_out = 0
             for i in range(1, n):
                 if st[i, 4] < 60 * ky * ky:
                     continue
@@ -5362,7 +5372,14 @@ class Bot:
                 if max(abs(tx - px), abs(ty - py)) <= 3 and st[i, 4] < 140:
                     continue  # mi propia marca moviéndose
                 g = next((nm for nm, f in self.PIT_GUESS if f(h_, s_, v_)), None)
+                if not (0 <= tx < m.w and 0 <= ty < m.h):
+                    n_out += 1
+                    continue
                 pits.append({"x": tx, "y": ty, "r": int(round(max(st[i, 2], st[i, 3]) / sc / 2)), "hsv": [h_, s_, v_], "guess": g, "mob": None, "seen": {}})
+            if n_out and n_out >= len(pits):
+                # la mitad o más cayó fuera del mapa: leí mal la escala del minimapa. No guardo nada, pruebo más tarde.
+                self.log(f"🗺 Lectura de nidos dudosa ({n_out} fuera del mapa): la descarto y pruebo más tarde.")
+                return False
             self.world.learn.setdefault("pits", {})[mk] = {"t": now, "list": pits}
             self.world.save()
             self.log(f"🗺 Leí {len(pits)} nidos del minimapa de {self.pos.get('map')}: "
@@ -5413,6 +5430,15 @@ class Bot:
             dist = max(abs(p["x"] - px), abs(p["y"] - py))
             if not nm or dist <= 10 or tried.get((p["x"], p["y"]), 0) > now or not self._can_face(nm) or self._pit_deadly(p):
                 continue
+            try:
+                # sin camino desde acá (otra isla, del otro lado de un muro, fuera del mapa): ni lo considero por 1 hora
+                m_ = self.world.map_for(self.pos.get("map") or "")
+                g_ = m_.nearest_walkable(p["x"], p["y"], r=6) if m_ else None
+                if not g_ or not m_.astar((px, py), g_):
+                    tried[(p["x"], p["y"])] = now + 3600
+                    continue
+            except Exception:
+                pass
             if now < float(self.cfg.get("train_skill_until", 0) or 0) and nm != "Slime":
                 continue  # arma de otro tipo recién puesta: subo la habilidad con lo más fácil antes de ir a lo serio
             # el nido del bicho de la misión pesa mucho más: una misión de 200 orcos se hace en el nido de orcos
@@ -5613,10 +5639,13 @@ class Bot:
                             self.__dict__.setdefault("_pit_tried", {})[(p["x"], p["y"])] = now + 900  # no llego: lo dejo 15 minutos
                             self._pit_go = None
                             return False
-                        if g:
+                        if g and m.astar((px, py), (int(g[0]), int(g[1]))):
                             self.stats["state"] = f"voy al nido de {nm} ({p['x']},{p['y']})"
                             self._walk_to(m, (int(g[0]), int(g[1])), f"nido de {nm}")
                             return True
+                        # sin camino: lo descarto una hora y el próximo tick elijo otro (antes me quedaba parado)
+                        self.__dict__.setdefault("_pit_tried", {})[(p["x"], p["y"])] = now + 3600
+                        self._pit_go = None
             except Exception:
                 pass
         else:
@@ -9021,6 +9050,9 @@ class Bot:
         for sl, w in worn.items():
             if not sl.startswith("otro:") and not str(w.get("name") or "").startswith("?"):
                 wb[sl] = {"name": w["name"], "miss": 0}
+        if self.cfg.get("two_handed", True):
+            wb.pop("escudo", None)
+            missing = [n_ for n_ in missing if "shield" not in str(n_).lower() and "escudo" not in str(n_).lower()]
         for sl, w in list(wb.items()):
             if sl in worn or sl == "capa" or w.get("name") in missing:
                 continue
@@ -9029,7 +9061,9 @@ class Bot:
             if float(getattr(self, "_smith_visit_t", 0) or 0) > float(w.get("t", 0)):
                 w["miss"] = int(w.get("miss", 0)) + 1
                 w["t"] = time.time()
-            if w["miss"] > 3:
+            # el herrero no encontró nada roto ("reparé todo" sin rotos en el bolso): si sigue faltando, no se rompió,
+            # me lo sacaron (o lo cambió el jugador a mano). No vuelvo al herrero por eso: con 1 visita alcanza.
+            if w["miss"] > 3 or (w["miss"] >= 1 and float(getattr(self, "_smith_nobroken_t", 0) or 0) >= float(w.get("t", 0)) - 600):
                 self.log(f"🛡 {w['name']} no aparece hace varias revisiones: lo doy por perdido (lo vuelvo a comprar si me alcanza).")
                 wb.pop(sl, None)
                 try:
@@ -10256,6 +10290,9 @@ class Bot:
                     cat = dict(cat, items=[i for i in cat["items"] if i.get("slot") not in hold_])
             except Exception:
                 pass
+            if self.cfg.get("two_handed", True) and isinstance(cat, dict) and cat.get("items"):
+                # guía a dos manos: el escudo no se usa nunca (no lo compro ni lo reclamo)
+                cat = dict(cat, items=[i for i in cat["items"] if i.get("slot") != "escudo"])
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
                            self._gold_mem(), owned, reach, cur, idb_l, gear.owned_bonus(inv, idb))
             self.plan = p
@@ -10683,6 +10720,7 @@ class Bot:
                                                          or is_missing(o)
                                                          or (not o.get("name") and (o.get("area") or 0) >= 1200 * kx * ky))][:8]
         if not brk and not fixed:
+            self._smith_nobroken_t = time.time()
             self.log("🔧 En el bolso no veo nada roto para reparar.")
         HINT = ("arrastra", "aqui", "aquí", "dañado", "danado", "repararlo", "reparar", "quitarlo", "quitarlos", "clic", "haz",
                 "puedes", "lista", "items", "ítems", "item", "ítem", "para", "tienes", "total", "costo", "coste")

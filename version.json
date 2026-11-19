@@ -1,1 +1,1 @@
-{"version": 391, "notes": "Arreglo grave: con el bot apagado no sale ni un clic ni una tecla (antes un encargo de pueblo en otro hilo seguía operando)."}
+{"version": 392, "notes": "No me quedo parado yendo a nidos sin camino (fuera del mapa o inalcanzables). A dos manos no compro ni reclamo escudo. Si el herrero no encuentra nada roto, no vuelvo a ir por lo que me saqué a mano."}
