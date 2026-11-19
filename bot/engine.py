@@ -6841,13 +6841,15 @@ class Bot:
             tw, th = self._tile()
             pt = (int(cx + (e[0] - px) * tw), int(cy + (e[1] - py) * th - th * 0.3))
             # lo que muestra la vista previa: cuadrado rojo en la baldosa del bicho AHORA + su área de seguimiento
-            self._trk_draw = {"x": pt[0], "y": pt[1] + int(th * 0.3), "tw": tw, "th": th, "name": e[2]["name"], "t": now, "d": d(e)}
+            self._trk_draw = {"x": pt[0], "y": pt[1], "tw": tw, "th": th, "name": e[2]["name"], "t": now, "d": d(e)}
             self.target = None
             if d(e) <= 1:
                 # pegado: el sprite del pj tapa al bicho y el clic izquierdo cae sobre mí. Con click derecho en
                 # modo ataque el juego pega en esa dirección sin caminar (wiki: Gameplay).
                 self._release()
-                tx_, ty_ = pt[0], pt[1] + int(th * 0.3)
+                # al medio del bicho dibujado (pt ya sube 0,3 baldosa: el juego dibuja un tercio de baldosa más arriba
+                # del centro que calculo). Antes le sumaba de nuevo ese tercio y el clic caía en el borde de abajo.
+                tx_, ty_ = pt[0], pt[1]
                 rab_ = now < getattr(self, "_rabia_until", 0)
                 crit_ = False
                 if rab_:
@@ -6862,9 +6864,9 @@ class Bot:
                         occ = [(o[0] - px, o[1] - py) for o in ents if max(abs(o[0] - px), abs(o[1] - py)) == 1]
                         order = [r_ for r_ in ring if r_ in occ] or ring
                         dx_, dy_ = order[(slot_ // 2) % len(order)]
-                        tx_, ty_ = int(cx + dx_ * tw), int(cy + dy_ * th)
+                        tx_, ty_ = int(cx + dx_ * tw), int(cy + dy_ * th - th * 0.3)
                 bf_ = getattr(self, "_bar_fix", None)
-                if bf_ and bf_[0] == e[3] and now < bf_[3] and (tx_, ty_) == (pt[0], pt[1] + int(th * 0.3)):
+                if bf_ and bf_[0] == e[3] and now < bf_[3] and (tx_, ty_) == (pt[0], pt[1]):
                     tx_, ty_ = int(tx_ + bf_[1] * tw), int(ty_ + bf_[2] * th)  # donde el cursor confirmó al bicho
                 # golpe crítico (Alt + ataque): lo tiro cada tanto siempre que esté pegando, no solo rodeado. Alt se
                 # aprieta solo para ese golpe y se suelta: nunca queda apretado. Si no hay cargas, sale un golpe común.
@@ -14140,7 +14142,7 @@ class Bot:
         mod = (self.cfg.get("attack_modifier") or "").upper()
         if mod:
             winapi.key_down(mod)
-        winapi.click(*self.abs_pt(cx + dx * tw, cy + dy * th))
+        winapi.click(*self.abs_pt(cx + dx * tw, cy + dy * th - th * 0.3))  # medio del bicho dibujado
         if mod:
             winapi.key_up(mod)
         self.stats["state"], self.stats["target"] = "pit", d

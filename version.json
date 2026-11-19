@@ -1,1 +1,1 @@
-{"version": 428, "notes": "El corrimiento de los bichos lo mide el cursor (barra de vida), no las muertes (salía mal). Con 12 confirmaciones para el mismo lado lo aplica a todos. Versión nueva en nido lleno: se reinicia a los 15 min con vida >= 70%."}
+{"version": 429, "notes": "Golpe a bicho pegado (y barrido de defensa/rabia): el clic va al medio del bicho dibujado, no al borde de abajo de la baldosa. El cuadro rojo de la vista previa también."}
