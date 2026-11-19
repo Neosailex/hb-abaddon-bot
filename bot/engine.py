@@ -5828,12 +5828,26 @@ class Bot:
         dry = now - max(getattr(self, "_exp_gain_t", 0), getattr(self, "_last_kill_t", 0), getattr(self, "_start_t_oly", now)) > 150
         if not hasattr(self, "_start_t_oly"):
             self._start_t_oly = now
+        # misión estricta sin su bicho cerca: cuenta como 'seco' (no me quedo con los Slimes de al lado)
+        try:
+            qm0 = self._quest_mob_names() if self._quest_strict() else set()
+            if qm0 and not any(e[2].get("name") in qm0 and max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
+                dry = True
+        except Exception:
+            pass
         if (not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents) or dry) \
                 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents):
             # nada vivo cerca (o hace rato que no gano experiencia acá): vuelvo adonde venía ganando
             try:
                 mk = (self.pos.get("map") or "").strip().lower()
                 h = (self.world.learn.get("oly_hot") or {}).get(mk)
+                try:
+                    # misión en modo estricto: mi 'zona buena' de otro bicho no me sirve (volvía a los Slimes)
+                    qm_ = self._quest_mob_names() if self._quest_strict() else set()
+                    if h and qm_:
+                        h = None  # voy a los nidos de su bicho (el elegidor de nidos ya los prioriza)
+                except Exception:
+                    pass
                 if h and (self._pit_deadly({"x": h["x"], "y": h["y"]}) if hasattr(self, "_pit_deadly") else False):
                     # la zona buena quedó donde me mataron (nido que me queda grande): no vuelvo ahí
                     del self.world.learn["oly_hot"][mk]
@@ -7949,7 +7963,15 @@ class Bot:
             r = difflib.SequenceMatcher(None, nm, "".join(c for c in q["name"].lower() if c.isalnum())).ratio()
             if r > br:
                 best, br = q, r
-        return (best, hud[1], hud[2]) if best and br >= 0.75 else None
+        if best and br >= 0.75:
+            self._qa_last = (best, hud[1], hud[2], time.time())
+            return (best, hud[1], hud[2])
+        # lectura mala del cartel ('20.00/0 Challenge', 'Snake Teeth: CI/3'): sigo con la última misión que sí
+        # reconocí (10 min). Si no, el bot volvía a los Slimes cada vez que el OCR leía mal el título.
+        la = getattr(self, "_qa_last", None)
+        if la and time.time() - la[3] < 600:
+            return la[0], la[1], la[2]
+        return None
 
     def _quest_strict(self):
         """¿La misión activa justifica cazar SOLO su bicho? Sí cuando es de matar N y viene avanzando. No cuando
