@@ -1215,32 +1215,52 @@ class Bot:
             return
         if self._goto_step():
             return
-        if self._quest_step():
-            return
-        self._selfcheck()
-        self._strategy()
-        self._maybe_shop()
-        self._maybe_repair()
+        # PELEANDO (bicho pegado, me pegan o estoy en rabia): nada de tareas de fondo (misiones, plan, revisar equipo
+        # u ordenar el bolso, escanear nidos). Cada una frenaba el golpe 1-30 s en pleno nido. Se hacen al terminar.
         try:
-            self._maybe_audit()
+            fighting_ = cfgmod.server_slug(cfg) != "abaddon" and (
+                self._adjacent_mobs() > 0 or self._under_attack() or time.time() < getattr(self, "_rabia_until", 0))
         except Exception:
-            pass
-        try:
-            self._gear_check()
-            self._bag_order_check()
-        except Exception as e_:
-            if time.time() - getattr(self, "_gc_err", 0) > 600:
-                self._gc_err = time.time()
-                self.log(f"🛡 Error en el chequeo de equipo: {e_!r}")
-        self._brain_step()
-        self._close_junk_windows()
-        self._maybe_gear()
-        try:
-            self._pits_scan()
-        except Exception:
-            pass
-        if self._mission_step():
-            return
+            fighting_ = False
+        now_f = time.time()
+        if not fighting_:
+            self._fight_since = None
+        elif not getattr(self, "_fight_since", None):
+            self._fight_since = now_f
+        elif now_f - self._fight_since > 60 and now_f - getattr(self, "_hk_forced_t", 0) > 60:
+            # pelea sin corte hace más de un minuto (nido que no termina): dejo pasar las tareas de fondo una vez por
+            # minuto, para no quedar sin pociones o con el bolso lleno sin enterarme
+            self._hk_forced_t = now_f
+            fighting_ = False
+        if fighting_:
+            self._close_junk_windows()
+        else:
+            if self._quest_step():
+                return
+            self._selfcheck()
+            self._strategy()
+            self._maybe_shop()
+            self._maybe_repair()
+            try:
+                self._maybe_audit()
+            except Exception:
+                pass
+            try:
+                self._gear_check()
+                self._bag_order_check()
+            except Exception as e_:
+                if time.time() - getattr(self, "_gc_err", 0) > 600:
+                    self._gc_err = time.time()
+                    self.log(f"🛡 Error en el chequeo de equipo: {e_!r}")
+            self._brain_step()
+            self._close_junk_windows()
+            self._maybe_gear()
+            try:
+                self._pits_scan()
+            except Exception:
+                pass
+            if self._mission_step():
+                return
         mem_ok = (cfg["mode"] not in ("pit", "templates") and cfg.get("memory", {}).get("hunt", True)
                   and self.ents.center and self.mem.learned)
         mname0 = (self.pos.get("map") or "").lower()
