@@ -1,1 +1,1 @@
-{"version": 411, "notes": "Tablero de salud: cada minuto reviso stats sin repartir, bolso lleno sin vender, sin matar, muertes, trabadas y caza sin pociones. Si algo falla lo digo con 🚨 en el log y en data/salud.json."}
+{"version": 412, "notes": "Director de tareas de fondo: los módulos (tienda, misiones, herrero, equipo, bolso, plan, nidos...) se ordenan por necesidad + tiempo sin turno, con 1,5 s por vuelta; mide cuánto tarda cada uno y avisa si se cuelga o falla."}

@@ -1271,33 +1271,8 @@ class Bot:
             pass
         if fighting_:
             self._close_junk_windows()
-        else:
-            if self._quest_step():
-                return
-            self._selfcheck()
-            self._strategy()
-            self._maybe_shop()
-            self._maybe_repair()
-            try:
-                self._maybe_audit()
-            except Exception:
-                pass
-            try:
-                self._gear_check()
-                self._bag_order_check()
-            except Exception as e_:
-                if time.time() - getattr(self, "_gc_err", 0) > 600:
-                    self._gc_err = time.time()
-                    self.log(f"🛡 Error en el chequeo de equipo: {e_!r}")
-            self._brain_step()
-            self._close_junk_windows()
-            self._maybe_gear()
-            try:
-                self._pits_scan()
-            except Exception:
-                pass
-            if self._mission_step():
-                return
+        elif self._director():
+            return
         mem_ok = (cfg["mode"] not in ("pit", "templates") and cfg.get("memory", {}).get("hunt", True)
                   and self.ents.center and self.mem.learned)
         mname0 = (self.pos.get("map") or "").lower()
@@ -5180,6 +5155,69 @@ class Bot:
                     self._risk_judge(tr.name)
                 except Exception:
                     pass
+
+    def _director(self):
+        """DIRECTOR de tareas de fondo (por módulos, no en fila): cada vuelta ordena los módulos por cuánto se
+        necesitan ahora (+ un plus por tiempo sin turno, así ninguno queda olvidado), les da turno en ese orden y
+        corta cuando uno toma el control o se acaba el tiempo de la vuelta (1,5 s): lo que no entró va primero en la
+        próxima. Mide cuánto tarda cada uno y avisa si alguno se cuelga. True = un módulo tomó el control."""
+        now = time.time()
+        sm = None
+        try:
+            sm = self._supplies_mem()
+        except Exception:
+            pass
+        pots = (sm or {}).get("pot")
+        if pots is None:
+            pots = (getattr(self, "_left", {}) or {}).get("pot")
+        items = (sm or {}).get("items") or 0
+        hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50))
+        low_pots = pots is not None and pots <= int(self.cfg.get("buy_pots_below", 3))
+        urgent_shop = low_pots or items >= 46 or hungry
+        mods = [
+            ("ventanas", 50, self._close_junk_windows),
+            ("misión cobrar/aceptar", 45, self._quest_step),
+            ("encargo", 45, self._mission_step),
+            ("tienda", 80 if urgent_shop else 20, self._maybe_shop),
+            ("herrero", 30, self._maybe_repair),
+            ("chequeo", 30, self._selfcheck),
+            ("estrategia", 25, self._strategy),
+            ("equipo", 20, self._gear_check),
+            ("bolso", 15, self._bag_order_check),
+            ("auditoría", 15, self._maybe_audit),
+            ("plan", 10, self._brain_step),
+            ("mejoras", 20, self._maybe_gear),
+            ("nidos", 10, self._pits_scan),
+        ]
+        last = self.__dict__.setdefault("_dir_last", {})
+        st = self.__dict__.setdefault("_dir_stats", {})
+        # modos (más adelante): cada modo sube o baja pesos, ej. {'misión cobrar/aceptar': +40}
+        w = (self.cfg.get("mode_weights") or {})
+        ranked = sorted(mods, key=lambda m: -(m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)))
+        t0 = time.time()
+        for name, _need, fn in ranked:
+            if time.time() - t0 > 1.5:
+                break  # se acabó la vuelta: lo que falta va primero la próxima (tiene más tiempo sin turno)
+            ts = time.time()
+            try:
+                r = fn()
+            except Exception as e_:
+                r = None
+                if now - st.get(name + "!err", 0) > 600:
+                    st[name + "!err"] = now
+                    self.log(f"⚙ Módulo '{name}': error {e_!r}")
+            dt = time.time() - ts
+            last[name] = time.time()
+            rec = st.setdefault(name, {"n": 0, "tot": 0.0, "max": 0.0})
+            rec["n"] += 1
+            rec["tot"] += dt
+            rec["max"] = max(rec["max"], dt)
+            if dt > 8 and now - st.get(name + "!slow", 0) > 900:
+                st[name + "!slow"] = now
+                self.log(f"⏱ Módulo '{name}' tardó {dt:.0f} s (frena la caza).")
+            if r is True:
+                return True
+        return False
 
     def _salud(self):
         """TABLERO DE SALUD: cada minuto miro si las funciones básicas se están cumpliendo y, si una no, lo digo
