@@ -4061,8 +4061,13 @@ class Bot:
         elif vals.get("LEVEL") and all(vals.get(n) is not None for n in names):
             exp_pts = 3 * (vals["LEVEL"] - 1) - (sum(vals[n] for n in names) - int(self.cfg.get("stats_start_total", 70)))
             if pts is None or pts != exp_pts:
-                self.log(f"Stats: leí {pts} puntos, la cuenta da {exp_pts}; uso el menor.")
-                pts = min(p_ for p_ in (pts, exp_pts) if p_ is not None)
+                if pts is not None and exp_pts < 0 < pts:
+                    # la cuenta negativa es imposible: leí mal algún stat de las cajitas. Uso lo que dice la ventana;
+                    # igual solo aplico si los puntos bajan justo lo que sumé.
+                    self.log(f"Stats: leí {pts} puntos (la cuenta da {exp_pts}, imposible: leí mal un stat); uso los de la ventana.")
+                else:
+                    self.log(f"Stats: leí {pts} puntos, la cuenta da {exp_pts}; uso el menor.")
+                    pts = min(p_ for p_ in (pts, exp_pts) if p_ is not None)
         if not pts or pts <= 0:
             click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro (no la dejo tapando el juego)
             return

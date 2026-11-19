@@ -1,1 +1,1 @@
-{"version": 405, "notes": "El cartel 'Subir de Nivel' es zona prohibida para los clics de caminar/pegar (abría la ventana de stats y apretaba '+' al azar). La ventana se reconoce aunque un cartelito tape 'Restablecer'. Si no puedo leer la ficha, reparto leyendo la ventana."}
+{"version": 406, "notes": "Stats: si la cuenta de puntos da negativa (leí mal una cajita) uso los puntos que dice la ventana; igual solo aplico si bajan justo lo que sumé."}
