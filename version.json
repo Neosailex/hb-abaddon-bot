@@ -1,1 +1,1 @@
-{"version": 429, "notes": "Golpe a bicho pegado (y barrido de defensa/rabia): el clic va al medio del bicho dibujado, no al borde de abajo de la baldosa. El cuadro rojo de la vista previa también."}
+{"version": 430, "notes": "Posición: si la dirección de memoria deja de leerse 20 s, la vuelve a buscar sola (antes quedaba con la posición vieja y pegaba al aire). El OCR descarta textos que no son un mapa (ej. 'sig. nivel: 532,688')."}

@@ -2745,7 +2745,19 @@ class Bot:
         if not self.mem.learned or self._mem_hold:
             return
         v = self.mem.read_pos()
-        if not v or self.pos.get("x") is None:
+        if not v:
+            # la dirección guardada ya no se puede leer (el juego reubicó al pj, ej. al reloguear): a los 20 s sin
+            # leer nada la olvido y la vuelvo a buscar sola con el OCR. Antes quedaba con la posición vieja.
+            t0 = getattr(self, "_mem_none_t", 0) or time.time()
+            self._mem_none_t = t0
+            if time.time() - t0 > 20:
+                self._mem_none_t = 0
+                self.log("🧠 Memoria: ya no puedo leer tu posición donde estaba; la vuelvo a buscar.")
+                self.mem.reset(keep_saved=False)
+                self.mem.hwnd = None
+            return
+        self._mem_none_t = 0
+        if self.pos.get("x") is None:
             return
         if max(abs(v[0] - self.pos["x"]), abs(v[1] - self.pos["y"])) > 8:
             # salto grande = portal/teleport: espero al OCR para saber el mapa nuevo
@@ -3123,6 +3135,10 @@ class Bot:
             x, y = mv  # la memoria es exacta; el OCR solo para el nombre del mapa
         else:
             mp0 = self.world.map_for(name)
+            # basura del OCR (ej. el cartel 'sig. nivel: 532,688' de la barra de exp tapando la posición): un nombre
+            # de mapa no lleva números ni ':' y ningún mapa pasa de 1000 baldosas
+            if mp0 is None and (any(ch.isdigit() for ch in name) or ":" in name or x > 1000 or y > 1000):
+                return
             if mp0 is not None:
                 # el OCR a veces pega el ")" como un 1 al final: "(34,38)" -> 381
                 if y >= mp0.h and y // 10 < mp0.h:
