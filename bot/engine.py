@@ -5192,7 +5192,8 @@ class Bot:
         if pots is None:
             pots = (getattr(self, "_left", {}) or {}).get("pot")
         items = (sm or {}).get("items") or 0
-        hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50))
+        # con comida en el bolso el hambre se arregla comiendo, no yendo a la tienda
+        hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and not ((sm or {}).get("meat") or 0)
         low_pots = pots is not None and pots <= int(self.cfg.get("buy_pots_below", 3))
         urgent_shop = low_pots or items >= 46 or hungry
         rinde = False
@@ -9892,7 +9893,11 @@ class Bot:
         many = (getattr(self, "_bag_items", 0) or 0) >= int(self.cfg.get("sell_when_items", 12))
         if now - getattr(self, "_shop_last", 0) < 900:
             return
-        hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and (gold or 0) >= 30
+        try:
+            food_ = ((self._supplies_mem() or {}).get("meat") or 0) > 0
+        except Exception:
+            food_ = False
+        hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50)) and (gold or 0) >= 30 and not food_
         bs_ = getattr(self, "_bag_slots", None)
         full = bool(bs_ and now - bs_[2] < 1800 and bs_[0] >= bs_[1] - 6 and getattr(self, "_bag_sell", None)
                     and self.cfg.get("sell_olympia", True) and now > getattr(self, "_full_fail_until", 0))
@@ -10349,9 +10354,11 @@ class Bot:
         if fill is None:
             return
         self._hb_fill = fill
+        # el hambre es lo que dice la barra AHORA (antes quedaba pegada en el máximo: 91 de 'hambre' con la barra
+        # llena, y la tienda quedaba urgente para siempre)
+        self._hunger = 100 - fill
         if fill > int(self.cfg.get("eat_below_fill", 40)):
             return
-        self._hunger = max(int(getattr(self, "_hunger", None) or 0), 100 - fill)
         adj_ = self._adjacent_mobs()
         # en un nido nunca quedo sin bichos al lado: si ya tengo hambre de verdad, como igual con 1 o 2 pegados y vida alta
         starving = fill <= 20 and adj_ <= 2 and (self.bars.get("hp") or 0) >= 70
