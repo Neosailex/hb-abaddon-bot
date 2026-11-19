@@ -1575,13 +1575,15 @@ class Bot:
         # parado horas). Si nadie está repartiendo stats: deshago lo pendiente ('Restablecer', nada se aplicó) y la
         # cierro con click derecho. El reparto de stats la vuelve a abrir bien cuando le toque.
         try:
-            pa_ = next((w for t, w in txt if t.startswith("puntosporasignar")), None)
+            # el OCR da palabras sueltas: la ventana se reconoce por 'Restablecer' + 'Aplicar' en la misma fila
+            rb_ = next((w for t, w in txt if t.startswith("restablecer")), None)
+            ap_ = next((w for t, w in txt if t == "aplicar"), None)
+            pa_ = rb_ if (rb_ and ap_ and abs(rb_[2] - ap_[2]) < 30 and 0 < ap_[1] - rb_[1] < 400 * self.rect[2] / 1920.0) else None
             if pa_ and not getattr(self, "_stats_force", None):
-                rb_ = next((w for t, w in txt if t.startswith("restablecer")), None)
-                if rb_:
-                    winapi.click(*self.abs_pt(rb_[1], rb_[2]))
-                    time.sleep(0.5)
-                winapi.click(*self.abs_pt(pa_[1] + 300 * self.rect[2] / 1920.0, pa_[2]), button="right")
+                winapi.click(*self.abs_pt(rb_[1], rb_[2]))
+                time.sleep(0.5)
+                # click derecho adentro de la ventana, en la zona vacía de arriba del botón (cierra el menú)
+                winapi.click(*self.abs_pt(rb_[1], rb_[2] - 120 * self.rect[3] / 1080.0), button="right")
                 time.sleep(0.5)
                 self.log("Cierro la ventana 'Subir nivel' que había quedado abierta (sin aplicar nada).")
                 self._stats_t = 0  # que el reparto de stats vuelva a probar enseguida
