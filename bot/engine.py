@@ -8811,7 +8811,7 @@ class Bot:
                 if int(it.get("level") or 0) > lvl:
                     return ("keep", f"pide nivel {it['level']}", it, slot, val)
                 return ("equip", f"es {fam} y lo que tengo puesto no", it, slot, val)
-        if slot == "arma" and str(it.get("slot") or "") == "arma" and self.cfg.get("two_handed", True) \
+        if slot == "arma" and str(it.get("slot") or "") == "arma" and self._two_handed() \
                 and any(str((self._game_item(w_.get("name")) or {}).get("slot") or "") == "arma2m" for w_ in [worn or {}]):
             return ("sell", "es de una mano y la guía es a dos manos", it, slot, val)
         if worn:
@@ -9050,7 +9050,7 @@ class Bot:
         for sl, w in worn.items():
             if not sl.startswith("otro:") and not str(w.get("name") or "").startswith("?"):
                 wb[sl] = {"name": w["name"], "miss": 0}
-        if self.cfg.get("two_handed", True):
+        if self._two_handed():
             wb.pop("escudo", None)
             missing = [n_ for n_ in missing if "shield" not in str(n_).lower() and "escudo" not in str(n_).lower()]
         for sl, w in list(wb.items()):
@@ -10043,6 +10043,26 @@ class Bot:
     OLY_INV = 0x1380240  # Olympia: 50 punteros (uint32) a los items del bolso, fijo (sobrevive al reloguear)
     ID_BAGUETTE = 98
 
+    def _two_handed(self):
+        """¿El pj juega a dos manos? Sin la etapa beta 'pj_nuevo_beta': lo que diga la config (guía 2H, como siempre).
+        Con la beta (pj que arranca de nivel 1): antes de la primera arma de dos manos usa una mano + escudo; el día
+        que tiene puesta una de dos manos queda anotado PARA SIEMPRE (no vuelve al escudo aunque se le rompa el arma
+        o lea mal la ficha: busca otra de dos manos). BETA: armado, sin probar todavía."""
+        if not self.cfg.get("pj_nuevo_beta", False):
+            return self.cfg.get("two_handed", True)
+        if self.cfg.get("two_handed_since"):
+            return True
+        try:
+            w_ = (self.cfg.get("worn") or {}).get("arma") or {}
+            if w_.get("name") and str((self._game_item(w_["name"]) or {}).get("slot") or "") == "arma2m":
+                self.cfg["two_handed_since"] = time.time()
+                cfgmod.save(self.cfg)
+                self.log(f"⚔ Ya uso arma de dos manos ({w_['name']}): desde ahora no compro ni reclamo escudo, para siempre.")
+                return True
+        except Exception:
+            pass
+        return False
+
     def _inv_oly(self):
         """Bolso de Olympia leído de memoria (solo lectura): [{slot,id,count,dur,x,y}]. None si no se pudo o la
         lectura no tiene sentido. Cada poción es un item aparte (count 1); el oro es un item con count = oro."""
@@ -10341,7 +10361,7 @@ class Bot:
                     cat = dict(cat, items=[i for i in cat["items"] if i.get("slot") not in hold_])
             except Exception:
                 pass
-            if self.cfg.get("two_handed", True) and isinstance(cat, dict) and cat.get("items"):
+            if self._two_handed() and isinstance(cat, dict) and cat.get("items"):
                 # guía a dos manos: el escudo no se usa nunca (no lo compro ni lo reclamo)
                 cat = dict(cat, items=[i for i in cat["items"] if i.get("slot") != "escudo"])
             p = brain.plan(self.db, self._load_json("training_path.json"), cat, lvl, self._stats_mem(),
@@ -11798,7 +11818,7 @@ class Bot:
                             g_ = self._game_item(k_) or {}
                             if not g_ or (fam_ and str(g_.get("family") or "").lower() != fam_):
                                 continue
-                            if self.cfg.get("two_handed", True) and str(g_.get("slot") or "") != "arma2m":
+                            if self._two_handed() and str(g_.get("slot") or "") != "arma2m":
                                 continue
                             if int(g_.get("level") or 0) > lvl_ or (gold_ and v_ > gold_ - 500):
                                 continue
