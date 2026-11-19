@@ -10127,6 +10127,7 @@ class Bot:
             self._gm_said = now
             self.log("⛔ Se rompió " + ", ".join(broke) + " (memoria): voy al herrero.")
             self._broken_t = now
+            self._worn_seen = now  # lo roto se sale al bolso: después del herrero me lo vuelvo a poner
             if not manual:
                 self._town_need("equipo roto")
             if not rep_busy:
