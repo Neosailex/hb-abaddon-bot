@@ -1316,6 +1316,11 @@ class Bot:
                 return
             if not self._fleeing() and self._goto_spot():
                 return
+        try:
+            if self._manual_return():
+                return
+        except Exception:
+            pass
         # algo tirado al alcance y ningún bicho pegado: lo levanto (de viaje, solo lo que queda de paso)
         if (not mem_ok and cfg["mode"] == "auto" and self.state == "seek" and not self._fleeing() and not in_building
                 and cfgmod.server_slug(cfg) != "abaddon" and self.pos.get("x") is not None and not self._under_attack()):
@@ -5205,7 +5210,7 @@ class Bot:
         self.cfg["bot_mode"] = m
         if m == "manual" and self.pos.get("x") is not None:
             mk = (self.pos.get("map") or "").strip().lower()
-            self.cfg["mode_anchor"] = {"mk": mk, "x": int(self.pos["x"]), "y": int(self.pos["y"])}
+            self.cfg["mode_anchor"] = {"mk": mk, "map": self.pos.get("map"), "x": int(self.pos["x"]), "y": int(self.pos["y"])}
             self.world.learn.setdefault("oly_hot", {})[mk] = {"x": int(self.pos["x"]), "y": int(self.pos["y"]), "t": time.time(), "exp": 0}
         self._nest_probe = None
         self._mode_since = time.time()
@@ -5214,6 +5219,29 @@ class Bot:
             self.log(f"🎛 Modo {self.MODES[m]}" + (f" ({why})" if why else "") + "."
                      + (f" Mi nido: {self.pos.get('map')} ({self.pos.get('x')},{self.pos.get('y')})." if m == "manual" else ""))
         return {"ok": True, "mode": m, "label": self.MODES[m]}
+
+    def _manual_return(self):
+        """Manual: si estoy lejos de donde me dejaste (más de 12 baldosas, u otro mapa después del herrero) y no me
+        pegan, vuelvo EXACTO ahí. True = estoy volviendo."""
+        if self.bot_mode() != "manual" or self.pos.get("x") is None:
+            return False
+        a = self.cfg.get("mode_anchor") or {}
+        if a.get("x") is None or self._under_attack() or self._adjacent_mobs() > 0 or getattr(self, "_busy_ui", False):
+            return False
+        mk = (self.pos.get("map") or "").strip().lower()
+        if a.get("mk") != mk:
+            if not getattr(self, "goto", None) and a.get("map"):
+                self.goto = {"map": a["map"], "x": a["x"], "y": a["y"], "t": time.time()}
+                self.log(f"🎛 Manual: vuelvo a mi lugar en {a['map']} ({a['x']},{a['y']}).")
+            return False  # el viaje lo hace el goto
+        if max(abs(self.pos["x"] - a["x"]), abs(self.pos["y"] - a["y"])) <= 12:
+            return False
+        m = self.world.map_for(self.pos.get("map") or "")
+        if not m:
+            return False
+        self.stats["state"] = f"vuelvo a mi lugar ({a['x']},{a['y']})"
+        self._walk_to(m, (int(a["x"]), int(a["y"])), "mi lugar (Manual)")
+        return True
 
     def _mode_tick(self):
         """Lo que cada modo hace por su cuenta (cada 30 s, barato)."""
@@ -5471,9 +5499,15 @@ class Bot:
         md_ = self.bot_mode()
         if md_ == "quest":
             w["misión cobrar/aceptar"] = w.get("misión cobrar/aceptar", 0) + 40
-        elif md_ in ("caza", "manual", "economico", "cartografo"):
+        elif md_ == "manual":
+            # MANUAL (Juan): mata donde lo dejaste y no hace nada más. Solo: cerrar ventanas, leer el equipo y el
+            # viaje al herrero para reparar (después vuelve EXACTO a donde estaba). Sin pociones, sin vender, sin
+            # misiones, sin cambiar de nido. Si lo matan, vuelve a Automático.
+            for k_ in ("misión cobrar/aceptar", "encargo", "tienda", "chequeo", "estrategia", "bolso", "auditoría",
+                       "plan", "mejoras", "nidos"):
+                w[k_] = -1000
+        elif md_ in ("caza", "economico", "cartografo"):
             w["misión cobrar/aceptar"] = -1000  # en estos modos no persigo misiones
-            w["nidos"] = -1000 if md_ == "manual" else w.get("nidos", 0)
         score = lambda m: m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)
         ranked = sorted(mods, key=lambda m: -score(m))
         self._dir_view = {"t": now, "rinde": rinde, "orden": [(m[0], int(m[1]), round(score(m), 1)) for m in ranked], "turno": None}
@@ -5563,8 +5597,8 @@ class Bot:
             kh.append(now)
         if d > st.get("ld", d):
             dh.append(now)
-            if self.bot_mode() == "cartografo":
-                self.set_mode("auto", "me mataron explorando")
+            if self.bot_mode() in ("cartografo", "manual"):
+                self.set_mode("auto", "me mataron" + (" explorando" if self.bot_mode() == "cartografo" else ""))
         st["lk"], st["ld"] = k, d
         kh[:] = [t for t in kh if now - t < 3600][-500:]
         dh[:] = [t for t in dh if now - t < 3600]
@@ -5718,6 +5752,8 @@ class Bot:
         """Ritmo sostenible: con las pociones que llevo tengo que poder cazar 'hunt_hours' (5 h) sin volver.
         Mido en la memoria cuántas tomo por hora. Si a ese ritmo no llego, bajo el ritmo (menos bichos juntos,
         descanso en vez de tomar); si ni así llego, este lugar me queda grande: me voy a otro. Para cualquier pj."""
+        if self.bot_mode() == "manual":
+            return  # en Manual mata aunque no tenga pociones: no cambio de nido ni de ritmo
         if cfgmod.server_slug(self.cfg) == "abaddon":
             return
         now = time.time()
@@ -6178,7 +6214,7 @@ class Bot:
         """La misión de matar N bichos se hace donde vive ese bicho. Si estoy lejos de su nido (cazando otra cosa
         porque rinde), cada media hora voy derecho para allá sin frenarme por lo que haya en el camino (si me pegan,
         la regla de oro me defiende). Al llegar sigo cazando normal. True = estoy yendo."""
-        if not self.cfg.get("quest_drive", True):
+        if not self.cfg.get("quest_drive", True) or self.bot_mode() in ("manual", "caza", "economico", "cartografo"):
             return False
         qd = getattr(self, "_qdrive", None)
         if qd is not None and qd.get("goto"):
@@ -6473,6 +6509,11 @@ class Bot:
                 ok = [e for e in ok if crowd(e) <= max(allow, low)]
         if getattr(self, "_exp_plan", None) and getattr(self, "_exploring", False):
             ok = [e for e in ok if d(e) <= 1]  # relevando: solo me defiendo
+        if self.bot_mode() == "manual":
+            a_ = self.cfg.get("mode_anchor") or {}
+            if a_.get("x") is not None:
+                # Manual: cazo alrededor de donde me dejaste (12 baldosas); lo que me pegue igual lo mato
+                ok = [e for e in ok if d(e) <= 1 or max(abs(e[0] - a_["x"]), abs(e[1] - a_["y"])) <= 12]
         qm = self._quest_mob_names()
         if qm:
             qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 14]
