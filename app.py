@@ -190,6 +190,12 @@ class Api:
         except Exception as e:
             return {"img": None, "error": repr(e)}
 
+    def brain(self):
+        try:
+            return self._bot.brain_view()
+        except Exception as e:
+            return {"error": repr(e)}
+
     def economy(self):
         try:
             return self._bot.economy()

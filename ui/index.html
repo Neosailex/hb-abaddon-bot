@@ -157,6 +157,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
       <button data-p="calib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>Calibración</button>
       <button data-p="config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Configuración</button>
       <button data-p="world"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>Mapa</button>
+      <button data-p="brain"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4a3 3 0 0 0-3 3v1a3 3 0 0 0-2 5 3 3 0 0 0 3 4 3 3 0 0 0 5 1V5a3 3 0 0 0-3-1z"/><path d="M15 4a3 3 0 0 1 3 3v1a3 3 0 0 1 2 5 3 3 0 0 1-3 4 3 3 0 0 1-5 1"/></svg>Cerebro</button>
       <button data-p="eco"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.6-1-1.700-1.500-3-1.500-1.700 0-3 .900-3 2.200 0 3 6 1.400 6 4.300 0 1.300-1.300 2.200-3 2.200-1.400 0-2.500-.600-3.100-1.600M12 6v2M12 16.700V19"/></svg>Economía</button>
       <button data-p="server"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></svg>Server</button>
       <button data-p="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l5-14 3 8 3-5 5 11"/></svg>Guía de nivel</button>
@@ -410,6 +411,25 @@ input[type=range]{accent-color:var(--gold);width:100%}
     </section>
 
     <!-- ECONOMIA -->
+    <section class="page" id="p-brain">
+      <h1>Cerebro</h1><p class="sub">Cómo está decidiendo el bot: qué tarea va primero (director) y si todo lo básico se está cumpliendo (salud).</p>
+      <div class="grid g2">
+        <div class="card">
+          <h2>Director</h2>
+          <div class="chips" style="margin-bottom:10px"><span class="chip" id="brModo">—</span><span class="chip" id="brRinde">—</span><span class="chip gold" id="brTurno">—</span></div>
+          <div class="kv" id="brMods" style="grid-template-columns:1.6fr .7fr .7fr .8fr .8fr 1fr"></div>
+          <p class="hint" style="margin-top:10px">Cada vuelta ordena las tareas de fondo por urgencia + tiempo esperando, y les da como mucho 1,5 s; el resto es para cazar. Peleando no hace ninguna. "Turno" = la que tomó el control en la última vuelta.</p>
+        </div>
+        <div class="card">
+          <h2>Tablero de salud</h2>
+          <div style="font-size:22px;font-weight:700;margin-bottom:8px" id="brSalOk">—</div>
+          <div id="brAlerts"></div>
+          <div class="kv" id="brSal" style="margin-top:12px"></div>
+          <p class="hint" style="margin-top:10px">Se revisa cada minuto. Si algo básico no se cumple (stats sin repartir, no mata, muere seguido, se traba, bolso lleno sin vender, caza sin pociones) aparece en rojo y también en el Registro con 🚨.</p>
+        </div>
+      </div>
+    </section>
+
     <section class="page" id="p-eco">
       <h1>Economía</h1><p class="sub">Cuánto oro hay, cuánto se junta por hora, qué lleva puesto y para qué está ahorrando.</p>
       <div class="card" style="margin-bottom:14px">
@@ -501,7 +521,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','
 /* ---------- navegación ---------- */
 $('#nav').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;go(b.dataset.p)});
 function go(p){curPage=p;$$('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));$$('.page').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));
-  if(p==='calib')loadThumbs(); if(p==='events')loadEvents(); if(p==='world')loadWorld(); if(p==='eco')loadEco(); if(p==='server')loadServer();}
+  if(p==='calib')loadThumbs(); if(p==='events')loadEvents(); if(p==='world')loadWorld(); if(p==='eco')loadEco(); if(p==='brain')loadBrain(); if(p==='server')loadServer();}
 
 /* ---------- server ---------- */
 async function loadServer(){
@@ -567,6 +587,28 @@ async function loadEco(){
   $('#ecoZones').innerHTML='<span>Zona</span><span>Exp por hora</span><span>Oro por hora</span><span>Tiempo medido</span>'+((e.zones||[]).map(z=>`<span style="color:inherit">${esc(z.map)}</span><span>${fmtN(z.exp_h)}</span><span>${fmtN(z.gold_h)}</span><span>${z.min} min</span>`).join('')||'<span>Midiendo…</span><span></span><span></span><span></span>');
 }
 setInterval(()=>{if(curPage==='eco')loadEco()},5000);
+setInterval(()=>{if(curPage==='brain')loadBrain()},2000);
+async function loadBrain(){
+  if(!API||!API.brain)return;
+  let b; try{b=await API.brain()}catch(_){return}
+  if(!b||b.error){$('#brMods').innerHTML='<span>No pude leer el director: '+esc(b&&b.error||'')+'</span>';return}
+  $('#brModo').textContent=!b.running?'⏸ Apagado':(b.peleando?'⚔ Peleando: solo pelea':'🧭 Tareas de fondo activas');
+  $('#brRinde').textContent=b.rinde?'💰 El lugar rinde: la tienda espera':'Lugar sin medir / no rinde';
+  $('#brTurno').textContent='Turno: '+(b.turno||'caza');
+  const head=['Módulo','Urg.','Puntaje','Veces','Prom.','Hace'];
+  const rows=(b.mods||[]).map((m,i)=>{
+    const c=m.err?'color:#ff6b6b':(m.slow?'color:#f0b35a':(m.name===b.turno?'color:var(--gold,#e7c66b);font-weight:700':''));
+    return [`<span style="${c}">${i+1}. ${esc(m.name)}${m.err?' ⚠':''}${m.slow?' ⏱':''}</span>`,`<span>${m.need}</span>`,`<span>${m.score}</span>`,
+      `<span>${m.n}</span>`,`<span>${m.avg_ms==null?'—':m.avg_ms+' ms'}</span>`,`<span>${m.ago==null?'nunca':m.ago+' s'}</span>`].join('')});
+  $('#brMods').innerHTML=head.map(h=>`<span style="color:var(--muted)">${h}</span>`).join('')+(rows.join('')||'<span>Todavía no corrió (prendé el bot)</span><span></span><span></span><span></span><span></span><span></span>');
+  const s=b.salud;
+  if(!s){$('#brSalOk').textContent='Sin datos todavía';$('#brAlerts').innerHTML='';$('#brSal').innerHTML='';return}
+  $('#brSalOk').innerHTML=s.ok?'<span style="color:#5fe08a">✔ Todo en orden</span>':'<span style="color:#ff6b6b">🚨 Hay problemas</span>';
+  $('#brAlerts').innerHTML=(s.alertas||[]).map(a=>`<div style="color:#ff6b6b;margin:3px 0">• ${esc(a)}</div>`).join('');
+  $('#brSal').innerHTML=[['Revisado',s.t],['Nivel',s.nivel],['Kills 10 min',s.kills_10m],['Kills 1 h',s.kills_1h],['Muertes 1 h',s.muertes_1h],
+    ['Trabadas 10 min',s.trabadas_10m],['Bolso',s.bolso==null?'—':s.bolso+'/50'],['Pociones',s.pociones==null?'—':s.pociones],
+    ['Oro',s.oro==null?'—':fmtN(s.oro)],['Estado',s.estado||'—']].map(r=>`<span>${r[0]}</span><span>${esc(String(r[1]))}</span>`).join('');
+}
 
 
 /* ---------- mapa del mundo ---------- */

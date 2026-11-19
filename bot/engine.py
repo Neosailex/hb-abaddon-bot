@@ -5223,7 +5223,9 @@ class Bot:
         st = self.__dict__.setdefault("_dir_stats", {})
         # modos (más adelante): cada modo sube o baja pesos, ej. {'misión cobrar/aceptar': +40}
         w = (self.cfg.get("mode_weights") or {})
-        ranked = sorted(mods, key=lambda m: -(m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)))
+        score = lambda m: m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)
+        ranked = sorted(mods, key=lambda m: -score(m))
+        self._dir_view = {"t": now, "rinde": rinde, "orden": [(m[0], int(m[1]), round(score(m), 1)) for m in ranked], "turno": None}
         t0 = time.time()
         for name, _need, fn in ranked:
             if _need <= 0:
@@ -5248,8 +5250,35 @@ class Bot:
                 st[name + "!slow"] = now
                 self.log(f"⏱ Módulo '{name}' tardó {dt:.0f} s (frena la caza).")
             if r is True:
+                self._dir_view["turno"] = name
                 return True
         return False
+
+    def brain_view(self):
+        """Para la pestaña 'Cerebro' de la interfaz: el director (qué módulo va primero y por qué) y el tablero de
+        salud. Solo lee; no toca el juego."""
+        now = time.time()
+        dv = getattr(self, "_dir_view", None) or {}
+        st = getattr(self, "_dir_stats", {}) or {}
+        last = getattr(self, "_dir_last", {}) or {}
+        mods = []
+        for name, need, sc in dv.get("orden", []):
+            r = st.get(name) or {}
+            mods.append({"name": name, "need": need, "score": sc, "n": r.get("n", 0),
+                         "avg_ms": int(1000 * r["tot"] / r["n"]) if r.get("n") else None,
+                         "max_s": round(r.get("max", 0), 1), "ago": int(now - last[name]) if name in last else None,
+                         "err": bool(st.get(name + "!err")), "slow": bool(st.get(name + "!slow"))})
+        try:
+            sal = json.load(open(os.path.join(cfgmod.DATA, "salud.json"), encoding="utf-8"))
+        except Exception:
+            sal = None
+        fighting = False
+        try:
+            fighting = self._adjacent_mobs() > 0 or self._under_attack() or now < getattr(self, "_rabia_until", 0)
+        except Exception:
+            pass
+        return {"running": self.running, "age": int(now - dv["t"]) if dv.get("t") else None, "turno": dv.get("turno"),
+                "rinde": dv.get("rinde"), "peleando": fighting, "estado": self.stats.get("state"), "mods": mods, "salud": sal}
 
     def _salud(self):
         """TABLERO DE SALUD: cada minuto miro si las funciones básicas se están cumpliendo y, si una no, lo digo
