@@ -1183,6 +1183,13 @@ class Bot:
             self._hunger_watch()
         except Exception:
             pass
+        # durabilidad del equipo por memoria (cada 10 s, sin ventanas). Va ANTES de la regla de oro: en un nido lleno
+        # el tick casi siempre termina ahí y antes nunca llegaba (el equipo se rompió sin aviso).
+        try:
+            if self.running:
+                self._gear_mem()
+        except Exception:
+            pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
         try:
             if cfg["mode"] == "auto" and not self._fleeing() and self._reflex():
@@ -1306,11 +1313,6 @@ class Bot:
             pass
         try:
             self._salud()
-        except Exception:
-            pass
-        try:
-            if self.running:
-                self._gear_mem()  # durabilidad por memoria (cada 10 s, sin ventanas)
         except Exception:
             pass
         if fighting_:
@@ -10046,9 +10048,9 @@ class Bot:
         (las de repuesto no se gastan). El máximo de cada item es el mayor valor visto (tras el herrero vuelve al
         tope) o el de la tabla del juego. Sirve para cualquier pj y equipo. Devuelve True si la memoria anda."""
         now = time.time()
-        if now - getattr(self, "_gm_t", 0) < 10:
+        if now - getattr(self, "_gmem_t", 0) < 10:
             return getattr(self, "_gm_ok", False)
-        self._gm_t = now
+        self._gmem_t = now
         inv = self._inv_oly()
         if inv is None:
             self._gm_ok = False
@@ -10081,7 +10083,10 @@ class Bot:
             except Exception:
                 pass
         low, broke = [], []
-        for k in worn:
+        # cuento TODO el equipo del bolso, no solo lo que se gastó desde que miro: tras un reinicio no sé qué tengo
+        # puesto, y algo roto (0) o casi roto no baja más, así que nunca se marcaba (pasó: Scale Mail roto sin aviso).
+        # Los repuestos suelen estar sanos, así que no molestan.
+        for k in cur:
             iid = int(k.split(":")[1])
             g = idb.get(iid) or {}
             top = max(int(mx.get(str(iid), 0)), int(g.get("dur") or 0))
@@ -10095,21 +10100,35 @@ class Bot:
                 low.append(nm)
         self._gm_view = {"t": now, "worn": {k: cur.get(k) for k in worn}, "low": low, "broke": broke}
         self._gm_ok = True
+        th = getattr(self, "_rep_th", None)
+        rep_busy = th is not None and th.is_alive()
+        fighting = self.state == "attack" or self._under_attack()
+        manual = self.bot_mode() == "manual"
+        if not (broke or low):
+            self._gm_low_t = 0
+        elif not getattr(self, "_gm_low_t", 0):
+            self._gm_low_t = now
+
+        def go(why):
+            self._rep_last = now
+            self._rep_th = threading.Thread(target=self._oly_repair_trip, args=(why,), daemon=True)
+            self._rep_th.start()
         if broke and now - getattr(self, "_gm_said", 0) > 300:
             self._gm_said = now
             self.log("⛔ Se rompió " + ", ".join(broke) + " (memoria): voy al herrero.")
             self._broken_t = now
-            self._town_need("equipo roto")
-        elif low and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 300:
+            if not manual:
+                self._town_need("equipo roto")
+            if not rep_busy:
+                go("equipo roto")  # roto no espera: salgo aunque me peguen (también en Manual)
+        elif low and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
+            # en un nido lleno nunca estoy 'libre': si estoy peleando espero hasta 60 s a que afloje y salgo igual
+            if fighting and now - self._gm_low_t < 60:
+                return True
             self._gm_said = now
             self.log("🔧 Poca durabilidad en " + ", ".join(low) + " (memoria): voy al herrero antes de que se rompa.")
-            th = getattr(self, "_rep_th", None)
-            if self.state == "attack" or self._under_attack():
-                # en un nido lleno nunca estoy 'libre': marco el pueblo y voy apenas termine la pelea
-                self._town_need("poca durabilidad")
-            elif not (th is not None and th.is_alive()):
-                self._rep_th = threading.Thread(target=self._oly_repair_trip, args=("poca durabilidad",), daemon=True)
-                self._rep_th.start()
+            if not rep_busy:
+                go("poca durabilidad")
         return True
 
     def _gear_check(self, force=False):

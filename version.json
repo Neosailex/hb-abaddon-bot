@@ -1,1 +1,1 @@
-{"version": 432, "notes": "Control cruzado de posición más firme: si 6 de las últimas 10 lecturas estando quieto no coinciden con la pantalla, descarta la dirección de memoria (antes una coincidencia suelta lo reseteaba)."}
+{"version": 433, "notes": "Durabilidad por memoria arreglada: no corría nunca (choque de nombres con el chequeo del menú del juego) y ahora va antes de la regla de oro. Cuenta todo el equipo del bolso (algo roto en 0 también). Roto: herrero ya, también en Manual. Poco (15%): si está peleando espera hasta 60 s y sale igual."}
