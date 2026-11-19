@@ -1,1 +1,1 @@
-{"version": 433, "notes": "Durabilidad por memoria arreglada: no corría nunca (choque de nombres con el chequeo del menú del juego) y ahora va antes de la regla de oro. Cuenta todo el equipo del bolso (algo roto en 0 también). Roto: herrero ya, también en Manual. Poco (15%): si está peleando espera hasta 60 s y sale igual."}
+{"version": 434, "notes": "Manual: mientras va al herrero (o a la tienda) no tira de la correa de vuelta al nido. Antes llegaba a la puerta del herrero y lo arrastraba al nido con el equipo roto."}

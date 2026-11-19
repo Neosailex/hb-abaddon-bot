@@ -5349,6 +5349,14 @@ class Bot:
         a = self.cfg.get("mode_anchor") or {}
         if a.get("x") is None or self._under_attack() or self._adjacent_mobs() > 0 or getattr(self, "_busy_ui", False):
             return False
+        # yendo al herrero (o a cualquier viaje del pueblo): no tiro de la correa. Pasó: llegaba a la puerta del
+        # herrero y 'volver a mi lugar' lo arrastraba de nuevo al nido, con el equipo roto.
+        if getattr(self, "mission", None):
+            return False
+        for a_ in ("_rep_th", "_town_th", "_shop_th"):
+            t_ = getattr(self, a_, None)
+            if t_ is not None and t_.is_alive():
+                return False
         mk = (self.pos.get("map") or "").strip().lower()
         if a.get("mk") != mk:
             if not getattr(self, "goto", None) and a.get("map"):
