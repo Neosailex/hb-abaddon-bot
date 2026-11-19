@@ -5823,6 +5823,9 @@ class Bot:
         memoria (sin corregir). Si casi siempre aparece corrido para el mismo lado (ej. una baldosa más abajo), ese
         es el corrimiento de este cliente: lo resto a todos los bichos. Sirve para cualquier pj, bicho y server, y
         se sigue midiendo siempre (si el corrimiento cambia, se corrige solo)."""
+        if not self.cfg.get("off_from_kills", False):
+            return  # medido con las muertes salió mal (la posición del pj y la del bicho no son del mismo instante):
+            # el corrimiento ahora lo mide el cursor (_bar_check), que ve al bicho de verdad
         ox, oy = self._mob_off()
         rx, ry = int(dx) + ox, int(dy) + oy  # vuelvo a la posición cruda de la memoria
         if max(abs(rx), abs(ry)) > 3:
@@ -6986,6 +6989,22 @@ class Bot:
                 v[k] = int(v.get(k, 0)) + 1
                 if v[k] in (1, 10, 50):
                     self.log(f"🎯 El {e[2]['name']} estaba una baldosa corrido ({dx:+d},{dy:+d}): el cursor lo encontró, le pego ahí.")
+                # si casi siempre aparece corrido para el mismo lado, es el corrimiento de este cliente: lo aplico a
+                # todos los bichos (y sigo midiendo: si después aparece al revés, se corrige solo)
+                tot = sum(int(x_) for x_ in v.values())
+                if v[k] >= 12 and v[k] >= 0.7 * tot:
+                    r_ = self.world.learn.setdefault("mob_off", {"v": [], "off": [0, 0]})
+                    ox_, oy_ = self._mob_off()
+                    no_ = [max(-2, min(2, ox_ - dx)), max(-2, min(2, oy_ - dy))]
+                    r_["off"] = no_
+                    self.world.learn["bar_fix_n"] = {}
+                    self.world.learn["adj_tol"] = {}
+                    self.log(f"🧠 El cursor confirma que la memoria pone a los bichos corridos: corrijo todo ({no_[0]:+d},{no_[1]:+d}) "
+                             f"({v[k]} de {tot} veces).")
+                    try:
+                        self.world.save()
+                    except Exception:
+                        pass
                 return
         bad[e[3]] = now + 60
         self.log(f"👻 Donde la memoria pone un {e[2]['name']} el cursor no encuentra nada: lo salteo 1 minuto.")
