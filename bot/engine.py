@@ -1078,6 +1078,8 @@ class Bot:
             pass
         if self._watchdog():
             return
+        if getattr(self, "_walk_only", False) and self._walk_only_tick():
+            return
         self._town_account()
         self._tab_check()
         self._yield_tick()
@@ -5257,6 +5259,39 @@ class Bot:
             self.log(f"🎛 Modo {self.MODES[m]}" + (f" ({why})" if why else "") + "."
                      + (f" Mi nido: {self.pos.get('map')} ({self.pos.get('x')},{self.pos.get('y')})." if m == "manual" else ""))
         return {"ok": True, "mode": m, "label": self.MODES[m]}
+
+    def _walk_only_tick(self):
+        """Clic en el mapa con el bot apagado: SOLO camino. Lo único extra: defenderme si me pegan (regla de oro),
+        tomar poción/descansar si la vida baja del 30%, y mirar cada 20 s que no esté abierto el menú del juego.
+        Nada de comer, misiones, aprendizaje ni lecturas de pantalla cada vuelta (frenaban el viaje). True = usé la vuelta."""
+        now = time.time()
+        if not getattr(self, "goto", None):
+            self._walk_only = False
+            self.log("🗺 Llegué (o se canceló el viaje): me vuelvo a apagar.")
+            self.stop("manual")
+            return True
+        try:
+            if now - getattr(self, "_gm_t", 0) > 20 and self.img is not None and cfgmod.server_slug(self.cfg) != "abaddon":
+                self._gm_t = now
+                H_, W_ = self.img.shape[:2]
+                wg = ocr.read_words(self.img, {"x1": int(W_ * 0.36), "y1": int(H_ * 0.14), "x2": int(W_ * 0.64), "y2": int(H_ * 0.62)}, scale=1.0)
+                if self._game_menu_close(wg):
+                    return True
+        except Exception:
+            pass
+        try:
+            hp = self.bars.get("hp")
+            if hp is not None and hp < 30 and self._survival():
+                return True
+        except Exception:
+            pass
+        try:
+            if self.cfg.get("mode") == "auto" and not self._fleeing() and self._reflex():
+                return True
+        except Exception:
+            pass
+        self._goto_step()
+        return True
 
     def _manual_return(self):
         """Manual: si estoy lejos de donde me dejaste (más de 12 baldosas, u otro mapa después del herrero) y no me

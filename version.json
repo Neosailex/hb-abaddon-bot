@@ -1,1 +1,1 @@
-{"version": 422, "notes": "Regla de oro anti-quieto: si me pegan y hace 2 s que no pego, ataco al más cercano a 3 baldosas o barro alrededor (nada lo frena). Aprendo por bicho a qué distancia la memoria los marca 'pegados' (Snake: 2). Rodeado o en Manual no suelto por élite. Manual: el elegidor de zonas no se lo lleva. Salud: alerta 'me pegaron sin que pegara'."}
+{"version": 423, "notes": "Clic en el mapa con el bot apagado: solo camina (y se defiende, poción si vida < 30%, menú del juego cada 20 s). Sin comer, misiones ni lecturas de pantalla en cada paso: ya no se frena."}
