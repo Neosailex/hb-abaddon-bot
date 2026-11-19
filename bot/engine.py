@@ -1232,6 +1232,10 @@ class Bot:
             # minuto, para no quedar sin pociones o con el bolso lleno sin enterarme
             self._hk_forced_t = now_f
             fighting_ = False
+        try:
+            self._pot_budget()
+        except Exception:
+            pass
         if fighting_:
             self._close_junk_windows()
         else:
@@ -1980,7 +1984,10 @@ class Bot:
         stand_ = cfgmod.server_slug(cfg) != "abaddon" and adj_n_ >= 1 and pots_n_ != 0
         if stand_:
             self._flee_until = 0
-            if hp is not None and hp <= max(panic, int(cfg.get("hp_pot_fight_pct", 40))) and now - getattr(self, "_stand_pot_t", 0) > 1.3:
+            fight_pct_ = int(cfg.get("hp_pot_fight_pct", 40))
+            if now < getattr(self, "_austere_until", 0):
+                fight_pct_ = min(fight_pct_, 25)  # ritmo austero: aguanto más antes de tomar
+            if hp is not None and hp <= max(panic, fight_pct_) and now - getattr(self, "_stand_pot_t", 0) > 1.3:
                 self._stand_pot_t = now
                 self._do_action(cfg["hp_pot_action"], "hp_pot_slot")
                 self.stats["hp_pots"] += 1
@@ -5084,10 +5091,90 @@ class Bot:
                     pass
                 self.log(f"✝ {tr.name} muerto (kill #{self.stats['kills']}).")
                 try:
+                    if getattr(tr, "adj_since", None):
+                        self._hit_pace(tr.name, now - tr.adj_since, now)
+                except Exception:
+                    pass
+                try:
                     self._risk_rec(tr.name).__setitem__("k", self._risk_rec(tr.name)["k"] + 1)
                     self._risk_judge(tr.name)
                 except Exception:
                     pass
+
+    def _hit_pace(self, name, ttk, now):
+        """Ritmo de golpe: cuánto tardo en matar cada bicho desde que lo tengo pegado, comparado con lo normal para
+        ese bicho (lo aprendo solo, para cualquier pj y bicho). Si de golpe tardo mucho más que lo normal, el arma se
+        rompió, se salió o está gastada: voy al pueblo (reparo, pociones, misiones, todo junto) y vuelvo."""
+        if not (0.3 < ttk < 120) or now < getattr(self, "_rabia_until", 0):
+            return  # rodeado, el tiempo por bicho se reparte entre todos: no sirve para medir el arma
+        base = self.world.learn.setdefault("ttk_base", {})
+        b = base.get(name) or {"avg": ttk, "n": 0}
+        rec = self.__dict__.setdefault("_ttk_recent", {}).setdefault(name, [])
+        rec[:] = (rec + [ttk])[-6:]
+        med = sorted(rec)[len(rec) // 2]
+        slow = b["n"] >= 15 and len(rec) >= 6 and med > max(2.2 * b["avg"], b["avg"] + 4.0)
+        if not slow:
+            # solo aprendo lo normal con golpes normales (si vengo lento no 'normalizo' el arma rota)
+            b["avg"] = b["avg"] + (ttk - b["avg"]) / min(30.0, b["n"] + 1.0)
+            b["n"] = int(b["n"]) + 1
+            base[name] = b
+            return
+        if now - getattr(self, "_pace_town_t", 0) < 1200:
+            return
+        self._pace_town_t = now
+        rec.clear()
+        self.log(f"🔧 Pego más lento que lo normal ({med:.0f} s por {name} contra {b['avg']:.0f} s de siempre): "
+                 "reviso el arma y de paso repongo todo en el pueblo.")
+        self._town_need("arma: pego más lento que lo normal")
+
+    def _pot_budget(self):
+        """Ritmo sostenible: con las pociones que llevo tengo que poder cazar 'hunt_hours' (5 h) sin volver.
+        Mido en la memoria cuántas tomo por hora. Si a ese ritmo no llego, bajo el ritmo (menos bichos juntos,
+        descanso en vez de tomar); si ni así llego, este lugar me queda grande: me voy a otro. Para cualquier pj."""
+        if cfgmod.server_slug(self.cfg) == "abaddon":
+            return
+        now = time.time()
+        if now - getattr(self, "_pb_t", 0) < 30:
+            return
+        self._pb_t = now
+        sm = self._supplies_mem()
+        if not sm:
+            return
+        h = self.__dict__.setdefault("_pb_hist", [])
+        if h and sm["pot"] > h[-1][1]:
+            h.clear()  # compré o levanté pociones: arranco a medir de nuevo
+        h.append((now, sm["pot"]))
+        h[:] = [x for x in h if now - x[0] < 1500]
+        if now - h[0][0] < 480 or h[0][1] - sm["pot"] < 3:
+            return
+        rate = (h[0][1] - sm["pot"]) / ((now - h[0][0]) / 3600.0)  # pociones por hora
+        hours = float(self.cfg.get("hunt_hours", 5))
+        left_h = sm["pot"] / max(rate, 0.1)
+        if left_h >= hours or sm["pot"] >= rate * hours:
+            return
+        if now < getattr(self, "_austere_until", 0):
+            if now - getattr(self, "_austere_t0", now) > 600:
+                # ya bajé el ritmo hace 10 min y sigo gastando de más: este nido no me da para 5 horas
+                self._austere_until = 0
+                try:
+                    pg_ = getattr(self, "_pit_go", None) or {}
+                    px_, py_ = self.pos["x"], self.pos["y"]
+                    for p_ in self._pits():
+                        if max(abs(p_["x"] - px_), abs(p_["y"] - py_)) <= 15:
+                            self.__dict__.setdefault("_pit_tried", {})[(p_["x"], p_["y"])] = now + 3600
+                    mk_ = (self.pos.get("map") or "").strip().lower()
+                    (self.world.learn.get("oly_hot") or {}).pop(mk_, None)
+                except Exception:
+                    pass
+                self._careful_until = now + 1800
+                self.log(f"🧪 Aun con menos ritmo gasto {rate:.0f} pociones por hora (me alcanzan {left_h:.1f} h de {hours:.0f}): "
+                         "este nido me queda grande, me muevo a otro.")
+            return
+        self._austere_until = now + 1200
+        self._austere_t0 = now
+        self._careful_until = max(getattr(self, "_careful_until", 0), now + 1200)
+        self.log(f"🧪 Gasto {rate:.0f} pociones por hora: con {sm['pot']} me alcanzan {left_h:.1f} h y quiero {hours:.0f}. "
+                 "Bajo el ritmo: menos bichos juntos y descanso en vez de tomar.")
 
     def _grid_overlay(self):
         """La grilla pasada a pantalla para la vista previa: lo que se ve es lo que el bot cree."""
