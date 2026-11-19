@@ -231,6 +231,17 @@ class Bot:
     def start(self):
         self._manual_off = False
         winapi.OFF = False
+        try:
+            # Manual: al prender guardo ESTE lugar como mi zona (así Juan lo va cambiando: apaga, mueve, prende)
+            # (si ya hay zona guardada, no la piso: es un reinicio por actualización, no un 'prender' tuyo)
+            if self.bot_mode() == "manual" and not self.running and self.pos.get("x") is not None and not self.cfg.get("mode_anchor"):
+                mk = (self.pos.get("map") or "").strip().lower()
+                self.cfg["mode_anchor"] = {"mk": mk, "map": self.pos.get("map"), "x": int(self.pos["x"]), "y": int(self.pos["y"])}
+                self.world.learn.setdefault("oly_hot", {})[mk] = {"x": int(self.pos["x"]), "y": int(self.pos["y"]), "t": time.time(), "exp": 0}
+                cfgmod.save(self.cfg)
+                self.log(f"🎛 Manual: mi zona es {self.pos.get('map')} ({self.pos['x']},{self.pos['y']}).")
+        except Exception:
+            pass
         with self.lock:
             if self.running:
                 return
@@ -275,6 +286,10 @@ class Bot:
             self._resume_when_game = True
         if reason == "manual":
             self._manual_off = True
+            if self.bot_mode() == "manual" and self.cfg.get("mode_anchor"):
+                self.cfg["mode_anchor"] = None  # apagado a mano: borro la zona; al prender guardo la nueva
+                cfgmod.save(self.cfg)
+                self.log("🎛 Manual: borré la zona. Movete adonde quieras y prendeme: esa va a ser la nueva.")
         with self.lock:
             was = self.running
             self.running = False
