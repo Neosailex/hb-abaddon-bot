@@ -1,1 +1,1 @@
-{"version": 431, "notes": "Control cruzado de la posición: si la pantalla muestra la misma posición 3 veces (quieto) y la memoria dice otra, 4 veces seguidas, descarta esa dirección y busca otra."}
+{"version": 432, "notes": "Control cruzado de posición más firme: si 6 de las últimas 10 lecturas estando quieto no coinciden con la pantalla, descarta la dirección de memoria (antes una coincidencia suelta lo reseteaba)."}

@@ -3137,16 +3137,17 @@ class Bot:
         try:
             hist = self.__dict__.setdefault("_ocr_hist", [])
             hist[:] = (hist + [(x, y)])[-3:]
-            if mv and len(hist) == 3 and len(set(hist)) == 1 and mv != (x, y):
-                self._mem_bad = getattr(self, "_mem_bad", 0) + 1
-                if self._mem_bad >= 4:
-                    self._mem_bad = 0
-                    self.log(f"🧠 Memoria: la posición que leía ({mv[0]},{mv[1]}) no coincide con la pantalla ({x},{y}) estando quieto: la busco de nuevo.")
+            if mv and len(hist) == 3 and len(set(hist)) == 1:
+                # de las últimas 10 lecturas estando quieto, cuántas no coinciden (una coincidencia suelta ya no
+                # 'perdona' todo: pasó con una dirección que saltaba alrededor de la buena)
+                cm = self.__dict__.setdefault("_mem_cmp", [])
+                cm[:] = (cm + [mv != (x, y)])[-10:]
+                if len(cm) >= 8 and sum(cm) >= 6:
+                    cm.clear()
+                    self.log(f"🧠 Memoria: la posición que leía no coincide con la pantalla ({x},{y}) estando quieto (6 de 10 veces): la busco de nuevo.")
                     self.mem.reset(keep_saved=False)
                     self.mem.hwnd = None
                     mv = None
-            elif mv and mv == (x, y):
-                self._mem_bad = 0
         except Exception:
             pass
         if mv:
