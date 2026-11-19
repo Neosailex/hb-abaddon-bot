@@ -1181,13 +1181,20 @@ class Bot:
             # clavado en 56 (era 60) y 10 puntos sin repartir toda la noche.
             ms_ = getattr(self, "mission", None)
             busy_m = bool(getattr(self, "goto", None)) or bool(ms_ and ms_.get("hold_ui"))
-            if (not indoors and not busy_m and (lu_pts or vision.find_level_up(self.img))
+            # adentro de tienda/herrería también sirve (sin bichos: el mejor momento), mientras no esté usando sus
+            # ventanas. Antes solo afuera, y afuera en la Granja siempre hay bichos a 4 baldosas: nunca leía la ficha.
+            ui_busy = getattr(self, "_busy_ui", False) or self._ui_th_alive()
+            if (not ui_busy and not busy_m and (lu_pts or vision.find_level_up(self.img))
                     and time.time() - getattr(self, "_stats_done", 0) > wait_):
                 self._last_stats = 0
             # servers sin memoria del pj: la ficha (F5) dice el nivel, la exp y si hay puntos por repartir
-            if not indoors and not busy_m and self._census():
-                return
+            if not ui_busy and not busy_m and (not indoors or time.time() - getattr(self, "_census_in_t", 0) > 300):
+                if indoors:
+                    self._census_in_t = time.time()
+                if self._census():
+                    return
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0 \
+                and not getattr(self, "_busy_ui", False) and not self._ui_th_alive() \
                 and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or self._mobs_within(3) > 0
                          or (self.bars.get("hp") or 100) < 50)):
             self._last_stats = time.time()
@@ -3658,7 +3665,17 @@ class Bot:
         prev_l = int(t.get("my_level", 0) or 0)
         if prev_l and lvl > prev_l + 1 and getattr(self, "_lvl_pend", None) != lvl:
             self._lvl_pend = lvl  # salto de más de un nivel: puede ser mala lectura, espero a leerlo dos veces
+            self._census_t = time.time() - 3600  # la vuelvo a leer apenas pueda para confirmarlo
             return sh
+        if prev_l and lvl < prev_l:
+            # el nivel no baja nunca (el cambio de pj se detecta aparte, por el nombre): una ficha que dice menos es
+            # mala lectura (anotó 45, 54 y 55 siendo 60). Solo lo acepto si lo leo igual 3 veces seguidas.
+            lp = getattr(self, "_lvl_low", None)
+            self._lvl_low = (lvl, (lp[1] + 1) if lp and lp[0] == lvl else 1)
+            if self._lvl_low[1] < 3:
+                return sh
+        else:
+            self._lvl_low = None
         if int(t.get("my_level", 0) or 0) != lvl:
             if int(t.get("my_level", 0) or 0) < lvl:
                 self.log(f"⬆ Nivel {lvl} (leído en la ficha).")
@@ -3716,7 +3733,9 @@ class Bot:
         try:
             ents = self._oly_ents() if self.pos.get("x") is not None else []
             px, py = self.pos.get("x"), self.pos.get("y")
-            forced = getattr(self, "_census_t", 1) == 0 and (self.bars.get("hp") or 0) >= 60
+            # forzada (subí de nivel) o hace más de 20 min que no la leo: alcanza con no tener bichos pegados
+            forced = (getattr(self, "_census_t", 1) == 0 or now - getattr(self, "_census_t", 0) > 1200) \
+                and (self.bars.get("hp") or 0) >= 60
             if any(max(abs(e[0] - px), abs(e[1] - py)) <= (2 if forced else 4) for e in ents or []):
                 return False  # con bichos cerca no abro ventanas (si subí de nivel alcanza con que no los tenga pegados)
         except Exception:
