@@ -1233,7 +1233,7 @@ class Bot:
             self._hk_forced_t = now_f
             fighting_ = False
         try:
-            self._pot_budget()
+            self._pot_pace()
         except Exception:
             pass
         if fighting_:
@@ -5127,7 +5127,7 @@ class Bot:
                  "reviso el arma y de paso repongo todo en el pueblo.")
         self._town_need("arma: pego más lento que lo normal")
 
-    def _pot_budget(self):
+    def _pot_pace(self):
         """Ritmo sostenible: con las pociones que llevo tengo que poder cazar 'hunt_hours' (5 h) sin volver.
         Mido en la memoria cuántas tomo por hora. Si a ese ritmo no llego, bajo el ritmo (menos bichos juntos,
         descanso en vez de tomar); si ni así llego, este lugar me queda grande: me voy a otro. Para cualquier pj."""
@@ -9488,7 +9488,18 @@ class Bot:
             return
         if self.state != "seek" or self._under_attack() or self._fleeing():
             return
-        if now - getattr(self, "_pots_t", 0) > 240:
+        sm_ = self._supplies_mem()
+        if sm_ is not None:
+            # bolso leído de la memoria: pociones, comida y oro exactos, sin abrir el bolso ni adivinar por la imagen
+            if sm_["pot"] != (getattr(self, "_left", {}) or {}).get("pot"):
+                self.log(f"🧪 Me quedan {sm_['pot']} pociones de vida.")
+            self._left = {"pot": sm_["pot"], "meat": sm_["meat"]}
+            self._pots_unknown = False
+            g_ = self._gold_mem()
+            if g_ is not None:
+                self._gold = g_
+            self._pots_t = now
+        elif now - getattr(self, "_pots_t", 0) > 240:
             self._pots_t = now
             try:
                 n = self._oly_pots()
