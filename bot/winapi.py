@@ -2,6 +2,7 @@
 import ctypes
 import sys
 import time
+import threading
 
 IS_WIN = sys.platform == "win32"
 
@@ -443,3 +444,42 @@ left_down = _guard(left_down)  # noqa: F811
 move = _guard(move)  # noqa: F811
 type_text = _guard(type_text)  # noqa: F811
 right_down = _guard(right_down)  # noqa: F811
+
+
+# ── Zonas prohibidas para clics ──────────────────────────────────────────────────────────────────────
+# Ej. el cartel 'Subir de Nivel' (abajo a la derecha, queda en pantalla mientras haya puntos): un clic para
+# caminar o pegar que cae ahí abre la ventana de stats y los clics siguientes apretan sus '+'. Ahí solo clickea
+# el reparto de stats (abre el permiso con allow_noclick). Rectángulos en coordenadas de pantalla (x1, y1, x2, y2).
+NOCLICK = []
+_allow_nc = threading.local()
+
+
+def _in_noclick(x, y):
+    try:
+        if _allow_nc is not None and getattr(_allow_nc, "on", False):
+            return False
+        return any(r[0] <= x <= r[2] and r[1] <= y <= r[3] for r in NOCLICK)
+    except Exception:
+        return False
+
+
+class allow_noclick:
+    def __enter__(self):
+        if _allow_nc is not None:
+            _allow_nc.on = True
+
+    def __exit__(self, *a):
+        if _allow_nc is not None:
+            _allow_nc.on = False
+
+
+def _nc_guard(fn):
+    def w(x, y, *a, **k):
+        if _in_noclick(x, y):
+            return None
+        return fn(x, y, *a, **k)
+    w.__name__ = getattr(fn, "__name__", "w")
+    return w
+
+
+click = _nc_guard(click)  # noqa: F811

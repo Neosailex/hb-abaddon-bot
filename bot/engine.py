@@ -1042,6 +1042,17 @@ class Bot:
         if self.cfg.get("background_mode") and self.hwnd and winapi.BG_HWND != self.hwnd:
             winapi.set_background(self.hwnd)
         try:
+            # cartel 'Subir de Nivel' (abajo a la derecha): zona prohibida para los clics de caminar/pegar. Un clic
+            # ahí abre la ventana de stats y los siguientes apretaban sus '+' (VIT, DEX, INT, LUK al azar).
+            if self.rect and cfgmod.server_slug(self.cfg) != "abaddon":
+                ob = self.cfg.get("calib", {}).get("levelup_btn") or {"x": int(self.rect[2] * 0.816), "y": int(self.rect[3] * 0.883)}
+                W_, H_ = self.rect[2], self.rect[3]
+                x1, y1 = self.abs_pt(ob["x"] - 0.075 * W_, ob["y"] - 0.035 * H_)
+                x2, y2 = self.abs_pt(ob["x"] + 0.075 * W_, ob["y"] + 0.035 * H_)
+                winapi.NOCLICK = [(x1, y1, x2, y2)]
+        except Exception:
+            pass
+        try:
             # el cartel de tirar un objeto traba todo (hasta revivir): se contesta 'No' antes que cualquier otra cosa
             if not getattr(self, "_busy_ui", False) and time.time() - getattr(self, "_dropno_t", 0) > 6:
                 self._dropno_t = time.time()
@@ -4091,10 +4102,23 @@ class Bot:
             time.sleep(0.5)
 
     def _do_stats(self):
+        with winapi.allow_noclick():
+            return self._do_stats_inner()
+
+    def _do_stats_inner(self):
         if cfgmod.server_slug(self.cfg) != "abaddon":
             sh0 = self._sheet_read()
             if not sh0:
-                self.log("Stats: no pude leer la ficha del personaje; pruebo más tarde.")
+                # sin ficha igual puedo repartir: la ventana 'Subir nivel' dice los puntos y los stats, y el reparto
+                # solo aplica si los puntos bajan exactamente lo que sumé (si no, Restablecer y no aplica nada)
+                self.log("Stats: no pude leer la ficha; reparto leyendo la ventana 'Subir nivel'.")
+                try:
+                    self._do_stats_ui()
+                finally:
+                    try:
+                        self._stats_win_close()
+                    except Exception:
+                        pass
                 return
             if sh0["pending"] <= 0:
                 self._stats_fail = 0
@@ -5140,11 +5164,22 @@ class Bot:
         reparto de stats cuando andaba bien). Verifica; si sigue, ESC. True = la vi y la cerré."""
         norm = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
 
+        kx_, ky_ = self.rect[2] / 1920.0, self.rect[3] / 1080.0
+
         def find(ws):
-            rb = next((w for w in ws if norm(w[0]).startswith("restablecer")), None)
+            # 'Aplicar' + ('Restablecer' a su izquierda, o las pestañas 'Planificador'/'Talentos' o 'Puntos por
+            # asignar' arriba). Un cartelito de ayuda puede tapar 'Restablecer' (pasó): ahí lo ubico desde 'Aplicar'.
             ap = next((w for w in ws if norm(w[0]) == "aplicar"), None)
-            if rb and ap and abs(rb[2] - ap[2]) < 30 and 0 < ap[1] - rb[1] < 400 * self.rect[2] / 1920.0:
+            if not ap:
+                return None
+            rb = next((w for w in ws if norm(w[0]).startswith("restablecer") and abs(w[2] - ap[2]) < 30 * ky_
+                       and 0 < ap[1] - w[1] < 400 * kx_), None)
+            top = next((w for w in ws if norm(w[0]).startswith(("planificador", "talentos", "puntos", "asignar"))
+                        and 450 * ky_ < ap[2] - w[2] < 720 * ky_ and abs(w[1] - ap[1]) < 1000 * kx_), None)
+            if rb:
                 return rb, ap
+            if top:
+                return (None, ap[1] - 162 * kx_, ap[2]), ap
             return None
 
         def read():
@@ -5158,6 +5193,8 @@ class Bot:
                 return False
             rb, ap = f
             ky = self.rect[3] / 1080.0
+            winapi.move(*self.abs_pt(ap[1], ap[2] - 607 * ky))  # saco el mouse de los botones (cartelitos de ayuda)
+            time.sleep(0.3)
             winapi.click(*self.abs_pt(rb[1], rb[2]))
             time.sleep(0.5)
             for how in ("right", "esc", "right2"):
