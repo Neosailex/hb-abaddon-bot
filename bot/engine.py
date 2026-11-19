@@ -1325,7 +1325,7 @@ class Bot:
         if focused and self.state != "seek":
             self._release()
             self.state, self.target = "seek", None
-        if mem_ok and not in_building and not focused and self._zone_step():
+        if mem_ok and not in_building and not focused and self.bot_mode() != "manual" and self._zone_step():
             return
         if mem_ok and not in_building and not focused:
             if self.state in ("attack", "loot", "lootq") or self._mem_near():
@@ -4962,7 +4962,22 @@ class Bot:
         ents = self._oly_ents() or []
         px, py = self.pos["x"], self.pos["y"]
         d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
-        adj = [e for e in ents if d(e) <= 1]
+        adj = [e for e in ents if d(e) <= self._adj_tol(e[2]["name"])]
+        if not adj and self._under_attack() and now - getattr(self, "_atk_t", 0) > 2.0:
+            # REGLA DE ORO, ANTI-QUIETO: me pegan y hace 2 s que no doy un golpe. Nada (correa, élite, modo, zona) me
+            # deja parado: le pego al más cercano a 3 baldosas (la memoria a veces los marca corridos) y, si no hay,
+            # barro las 8 baldosas de alrededor.
+            near3 = [e for e in ents if d(e) <= 3]
+            if near3:
+                adj = [min(near3, key=d)]
+                if now - getattr(self, "_aq_said", 0) > 120:
+                    self._aq_said = now
+                    self.log(f"🛡 Me pegan y no estaba pegando: ataco al {adj[0][2]['name']} más cercano.")
+                self.__dict__.setdefault("_sal_noatk", []).append(now)
+            else:
+                self.__dict__.setdefault("_sal_noatk", []).append(now)
+                self._defend()
+                return True
         if not adj:
             # me pegan y no veo quién: pego alrededor, pero solo con una baja de vida de verdad (no el ruido de la
             # barra) y como mucho 3 veces cada medio minuto: no me quedo clavado pegándole al aire
@@ -5200,6 +5215,12 @@ class Bot:
                 try:
                     if getattr(tr, "adj_since", None):
                         self._hit_pace(tr.name, now - tr.adj_since, now)
+                except Exception:
+                    pass
+                try:
+                    lx, ly = getattr(tr, "x", None), getattr(tr, "y", None)
+                    if lx is not None and self.pos.get("x") is not None:
+                        self._adj_learn(tr.name, max(abs(lx - self.pos["x"]), abs(ly - self.pos["y"])))
                 except Exception:
                     pass
                 try:
@@ -5648,6 +5669,10 @@ class Bot:
             alerts.append(("muertes", f"me mataron {len([t for t in dh if now - t < 3600])} veces en la última hora"))
         if len(stuck) >= 5:
             alerts.append(("trabado", f"me trabé {len(stuck)} veces en 10 min"))
+        na_ = [t for t in getattr(self, "_sal_noatk", []) if now - t < 600]
+        self._sal_noatk = na_
+        if len(na_) >= 5:
+            alerts.append(("sin pegar", f"me pegaron sin que yo pegara {len(na_)} veces en 10 min"))
         if sm and sm.get("pot") == 0 and not town and not rinde:
             alerts.append(("pociones", "estoy cazando sin pociones"))
         said = st.setdefault("said", {})
@@ -5738,6 +5763,27 @@ class Bot:
             pass
         self._qm_cache = (now, out)
         return out
+
+    def _adj_tol(self, name):
+        """A qué distancia (según la memoria) cuento a este bicho como 'pegado'. La memoria marca algunos (largos o
+        chicos, ej. Snake) corridos una baldosa: lo APRENDO de dónde estaban cuando los maté y lo guardo. 1 o 2."""
+        try:
+            return int(((self.world.learn.get("adj_tol") or {}).get(name) or {}).get("tol", 1))
+        except Exception:
+            return 1
+
+    def _adj_learn(self, name, dist):
+        """Al matar un bicho anoto a qué distancia (según la memoria) estaba: si muchas muertes fueron a 2, para ese
+        bicho 'pegado' es hasta 2. Sirve para cualquier pj y bicho nuevo."""
+        if dist not in (1, 2):
+            return
+        r = self.world.learn.setdefault("adj_tol", {}).setdefault(name, {"n1": 0, "n2": 0, "tol": 1})
+        r["n1" if dist == 1 else "n2"] += 1
+        n = r["n1"] + r["n2"]
+        tol = 2 if n >= 6 and r["n2"] >= 0.3 * n else 1
+        if tol != r["tol"]:
+            r["tol"] = tol
+            self.log(f"🧠 Los {name} la memoria los marca corridos: los cuento pegados hasta {tol} baldosas.")
 
     def _hit_pace(self, name, ttk, now):
         """Ritmo de golpe: cuánto tardo en matar cada bicho desde que lo tengo pegado, comparado con lo normal para
@@ -6530,7 +6576,7 @@ class Bot:
             a_ = self.cfg.get("mode_anchor") or {}
             if a_.get("x") is not None:
                 # Manual: cazo alrededor de donde me dejaste (12 baldosas); lo que me pegue igual lo mato
-                ok = [e for e in ok if d(e) <= 1 or max(abs(e[0] - a_["x"]), abs(e[1] - a_["y"])) <= 12]
+                ok = [e for e in ok if d(e) <= 3 or max(abs(e[0] - a_["x"]), abs(e[1] - a_["y"])) <= 12]
         qm = self._quest_mob_names()
         if qm:
             qok = [e for e in ok if e[2]["name"] in qm and d(e) <= 14]
@@ -6671,8 +6717,10 @@ class Bot:
                 fe = {k: v for k, v in fe.items() if now - v < 60}
                 fe[e[3]] = now
                 self._oly_first = fe
-        elif now - fe[e[3]] > self._oly_ttk(e[2]["name"]) and d(e) <= 1 and now < getattr(self, "_rabia_until", 0):
-            fe[e[3]] = now  # en rabia no descarto a nadie: le sigo pegando
+        elif now - fe[e[3]] > self._oly_ttk(e[2]["name"]) and d(e) <= 1 and (
+                now < getattr(self, "_rabia_until", 0) or self.bot_mode() == "manual"
+                or sum(1 for o in ents if d(o) <= self._adj_tol(o[2]["name"])) >= 2):
+            fe[e[3]] = now  # rodeado, en rabia o en Manual no descarto a nadie: le sigo pegando
         elif now - fe[e[3]] > self._oly_ttk(e[2]["name"]) and d(e) <= 1:
             bad[e[3]] = now + 600
             fe[e[3]] = now  # si sigue pegado le vuelvo a pegar (regla de oro): el aviso sale una vez, no en cada vuelta
@@ -7169,7 +7217,7 @@ class Bot:
                 return True
             self._portal_goal = None
             # tengo la tabla de zonas de bichos de este mapa: voy a la zona que corresponde y busco ahí
-            if not (self.ents.center and self._mem_struct()) and self.pos.get("x") is not None:
+            if not (self.ents.center and self._mem_struct()) and self.pos.get("x") is not None and self.bot_mode() != "manual":
                 mk_ = cur.strip().lower()
                 z_ = self.world.learn.setdefault("xpz", {}).setdefault(mk_, {})
                 r_ = self._spawn_step(m, mk_, z_, self.pos["x"], self.pos["y"])
