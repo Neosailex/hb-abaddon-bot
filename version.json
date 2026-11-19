@@ -1,1 +1,1 @@
-{"version": 401, "notes": "Las misiones de cazar ya no frenan el reparto de stats ni la lectura de la ficha (nivel quedó en 56 siendo 60, 10 puntos sin repartir). Si aparece la ventana 'Subir nivel', reparto apenas esté tranquilo."}
+{"version": 402, "notes": "Misiones: con 'quest_strict' también las de juntar objetos (caza su bicho, 45 min sin avanzar antes de soltarla). Levanto lo que cae hasta 10 min después de cada muerte, y de los bichos de misión siempre."}

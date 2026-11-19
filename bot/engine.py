@@ -5128,6 +5128,28 @@ class Bot:
                 except Exception:
                     pass
 
+    def _quest_mobs(self):
+        """Bichos que piden mis misiones del cartel (cruzadas con la base de misiones: 'Epidemic' -> Snake,
+        'A New Challenge' -> Orc). Sirve para no dejar de levantar lo que cae de ellos. Para cualquier pj y misión."""
+        now = time.time()
+        c = getattr(self, "_qm_cache", None)
+        if c and now - c[0] < 30:
+            return c[1]
+        out = set()
+        try:
+            nz = lambda t: "".join(ch for ch in str(t).lower() if ch.isalnum())
+            db = self._quest_db().get("quests", [])
+            for q in (getattr(self, "quests", None) or []):
+                if q.get("done"):
+                    continue
+                e = max(db, key=lambda d: difflib.SequenceMatcher(None, nz(q.get("name")), nz(d["name"])).ratio(), default=None)
+                if e and difflib.SequenceMatcher(None, nz(q.get("name")), nz(e["name"])).ratio() >= 0.75:
+                    out |= {o["mob"] for o in e.get("objectives") or [] if o.get("mob")}
+        except Exception:
+            pass
+        self._qm_cache = (now, out)
+        return out
+
     def _hit_pace(self, name, ttk, now):
         """Ritmo de golpe: cuánto tardo en matar cada bicho desde que lo tengo pegado, comparado con lo normal para
         ese bicho (lo aprendo solo, para cualquier pj y bicho). Si de golpe tardo mucho más que lo normal, el arma se
@@ -5301,13 +5323,18 @@ class Bot:
             return False
         # PASADA DE LEVANTAR (la anotada): sin bichos pegados, paso por las baldosas donde murió algo en los últimos
         # 2 minutos, la más cercana primero, con Shift+clic. No hace falta ver nada: si había algo, lo agarro.
-        kq = [k_ for k_ in getattr(self, "_kill_q", []) if now - k_[2] < 120]
+        # lo que cae queda en el piso varios minutos: en un nido nunca estoy 'sin bichos pegados' a los 2 minutos de
+        # cada muerte (de 300 Snakes revisé 20 y la misión Epidemic quedó en 0). Guardo las muertes 10 minutos y las
+        # recorro en cada respiro.
+        kq = [k_ for k_ in getattr(self, "_kill_q", []) if now - k_[2] < 600][-60:]
+        qmobs_ = self._quest_mobs()
         bs_ = getattr(self, "_bag_slots", None)
         if kq and self.cfg.get("loot_sweep", True) and (hp_ is None or hp_ >= 45) and not (bs_ and now - bs_[2] < 1800 and bs_[0] >= bs_[1]):
             lbd = self.world.learn.get("loot_blind") or {}
             ok_ = [k_ for k_ in kq if (k_[0], k_[1]) not in tried and max(abs(k_[0] - px), abs(k_[1] - py)) <= 8
                    and not any((e[0], e[1]) == (k_[0], k_[1]) for e in ents)
-                   and not ((lbd.get(k_[3]) or {}).get("n", 0) >= 80 and (lbd.get(k_[3]) or {}).get("ok", 0) < 0.03 * (lbd.get(k_[3]) or {}).get("n", 0))]
+                   and (str(k_[3]) in qmobs_  # bicho de misión: sus partes caen poco, igual paso siempre
+                        or not ((lbd.get(k_[3]) or {}).get("n", 0) >= 80 and (lbd.get(k_[3]) or {}).get("ok", 0) < 0.03 * (lbd.get(k_[3]) or {}).get("n", 0)))]
             if ok_:
                 kp = min(ok_, key=lambda k_: max(abs(k_[0] - px), abs(k_[1] - py)))
                 self._kill_q = [k_ for k_ in kq if k_ is not kp]
@@ -7846,19 +7873,20 @@ class Bot:
         qa = self._quest_active()
         if not qa:
             return False
-        if qa[0].get("kind") == "items":
-            return False
         now = time.time()
         pr = self.__dict__.setdefault("_q_prog", {"name": None, "a": -1, "t": now})
         if pr["name"] != qa[0]["name"] or qa[1] != pr["a"]:
             pr.update(name=qa[0]["name"], a=qa[1], t=now)
-        return now - pr["t"] < 900
+        # de juntar objetos (partes que caen cada tanto): cazo su bicho y levanto todo; le doy 45 min sin avanzar
+        # antes de soltarla (las de matar, 15 min)
+        return now - pr["t"] < (2700 if qa[0].get("kind") == "items" else 900)
 
     def _quest_mob_names(self):
         qa = self._quest_active()
         if not qa or qa[1] >= qa[2]:
             return set()
-        return {o["mob"] for o in qa[0]["objectives"] if o["mob"] != "*" and not o.get("elite")}
+        return {o["mob"] for o in qa[0]["objectives"] if o["mob"] != "*" and not o.get("elite")
+                and (o.get("count") or qa[0].get("kind") == "items")}
 
     def _quest_map_for(self, q):
         """Mapa de la misión que me corresponde (lado Aresden) y que conozco."""
