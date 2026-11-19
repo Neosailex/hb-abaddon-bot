@@ -10258,6 +10258,28 @@ class Bot:
             self._gear_sig, self._gear_said = sig, now
             self.log("🛡 Tengo puesto: " + ("; ".join(f"{w['name']}" + (f" {w['dur']}/{w['dur_max']}" if w.get("dur_max") else "")
                                                     for sl, w in sorted(worn.items())) or "NADA") + ".")
+        # la memoria manda: si una pieza 'faltante' se viene gastando (su durabilidad bajó en el bolso de memoria en
+        # la última hora), la tengo puesta y la ficha la leyó mal. Pasó: 'se salió Chain Hose' con el Chain Hose
+        # puesto, y un viaje al pueblo tras otro.
+        try:
+            wid_ = {int(k_.split(":")[1]) for k_, t_ in (getattr(self, "_gm_worn", None) or {}).items() if now - t_ < 3600}
+            if wid_ and missing:
+                nz_ = lambda t: "".join(c for c in str(t).lower() if c.isalnum())
+                idb_ = self._items_db()
+                wn_ = [nz_((idb_.get(i_) or {}).get("name") or "") for i_ in wid_]
+                wn_ = [w_ for w_ in wn_ if len(w_) >= 4]
+                keep_ = []
+                for n_ in missing:
+                    m_ = nz_(n_)
+                    if len(m_) >= 4 and any(w_.startswith(m_[:8]) or m_.startswith(w_[:8]) for w_ in wn_):
+                        continue
+                    keep_.append(n_)
+                if len(keep_) != len(missing):
+                    self.log("🛡 La ficha no mostró " + ", ".join(n_ for n_ in missing if n_ not in keep_)
+                             + ", pero la memoria dice que la tengo puesta (se gasta): no voy al pueblo por eso.")
+                missing = keep_
+        except Exception:
+            pass
         self._gear_missing = list(missing)
         # arma de otra familia puesta (ej. una varita que se equipó por un doble clic): para el plan es como no tener
         # arma de mi talento. Busco la mía en el bolso o la compro.
