@@ -1101,7 +1101,7 @@ class Bot:
             self.stats["state"] = "buscando"
         if self._survival():
             # descansando: buen momento para revisar los stats (sin bichos cerca, quieto)
-            if getattr(self, "_rest_since", 0):
+            if getattr(self, "_rest_since", 0) and self.bot_mode() != "manual":
                 self._census()
                 if (cfg.get("stats_auto", {}).get("enabled") and getattr(self, "_last_stats", 1) == 0
                         and cfgmod.server_slug(cfg) != "abaddon" and self._mobs_within(3) == 0):
@@ -1182,6 +1182,8 @@ class Bot:
             self._goto_step()
             return
         sa = cfg.get("stats_auto", {})
+        if self.bot_mode() == "manual":
+            sa = {}  # Manual: solo matar. Nada de abrir la ficha ni la ventana de stats (se reparte al volver a Automático)
         if sa.get("enabled") and time.time() - getattr(self, "_lvl_check", 0) > 8:
             self._lvl_check = time.time()
             lu_pts = self._lu_mem()
