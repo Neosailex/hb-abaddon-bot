@@ -1266,6 +1266,15 @@ class Bot:
         except Exception:
             pass
         try:
+            hp_ = self.bars.get("hp")
+            if hp_ is not None:
+                hh = self.__dict__.setdefault("_hp_hist", [])
+                if not hh or now_f - hh[-1][0] > 1.0:
+                    hh.append((now_f, float(hp_)))
+                    del hh[:-900]
+        except Exception:
+            pass
+        try:
             self._salud()
         except Exception:
             pass
@@ -5156,6 +5165,18 @@ class Bot:
                 except Exception:
                     pass
 
+    def _rinde(self):
+        """¿El lugar rinde? Mato seguido (5+ en 10 min) y la vida nunca bajó del 20% en esos 10 min. Si rinde, ni
+        las pociones ni el bolso lleno son motivo para cortar: sigo cazando y juntando oro (regla de Juan). Solo
+        cuento lo que pasó acá, con al menos 10 min de muestra."""
+        now = time.time()
+        kh = (getattr(self, "_sal", None) or {}).get("kills") or []
+        k10 = sum(1 for t in kh if now - t < 600)
+        hh = [v for t, v in getattr(self, "_hp_hist", []) if now - t < 600]
+        if len(hh) < 300:
+            return False
+        return k10 >= int(self.cfg.get("rinde_kills_10m", 5)) and min(hh) > float(self.cfg.get("rinde_hp_min", 20))
+
     def _director(self):
         """DIRECTOR de tareas de fondo (por módulos, no en fila): cada vuelta ordena los módulos por cuánto se
         necesitan ahora (+ un plus por tiempo sin turno, así ninguno queda olvidado), les da turno en ese orden y
@@ -5174,11 +5195,20 @@ class Bot:
         hungry = (getattr(self, "_hunger", None) or 0) >= int(self.cfg.get("eat_above", 50))
         low_pots = pots is not None and pots <= int(self.cfg.get("buy_pots_below", 3))
         urgent_shop = low_pots or items >= 46 or hungry
+        rinde = False
+        try:
+            rinde = self._rinde()
+        except Exception:
+            pass
+        if rinde and not hungry:
+            urgent_shop = False
         mods = [
             ("ventanas", 50, self._close_junk_windows),
             ("misión cobrar/aceptar", 45, self._quest_step),
             ("encargo", 45, self._mission_step),
-            ("tienda", 80 if urgent_shop else 20, self._maybe_shop),
+            # si el lugar rinde (mato seguido y la vida no baja del 20%), la tienda espera: ni pociones ni bolso
+            # lleno cortan la caza. Con hambre o en 0 pociones sí voy.
+            ("tienda", 80 if urgent_shop else (0 if rinde else 20), self._maybe_shop),
             ("herrero", 30, self._maybe_repair),
             ("chequeo", 30, self._selfcheck),
             ("estrategia", 25, self._strategy),
@@ -5196,6 +5226,8 @@ class Bot:
         ranked = sorted(mods, key=lambda m: -(m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)))
         t0 = time.time()
         for name, _need, fn in ranked:
+            if _need <= 0:
+                continue  # no hace falta ahora (ej. la tienda mientras el lugar rinde)
             if time.time() - t0 > 1.5:
                 break  # se acabó la vuelta: lo que falta va primero la próxima (tiene más tiempo sin turno)
             ts = time.time()
@@ -5255,7 +5287,11 @@ class Bot:
         up = st.get("lvl_up_t", 0)
         if up and now - up > 1800 and getattr(self, "_sal_stats_t", 0) < up:
             alerts.append(("stats", f"subí de nivel hace {int((now - up) / 60)} min y no repartí los puntos"))
-        if sm and sm.get("items", 0) >= 48 and now - st["t0"] > 1200 and now - getattr(self, "_sal_sold_t", 0) > 1800:
+        try:
+            rinde = self._rinde()
+        except Exception:
+            rinde = False
+        if sm and sm.get("items", 0) >= 48 and not rinde and now - st["t0"] > 1200 and now - getattr(self, "_sal_sold_t", 0) > 1800:
             alerts.append(("bolso", f"bolso lleno ({sm['items']}/50) hace rato y no vendí nada"))
         if now - st["t0"] > 900 and not town and not any(now - t < 600 for t in kh):
             alerts.append(("kills", "hace 10 min que no mato nada"))
@@ -5263,7 +5299,7 @@ class Bot:
             alerts.append(("muertes", f"me mataron {len([t for t in dh if now - t < 3600])} veces en la última hora"))
         if len(stuck) >= 5:
             alerts.append(("trabado", f"me trabé {len(stuck)} veces en 10 min"))
-        if sm and sm.get("pot") == 0 and not town:
+        if sm and sm.get("pot") == 0 and not town and not rinde:
             alerts.append(("pociones", "estoy cazando sin pociones"))
         said = st.setdefault("said", {})
         for key, msg in alerts:
