@@ -1,1 +1,1 @@
-{"version": 399, "notes": "Si la ventana 'Subir nivel' queda abierta (tapaba el juego y el pj quedó parado ~1 h), la cierro sin aplicar y el reparto de stats vuelve a probar."}
+{"version": 400, "notes": "El lector de texto preciso (RapidOCR) usa la placa de video si está onnxruntime-directml en data\\ortdml (4 veces más rápido, casi sin procesador). Si no, procesador como siempre."}

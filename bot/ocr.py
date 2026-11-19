@@ -160,11 +160,34 @@ def _get_rapid():
     if _rapid or _rapid_err:
         return _rapid
     try:
+        # placa de video: si está instalado onnxruntime-directml en data\ortdml (anda con cualquier placa en Windows),
+        # lo cargo antes que el de procesador. Si no está o falla, sigue con el procesador como siempre.
+        import os as _os, sys as _sys
+        dml_dir = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "data", "ortdml")
+        if _os.path.isdir(_os.path.join(dml_dir, "onnxruntime")) and "onnxruntime" not in _sys.modules and dml_dir not in _sys.path:
+            _sys.path.insert(0, dml_dir)
         from rapidocr_onnxruntime import RapidOCR
-        _rapid = RapidOCR()
+        try:
+            import onnxruntime as _ort
+            gpu = "DmlExecutionProvider" in _ort.get_available_providers()
+        except Exception:
+            gpu = False
+        _rapid = None
+        if gpu:
+            try:
+                _rapid = RapidOCR(det_use_dml=True, cls_use_dml=True, rec_use_dml=True)
+                globals()["RAPID_GPU"] = True
+            except Exception:
+                _rapid = None
+        if _rapid is None:
+            _rapid = RapidOCR()
+            globals()["RAPID_GPU"] = False
     except Exception as e:
         _rapid_err = repr(e)
     return _rapid
+
+
+RAPID_GPU = None
 
 
 def rapid_error():
