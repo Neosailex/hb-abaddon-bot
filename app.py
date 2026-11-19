@@ -190,6 +190,9 @@ class Api:
         except Exception as e:
             return {"img": None, "error": repr(e)}
 
+    def set_mode(self, m):
+        return self._bot.set_mode(m, "lo elegiste vos")
+
     def brain(self):
         try:
             return self._bot.brain_view()

@@ -1279,6 +1279,10 @@ class Bot:
         except Exception:
             pass
         try:
+            self._mode_tick()
+        except Exception:
+            pass
+        try:
             self._salud()
         except Exception:
             pass
@@ -5182,6 +5186,85 @@ class Bot:
                 except Exception:
                     pass
 
+    # ---------- MODOS (botones debajo del encendido) ----------
+    MODES = {"auto": "Automático", "caza": "Caza", "manual": "Manual", "quest": "Quest", "economico": "Económico",
+             "cartografo": "Cartógrafo"}
+
+    def bot_mode(self):
+        m = self.cfg.get("bot_mode") or "auto"
+        return m if m in self.MODES else "auto"
+
+    def set_mode(self, m, why=""):
+        """Cambia el modo. Automático = el de siempre. Los demás cambian prioridades (ver _director/_nest_decide):
+        Caza: el nido que más rinde, sin misiones, solo sale a reparar/pociones y vuelve. Manual: el nido donde lo
+        dejaste (lo recuerda). Quest: solo bichos de la misión hasta cobrar, después la siguiente; sin misiones vuelve
+        a Automático. Económico: el nido que más oro por hora deja. Cartógrafo: va a los mapas vecinos que conoce y
+        los releva; si lo matan vuelve a Automático."""
+        m = m if m in self.MODES else "auto"
+        prev = self.bot_mode()
+        self.cfg["bot_mode"] = m
+        if m == "manual" and self.pos.get("x") is not None:
+            mk = (self.pos.get("map") or "").strip().lower()
+            self.cfg["mode_anchor"] = {"mk": mk, "x": int(self.pos["x"]), "y": int(self.pos["y"])}
+            self.world.learn.setdefault("oly_hot", {})[mk] = {"x": int(self.pos["x"]), "y": int(self.pos["y"]), "t": time.time(), "exp": 0}
+        self._nest_probe = None
+        self._mode_since = time.time()
+        cfgmod.save(self.cfg)
+        if m != prev:
+            self.log(f"🎛 Modo {self.MODES[m]}" + (f" ({why})" if why else "") + "."
+                     + (f" Mi nido: {self.pos.get('map')} ({self.pos.get('x')},{self.pos.get('y')})." if m == "manual" else ""))
+        return {"ok": True, "mode": m, "label": self.MODES[m]}
+
+    def _mode_tick(self):
+        """Lo que cada modo hace por su cuenta (cada 30 s, barato)."""
+        now = time.time()
+        if now - getattr(self, "_mt_t", 0) < 30:
+            return
+        self._mt_t = now
+        m = self.bot_mode()
+        mk = (self.pos.get("map") or "").strip().lower()
+        if m == "manual":
+            a = self.cfg.get("mode_anchor") or {}
+            if a.get("mk") == mk:
+                self.world.learn.setdefault("oly_hot", {})[mk] = {"x": a["x"], "y": a["y"], "t": now, "exp": 0}
+        elif m == "quest":
+            qs = getattr(self, "quests", None)
+            if qs is not None and not qs:
+                if not getattr(self, "_mq_empty", 0):
+                    self._mq_empty = now
+                elif now - self._mq_empty > 300:
+                    self._mq_empty = 0
+                    self.set_mode("auto", "no quedan misiones")
+            else:
+                self._mq_empty = 0
+        elif m == "cartografo":
+            if getattr(self, "goto", None) or getattr(self, "_exploring", False) or self._in_town() is False and \
+                    not ((self._survey().get("explored") or {}).get(self.pos.get("map") or "") or {}).get("done", False):
+                return  # viajando, relevando o en un mapa que todavía no relevé (lo releva solo al pisarlo)
+            ex = self._survey().get("explored") or {}
+            cur = self.pos.get("map") or ""
+            cand = []
+            for (_xy, v) in self.world.links_from(cur) if cur else []:
+                to = v.get("to") or ""
+                if to and not (ex.get(to) or {}).get("done") and not any(k in to.lower() for k in self.TOWNS):
+                    cand.append(to)
+            for k_, v in (self.world.learn.get("links") or {}).items():
+                to = v.get("to") or ""
+                if to and to not in cand and not (ex.get(to) or {}).get("done") and not any(k in to.lower() for k in self.TOWNS):
+                    try:
+                        if self._known_route(cur, to, self._avoid()):
+                            cand.append(to)
+                    except Exception:
+                        pass
+            if not cand:
+                self.set_mode("auto", "no quedan mapas conocidos sin relevar")
+                return
+            to = cand[0]
+            mp = self.world.map_for(to)
+            g = mp.nearest_walkable(mp.w // 2, mp.h // 2, r=12) if mp else None
+            self.goto = {"map": to, "x": int(g[0]) if g else 0, "y": int(g[1]) if g else 0, "t": now}
+            self.log(f"🗺 Cartógrafo: voy a {to} a relevarlo.")
+
     # ---------- rendimiento por nido: experiencia por hora REAL (con caminar y descansar) ----------
     def _nest_rec(self, mk, x, y, mob=None):
         d = self.world.learn.setdefault("nest_rate", {}).setdefault(mk, {})
@@ -5190,11 +5273,13 @@ class Bot:
             r["mob"] = mob
         return r
 
-    def _nest_rate(self, r):
-        """Experiencia por hora de un nido, o None si todavía no lo medí al menos 10 minutos."""
+    def _nest_rate(self, r, key=None):
+        """Experiencia (o con key='gold', oro) por hora de un nido, o None si no lo medí al menos 10 minutos.
+        Sin key: el modo Económico mide oro, los demás experiencia."""
         if not r or float(r.get("secs", 0)) < 600:
             return None
-        return 3600.0 * float(r.get("exp", 0)) / float(r["secs"])
+        key = key or ("gold" if self.bot_mode() == "economico" else "exp")
+        return 3600.0 * float(r.get(key, 0)) / float(r["secs"])
 
     def _nest_track(self):
         """Cada 20 s le cargo el tiempo al nido en el que estoy (o al que estoy yendo: caminar hasta ahí es parte del
@@ -5223,13 +5308,22 @@ class Bot:
         if act:
             self._nest_active = {"mk": mk, "x": act["x"], "y": act["y"], "mob": act.get("mob") or act.get("guess")}
         na = getattr(self, "_nest_active", None)
+        try:
+            g_ = self._gold_mem()
+        except Exception:
+            g_ = None
+        g0 = getattr(self, "_nt_gold", None)
+        self._nt_gold = g_
         if na and na["mk"] == mk and dt > 0:
             r = self._nest_rec(mk, na["x"], na["y"], na.get("mob"))
+            if g_ is not None and g0 is not None and 0 < g_ - g0 < 50000:
+                r["gold"] = int(r.get("gold", 0)) + (g_ - g0)  # oro levantado acá (lo de vender es del pueblo)
             r["secs"] = float(r.get("secs", 0)) + dt
             r["t"] = now
             if r["secs"] > 7200:  # memoria móvil: pesa más lo reciente (el pj crece, los nidos cambian)
                 r["secs"] *= 0.5
                 r["exp"] = int(r.get("exp", 0) * 0.5)
+                r["gold"] = int(r.get("gold", 0) * 0.5)
         self._nest_decide(mk, pits, now)
 
     def _nest_decide(self, mk, pits, now):
@@ -5239,7 +5333,11 @@ class Bot:
         if now - getattr(self, "_nd_t", 0) < 60:
             return
         self._nd_t = now
+        md_ = self.bot_mode()
+        if md_ in ("manual", "cartografo"):
+            return  # Manual: el nido lo eligió Juan. Cartógrafo: no caza en nidos, recorre.
         recs = (self.world.learn.get("nest_rate") or {}).get(mk) or {}
+        key_ = "gold" if md_ == "economico" else "exp"
         tried = self.__dict__.setdefault("_pit_tried", {})
         ok = []
         for p in pits:
@@ -5264,7 +5362,8 @@ class Bot:
                      + (f"{int(rt):,}".replace(",", ".") + " de experiencia por hora." if rt is not None else "no llegué a medirlo.")
                      + " Comparo con los otros y me quedo con el que más rinde.")
             self.world.learn.setdefault("oly_hot", {}).pop(mk, None)  # que la comparación de abajo elija de cero
-        elif now - getattr(self, "_nest_probe_t", 0) > 60 * float(self.cfg.get("nest_probe_min", 60)):
+        elif now - getattr(self, "_nest_probe_t", 0) > 60 * float(self.cfg.get("nest_probe_min", 60)) and not (
+                md_ == "caza" and any(self._nest_rate(r_) is not None for _p, _n, r_ in ok)):  # Caza: ya tengo uno medido, me quedo
             unk = [(p, nm, r) for p, nm, r in ok if self._nest_rate(r) is None or now - float((r or {}).get("t", 0)) > 6 * 3600]
             if unk:
                 px, py = self.pos["x"], self.pos["y"]
@@ -5368,13 +5467,19 @@ class Bot:
         last = self.__dict__.setdefault("_dir_last", {})
         st = self.__dict__.setdefault("_dir_stats", {})
         # modos (más adelante): cada modo sube o baja pesos, ej. {'misión cobrar/aceptar': +40}
-        w = (self.cfg.get("mode_weights") or {})
+        w = dict(self.cfg.get("mode_weights") or {})
+        md_ = self.bot_mode()
+        if md_ == "quest":
+            w["misión cobrar/aceptar"] = w.get("misión cobrar/aceptar", 0) + 40
+        elif md_ in ("caza", "manual", "economico", "cartografo"):
+            w["misión cobrar/aceptar"] = -1000  # en estos modos no persigo misiones
+            w["nidos"] = -1000 if md_ == "manual" else w.get("nidos", 0)
         score = lambda m: m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)
         ranked = sorted(mods, key=lambda m: -score(m))
         self._dir_view = {"t": now, "rinde": rinde, "orden": [(m[0], int(m[1]), round(score(m), 1)) for m in ranked], "turno": None}
         t0 = time.time()
         for name, _need, fn in ranked:
-            if _need <= 0:
+            if _need <= 0 or _need + float(w.get(name, 0)) <= 0:
                 continue  # no hace falta ahora (ej. la tienda mientras el lugar rinde)
             if time.time() - t0 > 1.5:
                 break  # se acabó la vuelta: lo que falta va primero la próxima (tiene más tiempo sin turno)
@@ -5458,6 +5563,8 @@ class Bot:
             kh.append(now)
         if d > st.get("ld", d):
             dh.append(now)
+            if self.bot_mode() == "cartografo":
+                self.set_mode("auto", "me mataron explorando")
         st["lk"], st["ld"] = k, d
         kh[:] = [t for t in kh if now - t < 3600][-500:]
         dh[:] = [t for t in dh if now - t < 3600]
@@ -6204,7 +6311,7 @@ class Bot:
                     self._hot_go = None
                     self.log(f"🎯 Mi zona buena ({h['x']},{h['y']}) es donde me mataron: la descarto.")
                     h = None
-                if h and max(abs(h["x"] - px), abs(h["y"] - py)) <= 8 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
+                if h and self.bot_mode() != "manual" and max(abs(h["x"] - px), abs(h["y"] - py)) <= 8 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
                     # llegué a mi zona buena y no hay nada: ya no es buena. La borro y voy a un nido ahora, sin esperar.
                     del self.world.learn["oly_hot"][mk]
                     self._hot_go = None
@@ -6231,7 +6338,7 @@ class Bot:
                 pass
             # mi zona buena se secó o no tengo ninguna: voy al nido que más conviene (los saqué del minimapa)
             try:
-                if (dry or not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents)) and now - getattr(self, "_pit_go_t", 0) > 20:
+                if self.bot_mode() != "manual" and (dry or not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents)) and now - getattr(self, "_pit_go_t", 0) > 20:
                     bp = self._pit_pick()
                     pg0 = getattr(self, "_pit_go", None)
                     if pg0 and pg0.get("p") and now - pg0["t"] < 45 and self.__dict__.get("_pit_tried", {}).get(pg0["k"], 0) < now:
@@ -8334,7 +8441,7 @@ class Bot:
         """¿La misión activa justifica cazar SOLO su bicho? Sí cuando es de matar N y viene avanzando. No cuando
         es de juntar objetos (salen cada tanto) o cuando llevo 15 minutos sin avanzar: ahí se caza normal y el
         bicho de la misión solo tiene prioridad cuando aparece."""
-        if not self.cfg.get("quest_strict", False):
+        if not self.cfg.get("quest_strict", False) and self.bot_mode() != "quest":
             return False  # la regla es subir de nivel: la misión da prioridad a su bicho cuando aparece, nada más
         qa = self._quest_active()
         if not qa:
@@ -13749,4 +13856,5 @@ class Bot:
             "nav": {"status": self.nav["status"], "dest": self.nav["dest"]},
             "mobs": self._mobs_near_view(),
             "goto": getattr(self, "goto", None),
+            "mode": self.bot_mode(), "mode_label": self.MODES.get(self.bot_mode()),
         }

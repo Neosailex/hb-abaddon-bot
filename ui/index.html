@@ -52,6 +52,12 @@ h2{font-size:13px;letter-spacing:1.4px;text-transform:uppercase;color:var(--mute
 .power svg{width:70px;height:70px;stroke:var(--blood2);filter:drop-shadow(0 0 10px #e0443a99);transition:.25s}
 .power.on{background:radial-gradient(circle at 50% 35%,#13361f,#0a1a10 70%);box-shadow:0 0 0 6px #10241a,0 0 0 7px #1f5a35,0 0 60px #3fbf6b66,inset 0 -10px 30px #0008}
 .power.on svg{stroke:#6ff09a;filter:drop-shadow(0 0 14px #3fbf6bcc)}
+.power.mode{background:radial-gradient(circle at 50% 35%,#3a3010,#1a1406 70%);box-shadow:0 0 0 6px #241d0a,0 0 0 7px #8a6d1f,0 0 60px #e7c66b66,inset 0 -10px 30px #0008}
+.power.mode svg{stroke:#ffd66b;filter:drop-shadow(0 0 14px #e7c66bcc)}
+.pstate.mode{color:#ffd66b}
+.modes{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:4px}
+.modes button{font-size:12px;padding:5px 9px;border-radius:999px;border:1px solid #3a3326;background:#16130d;color:#cbb88a;cursor:pointer}
+.modes button.sel{background:#3a2f12;border-color:#e7c66b;color:#ffe08a;font-weight:700}
 .power.on::after{content:"";position:absolute;inset:-12px;border-radius:50%;border:2px solid #3fbf6b55;animation:pulse 1.8s infinite}
 @keyframes pulse{0%{transform:scale(.95);opacity:1}100%{transform:scale(1.12);opacity:0}}
 .pstate{font-family:Georgia,serif;font-size:20px;letter-spacing:2px;text-transform:uppercase}
@@ -180,6 +186,15 @@ input[type=range]{accent-color:var(--gold);width:100%}
             <div class="power-wrap">
               <button class="power" id="power" title="Prender / apagar"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.2 7.2a8 8 0 1 0 11.6 0"/></svg></button>
               <div class="pstate off" id="pstate">Apagado</div>
+              <div class="modes" id="modes">
+                <button data-m="auto" title="El de siempre: decide solo">Automático</button>
+                <button data-m="caza" title="El nido que más rinde; solo sale a reparar/pociones y vuelve">Caza</button>
+                <button data-m="manual" title="Se queda en el nido donde lo dejaste (lo recuerda)">Manual</button>
+                <button data-m="quest" title="Solo bichos de la misión hasta cobrarla, después la siguiente">Quest</button>
+                <button data-m="economico" title="El nido que más oro por hora deja">Económico</button>
+                <button data-m="cartografo" title="Va a los mapas vecinos que conoce y los releva; si lo matan vuelve a Automático">Cartógrafo</button>
+                <button id="mInv" title="Releva a fondo este mapa (dónde sale cada bicho)">🧭 Investigar</button>
+              </div>
               <div class="chips"><span class="chip" id="cWin">Sin juego</span><span class="chip" id="cState">—</span><span class="chip" id="cAdmin"></span></div>
               <div class="chips"><span class="chip gold" id="cPos">📍 sin leer</span><span class="chip" id="cMem">🧠 —</span><span class="chip" id="cMobs">👾 —</span></div>
               <div class="hint" id="cNav" style="text-align:center"></div>
@@ -695,7 +710,10 @@ async function poll(){
   try{
     const s = await API.state();
     const on = s.running;
-    $('#power').classList.toggle('on',on); $('#pstate').textContent=on?'Cazando':'Apagado'; $('#pstate').className='pstate '+(on?'on':'off');
+    const md=s.mode||'auto', special=md!=='auto';
+    $('#power').classList.toggle('on',on&&!special); $('#power').classList.toggle('mode',on&&special);
+    $('#pstate').textContent=on?(special?('Modo '+(s.mode_label||md)):'Cazando'):'Apagado'; $('#pstate').className='pstate '+(on?(special?'mode':'on'):'off');
+    document.querySelectorAll('#modes button[data-m]').forEach(b=>b.classList.toggle('sel',b.dataset.m===md));
     $('#mini').classList.toggle('on',on); $('#miniTxt').textContent=on?'Prendido':'Apagado';
     const w=$('#cWin'); w.textContent=s.window?('🎮 '+s.window):'Sin juego'; w.className='chip '+(s.window?'good':'bad');
     $('#cState').textContent=s.stats.state||'—';
@@ -747,6 +765,8 @@ async function frameLoop(){
   setTimeout(frameLoop,Math.max(0,100-(performance.now()-t0)));
 }
 $('#power').onclick=async()=>{await API.toggle()};
+document.querySelectorAll('#modes button[data-m]').forEach(b=>b.onclick=async()=>{const r=await API.set_mode(b.dataset.m);if(r&&r.label)toast('Modo '+r.label)});
+$('#mInv').onclick=async()=>{const r=await API.explore_map();toast(r.msg)};
 $('#mini').onclick=async()=>{await API.toggle()};
 $('#openGame').onclick=async()=>{const ok=await API.open_game();toast(ok?'Abriendo Helbreath...':'No encontré el juego')};
 $('#miniBtn').onclick=async()=>{const on=await API.toggle_mini();toast(on?'Ventanita arriba del juego':'Ventanita cerrada')};
