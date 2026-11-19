@@ -1,1 +1,1 @@
-{"version": 426, "notes": "Poca durabilidad en plena pelea: marca el pueblo y va al terminar (antes esperaba estar libre y el equipo se rompía). El bot aprende solo el corrimiento entre la memoria y dónde están los bichos (con las muertes cuerpo a cuerpo) y lo corrige."}
+{"version": 427, "notes": "Barra de vida del bicho bajo el cursor (idea de Juan): después de cada golpe confirma que hay un bicho y que le baja la vida. Si no aparece, prueba las baldosas de al lado moviendo el mouse; si no está en ninguna, fantasma. Si no le baja la vida en 12 s, cambia de bicho."}

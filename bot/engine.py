@@ -6857,6 +6857,9 @@ class Bot:
                         order = [r_ for r_ in ring if r_ in occ] or ring
                         dx_, dy_ = order[(slot_ // 2) % len(order)]
                         tx_, ty_ = int(cx + dx_ * tw), int(cy + dy_ * th)
+                bf_ = getattr(self, "_bar_fix", None)
+                if bf_ and bf_[0] == e[3] and now < bf_[3] and (tx_, ty_) == (pt[0], pt[1] + int(th * 0.3)):
+                    tx_, ty_ = int(tx_ + bf_[1] * tw), int(ty_ + bf_[2] * th)  # donde el cursor confirmó al bicho
                 # golpe crítico (Alt + ataque): lo tiro cada tanto siempre que esté pegando, no solo rodeado. Alt se
                 # aprieta solo para ese golpe y se suelta: nunca queda apretado. Si no hay cargas, sale un golpe común.
                 crit_ = self.cfg.get("crit_use", True) and now - getattr(self, "_crit_t", 0) > (3.2 if rab_ else float(self.cfg.get("crit_every", 6)))
@@ -6875,6 +6878,10 @@ class Bot:
                 self._last_enemy = self._atk_t = now
                 self.stats["state"], self.stats["target"] = "atacando", e[2]["name"]
                 time.sleep(0.35)
+                try:
+                    self._bar_check(e, tx_, ty_, tw, th, bad, now)
+                except Exception:
+                    pass
                 return True
             # a distancia: mantengo el clic SOBRE el bicho y lo voy corriendo con él en cada vuelta
             self.state = "seek"
@@ -6906,6 +6913,80 @@ class Bot:
                 self._walk_to(m, (int(e[0]), int(e[1])), e[2]["name"])
                 return True
         return False
+
+    def _bar_read(self, x, y):
+        """Barra de vida del bicho que está bajo el cursor (Olympia la muestra al pasar el mouse por un bicho: nombre
+        en rojo y una barra roja al lado del cursor). Devuelve la fracción de vida (0-1) o None si no hay barra = no
+        hay bicho bajo el cursor. El ancho de la barra llena lo aprende solo (cualquier resolución)."""
+        import cv2
+        im = self.screen.grab(self.rect)
+        if im is None:
+            return None
+        H, W = im.shape[:2]
+        kx = W / 1920.0
+        x1, x2 = max(0, int(x - 60 * kx)), min(W, int(x + 260 * kx))
+        y1, y2 = max(0, int(y - 90 * kx)), min(int(H * 0.9), int(y + 90 * kx))  # nunca la barra del HUD de abajo
+        if x2 - x1 < 20 or y2 - y1 < 20:
+            return None
+        roi = im[y1:y2, x1:x2].astype(int)
+        red = ((roi[..., 2] > 170) & (roi[..., 1] < 80) & (roi[..., 0] < 80)).astype("uint8")
+        n, _l, st, _c = cv2.connectedComponentsWithStats(red)
+        best = None
+        for i in range(1, n):
+            bx, by, bw, bh, ba = st[i]
+            # barra: chata (3-10 px de alto), rellena (las letras del nombre no) y al menos un poquito ancha
+            if 3 * kx <= bh <= 10 * kx and bw >= 3 * kx and ba >= 0.75 * bw * bh and bw >= 1.5 * bh:
+                if best is None or bw > best:
+                    best = int(bw)
+        if best is None:
+            return None
+        lr = self.world.learn.setdefault("mob_bar", {"full": 0})
+        full = float(lr.get("full") or 0)
+        if best > full and best < 260 * kx:
+            lr["full"] = full = float(best)
+        return max(0.0, min(1.0, best / full)) if full > 0 else 1.0
+
+    def _bar_check(self, e, tx, ty, tw, th, bad, now):
+        """Después de cada golpe pegado: el cursor quedó sobre la baldosa que ataqué. Si aparece la barra de vida,
+        ahí HAY un bicho; si la barra baja, le estoy pegando de verdad. Si no aparece 3 golpes seguidos, pruebo las
+        baldosas de alrededor solo moviendo el mouse (sin clic) y ataco donde aparezca. Si no aparece en ninguna,
+        es un bicho fantasma de la memoria: lo salteo. Si la barra no baja en 12 s, no le estoy haciendo nada."""
+        if not self.cfg.get("bar_check", True):
+            return
+        st = getattr(self, "_bar_st", None)
+        if not st or st.get("id") != e[3]:
+            st = self._bar_st = {"id": e[3], "miss": 0, "last": None, "dec_t": now, "seen": False}
+        fr = self._bar_read(tx, ty)
+        if fr is not None:
+            if st["last"] is not None and fr < st["last"] - 0.02:
+                st["dec_t"] = now
+                self._hit_ok_t = now  # golpe que de verdad sacó vida
+            st["last"], st["miss"], st["seen"] = fr, 0, True
+            if now - st["dec_t"] > 12 and now >= getattr(self, "_rabia_until", 0):
+                bad[e[3]] = now + 60
+                self.log(f"🎯 Al {e[2]['name']} no le bajo la vida hace 12 s: lo dejo y busco otro.")
+                self._bar_st = None
+            return
+        st["miss"] += 1
+        if st["miss"] < 3:
+            return
+        st["miss"] = 0
+        ring = [(0, -1), (0, 1), (1, 0), (-1, 0), (1, -1), (-1, -1), (1, 1), (-1, 1)]
+        for dx, dy in ring:
+            mx, my = int(tx + dx * tw), int(ty + dy * th)
+            winapi.move(*self.abs_pt(mx, my))
+            time.sleep(0.12)
+            if self._bar_read(mx, my) is not None:
+                self._bar_fix = (e[3], dx, dy, now + 6)
+                v = self.world.learn.setdefault("bar_fix_n", {})
+                k = f"{dx},{dy}"
+                v[k] = int(v.get(k, 0)) + 1
+                if v[k] in (1, 10, 50):
+                    self.log(f"🎯 El {e[2]['name']} estaba una baldosa corrido ({dx:+d},{dy:+d}): el cursor lo encontró, le pego ahí.")
+                return
+        bad[e[3]] = now + 60
+        self.log(f"👻 Donde la memoria pone un {e[2]['name']} el cursor no encuentra nada: lo salteo 1 minuto.")
+        self._bar_st = None
 
     def _oly_ttk(self, name):
         """Segundos que le doy a un bicho pegado antes de pensar que es élite: según su vida, y lo que fui aprendiendo."""
