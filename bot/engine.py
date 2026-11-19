@@ -3167,7 +3167,7 @@ class Bot:
         key = self.cfg.get("potion_key", "1")
         if not key or time.time() < getattr(self, "_potkey_off", 0):
             return False
-        self._inv_cache = None
+        self._inv_cache = self._oinv_cache = None
         sm0 = self._supplies_mem()
         if not sm0 or sm0["pot"] <= 0:
             return False
@@ -3175,7 +3175,7 @@ class Bot:
         t0 = time.time()
         while time.time() - t0 < 0.7:
             time.sleep(0.12)
-            self._inv_cache = None
+            self._inv_cache = self._oinv_cache = None
             sm = self._supplies_mem()
             if sm and sm["pot"] < sm0["pot"]:
                 if not getattr(self, "_potkey_ok", False):
@@ -10040,8 +10040,53 @@ class Bot:
         self._inv_cache = (now, out)
         return out
 
+    OLY_INV = 0x1380240  # Olympia: 50 punteros (uint32) a los items del bolso, fijo (sobrevive al reloguear)
+    ID_BAGUETTE = 98
+
+    def _inv_oly(self):
+        """Bolso de Olympia leído de memoria (solo lectura): [{slot,id,count,dur,x,y}]. None si no se pudo o la
+        lectura no tiene sentido. Cada poción es un item aparte (count 1); el oro es un item con count = oro."""
+        if cfgmod.server_slug(self.cfg) == "abaddon":
+            return None
+        now = time.time()
+        c = getattr(self, "_oinv_cache", None)
+        if c and now - c[0] < 1.0:
+            return c[1]
+        out = None
+        try:
+            pr = getattr(self.mem, "proc", None)
+            raw = pr.read(self.OLY_INV, 200) if pr else None
+            if raw and len(raw) == 200:
+                import struct as _st
+                ptrs = _st.unpack("<50I", raw)
+                L, bad = [], 0
+                for i, a in enumerate(ptrs):
+                    if not a:
+                        continue
+                    d = pr.read(a, 0x24)
+                    if not d or len(d) < 0x24:
+                        bad += 1
+                        continue
+                    iid = _st.unpack_from("<H", d, 8)[0]
+                    cnt = _st.unpack_from("<I", d, 0x18)[0]
+                    if not (0 < iid < 3000) or cnt > 2_000_000_000:
+                        bad += 1
+                        continue
+                    x_, y_ = _st.unpack_from("<hh", d, 0x20)
+                    L.append({"slot": i, "id": iid, "count": cnt, "dur": _st.unpack_from("<H", d, 0x14)[0], "x": x_, "y": y_})
+                # sano: casi todo legible y como mucho un oro
+                if L and bad <= 2 and sum(1 for o in L if o["id"] == self.ID_GOLD) <= 1:
+                    out = L
+        except Exception:
+            out = None
+        self._oinv_cache = (now, out)
+        return out
+
     def _gold_mem(self):
         """Oro del pj: el item 90 del inventario. None si no se sabe."""
+        oi = self._inv_oly()
+        if oi is not None:
+            return sum(i["count"] for i in oi if i["id"] == self.ID_GOLD)
         inv = self._inv_mem()
         if inv is None:
             e = getattr(self, "_eco", None)  # sin inventario en memoria: el oro leído del bolso (si es reciente)
@@ -10050,6 +10095,12 @@ class Bot:
 
     def _supplies_mem(self):
         """Pociones de vida y carnes que quedan, contadas en la memoria. None si no se sabe."""
+        oi = self._inv_oly()
+        if oi is not None:
+            # Olympia: pociones rojas (91) y comida (98 baguette, 99 carne), contadas exacto en memoria
+            return {"pot": sum(max(1, i["count"]) for i in oi if i["id"] == self.ID_POT),
+                    "meat": sum(max(1, i["count"]) for i in oi if i["id"] in (self.ID_MEAT, self.ID_BAGUETTE)),
+                    "items": len(oi)}
         inv = self._inv_mem()
         if inv is None:
             return None
@@ -10122,7 +10173,7 @@ class Bot:
         return None
 
     def _inv_item(self, item_id=None, slot=None):
-        self._inv_cache = None
+        self._inv_cache = self._oinv_cache = None
         for i in self._inv_mem() or []:
             if (slot is not None and i["slot"] == slot) or (slot is None and i["id"] == item_id):
                 return i
@@ -10173,7 +10224,7 @@ class Bot:
             time.sleep(0.5)
             self._cancel_drop()
             self._bag_keep(o0)
-            self._inv_cache = None
+            self._inv_cache = self._oinv_cache = None
             moved = [i for i in self._inv_mem() or [] if before.get(i["slot"]) != (i["x"], i["y"])]
             if any(i["slot"] == slot for i in moved):
                 return self._inv_item(slot=slot)
@@ -10183,7 +10234,7 @@ class Bot:
                 time.sleep(0.5)
                 self._cancel_drop()
                 self._bag_keep(o0)
-                self._inv_cache = None
+                self._inv_cache = self._oinv_cache = None
                 if (self._inv_item(slot=slot) or {}).get("x") != it["x"]:
                     return self._inv_item(slot=slot)
         return None
@@ -11469,7 +11520,7 @@ class Bot:
             time.sleep(1.5)
             winapi.press("ESC")
             time.sleep(0.5)
-            self._inv_cache = None
+            self._inv_cache = self._oinv_cache = None
             worn1 = sum(i["max"] - i["dur"] for i in (self._inv_mem() or []) if i["max"] >= 100)
             if worn0 and worn1 >= worn0:
                 self.log("🔧 Fui al herrero pero el equipo sigue gastado: no salió la reparación. Pruebo más tarde.")
@@ -11542,7 +11593,7 @@ class Bot:
     def _gear_state(self):
         """Qué ponerme / vender / guardar según lo que hay en el bolso, y qué comprar según el plan."""
         from . import gear
-        self._inv_cache = None
+        self._inv_cache = self._oinv_cache = None
         inv, eq, idb = self._inv_mem(), self._equipped_ids(), self._items_db()
         if not inv or eq is None or not idb:
             return None
@@ -12085,7 +12136,7 @@ class Bot:
         if not btn:
             self.log("💰 No se abrió el cartel de venta. Pruebo en otra vuelta.")
             return 0
-        self._inv_cache = None
+        self._inv_cache = self._oinv_cache = None
         n0, g0 = len(self._inv_mem() or []), self._gold_mem() or 0
         put = 0
         for e in entries:
@@ -12109,7 +12160,7 @@ class Bot:
             return 0
         winapi.click(*P(*btn))
         time.sleep(2.0)
-        self._inv_cache = None
+        self._inv_cache = self._oinv_cache = None
         n1, g1 = len(self._inv_mem() or []), self._gold_mem() or 0
         sold = max(0, n0 - n1)
         self._sold_trip = getattr(self, "_sold_trip", 0) + sold
@@ -12149,7 +12200,7 @@ class Bot:
         sc = self.rect[2] / 1280.0
         P = lambda x, y: self.abs_pt(x * sc, y * sc)
         idb = self._items_db()
-        self._inv_cache = None
+        self._inv_cache = self._oinv_cache = None
         inv0 = self._inv_mem() or []
         if len(inv0) >= self.INV_SLOTS:
             self.log(f"🛡 No compro {b['name']}: el bolso está lleno.")
@@ -12182,7 +12233,7 @@ class Bot:
         time.sleep(0.2)
         winapi.click(*P(220, 561))
         time.sleep(1.8)
-        self._inv_cache = None
+        self._inv_cache = self._oinv_cache = None
         ids0 = sorted(i["id"] for i in inv0)
         new = sorted(i["id"] for i in self._inv_mem() or [])
         for i in ids0:
