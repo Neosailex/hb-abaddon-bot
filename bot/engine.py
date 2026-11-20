@@ -5988,6 +5988,40 @@ class Bot:
                 r["kills"] = int(r.get("kills", 0) * 0.5)
         self._nest_decide(mk, pits, now)
 
+    def _nest_far(self, mk, here_rt, now):
+        """REGLA (Juan): manda la experiencia, aunque el nido esté en otro mapa (el 4º piso de un dungeon). Si en
+        otro mapa conocido hay un nido medido que rinde 30% más que el mejor de acá, que aguanto y al que sé
+        llegar, voy. True = salí para allá."""
+        if getattr(self, "goto", None) or now - getattr(self, "_nfar_t", 0) < 600:
+            return False
+        self._nfar_t = now
+        cur = self.pos.get("map") or ""
+        avoid = self._avoid()
+        best = None
+        for mk2, recs in (self.world.learn.get("nest_rate") or {}).items():
+            if mk2 == mk or any(self._same(mk2, a) for a in avoid):
+                continue
+            for k2, r in recs.items():
+                rt = self._nest_rate(r)
+                nm = r.get("mob")
+                if not rt or not nm or not self._can_face(nm):
+                    continue
+                if best is None or rt > best[0]:
+                    best = (rt, mk2, k2, nm)
+        if not best or best[0] < 1.3 * max(here_rt or 0, 1):
+            return False
+        rt, mk2, k2, nm = best
+        name = next((n for n in self.world.files if n.lower() == mk2), None) or mk2
+        if not self._known_route(cur, name, avoid):
+            return False
+        x2, y2 = (int(v) for v in k2.split(","))
+        self.goto = {"map": name, "x": x2, "y": y2, "t": now}
+        self.world.learn.setdefault("oly_hot", {})[mk2] = {"x": x2, "y": y2, "t": now, "exp": 0}
+        f_ = lambda v: f"{int(v):,}".replace(",", ".")
+        self.log(f"📊 El mejor nido que conozco está en {name}: {nm} ({x2},{y2}) da {f_(rt)} de exp por hora"
+                 + (f" contra {f_(here_rt)} acá" if here_rt else "") + ". Voy para allá.")
+        return True
+
     def _nest_decide(self, mk, pits, now):
         """Cada hora: si hay un nido que nunca medí (o con medición vieja), lo pruebo 15 min. Al terminar la prueba
         (o si ya están todos medidos) me quedo con el que más experiencia por hora da de los que aguanto, y ese
@@ -6029,9 +6063,12 @@ class Bot:
         elif md_ != "quest" and now - getattr(self, "_nest_probe_t", 0) > 60 * float(self.cfg.get("nest_probe_min", 60)) and not (
                 md_ == "caza" and any(self._nest_rate(r_) is not None for _p, _n, r_ in ok)):  # Caza: ya tengo uno medido, me quedo
             unk = [(p, nm, r) for p, nm, r in ok if self._nest_rate(r) is None or now - float((r or {}).get("t", 0)) > 6 * 3600]
+            # solo pruebo los que PODRÍAN rendir más que el mejor que ya tengo (nada de probar slimes estando en orcos)
+            best_known = max([self._nest_rate(r_) or 0 for _p, _n, r_ in ok] + [0])
+            unk = [c for c in unk if self._pit_rate(mk, c[0], c[1])[0] >= 0.8 * best_known]
             if unk:
                 px, py = self.pos["x"], self.pos["y"]
-                p, nm, r = min(unk, key=lambda c: max(abs(c[0]["x"] - px), abs(c[0]["y"] - py)))
+                p, nm, r = max(unk, key=lambda c: self._pit_rate(mk, c[0], c[1])[0])
                 k = f"{int(p['x'])},{int(p['y'])}"
                 self._nest_probe = {"k": k, "mob": nm, "t0": now, "s0": float((r or {}).get("secs", 0))}
                 self._nest_probe_t = now
@@ -6054,6 +6091,11 @@ class Bot:
             sc = rt * (1.5 if nm in qm else 1.0)
             if best is None or sc > best[0]:
                 best = (sc, p, nm, rt)
+        try:
+            if md_ in ("auto", "economico") and self._nest_far(mk, best[3] if best else 0, now):
+                return
+        except Exception:
+            pass
         if not best:
             return
         _sc, p, nm, rt = best
@@ -6903,6 +6945,17 @@ class Bot:
                     p["mob"] = top
                     self.log(f"🗺 Nido de ({p['x']},{p['y']}): confirmado, es de {top}.")
 
+    def _pit_rate(self, mk, p, nm):
+        """Exp por hora de un nido: la medida (real o estimada con lo que paga el server) o, si nunca lo cacé, una
+        estimación por lo que da el bicho (exp por bicho × unos 400 por hora). Así la exp manda al elegir."""
+        r = ((self.world.learn.get("nest_rate") or {}).get(mk) or {}).get(f"{int(p['x'])},{int(p['y'])}")
+        rt = self._nest_rate(r) if r else None
+        if rt is not None:
+            return rt, True
+        k = self._xu_k() or 0
+        xu = self._mob_xu(nm) if nm else 0
+        return (xu * k * 400.0 if k and xu else 0.0), False
+
     def _pit_pick(self):
         """El nido que me conviene ahora: de un bicho que aguanto, con prioridad al de la misión y a los cercanos."""
         px, py = self.pos["x"], self.pos["y"]
@@ -6933,7 +6986,10 @@ class Bot:
             # el nido del bicho de la misión pesa mucho más: una misión de 200 orcos se hace en el nido de orcos
             if qm and nm not in qm and strict_q:
                 continue  # misión estricta: solo nidos de su bicho (si hay alguno conocido)
-            score = (5.0 if nm in qm else 1.0) * (1.3 if p.get("mob") else 1.0) / (1.0 + dist / 80.0)
+            # REGLA (Juan): la prioridad es la EXPERIENCIA. La distancia solo desempata (casi nada).
+            mk_ = (self.pos.get("map") or "").strip().lower()
+            rt_, _meas = self._pit_rate(mk_, p, nm)
+            score = (1.5 if nm in qm else 1.0) * (rt_ + 1.0) * (1.0 - min(dist, 300) / 3000.0)
             if best is None or score > best[0]:
                 best = (score, p, nm)
         return best
@@ -8750,6 +8806,9 @@ class Bot:
     def _spawn_step(self, mp, mk, z, x, y):
         """Con la tabla de zonas de bichos del mapa: elijo la zona que más rinde entre las de bichos que ya puedo
         enfrentar (las que todavía no medí valen como "prometedoras": voy y las pruebo). None = no hay tabla."""
+        recs_ = (self.world.learn.get("nest_rate") or {}).get(mk) or {}
+        if self.bot_mode() not in ("manual", "cartografo") and any((self._nest_rate(r_) or 0) > 0 for r_ in recs_.values()):
+            return None  # ya medí nidos acá: elijo por experiencia medida, no por la tabla de nivel
         sp = getattr(self, "_spawns", None)
         if sp is None:
             sp = self._spawns = self._spawns_all()
