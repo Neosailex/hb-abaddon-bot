@@ -1,1 +1,1 @@
-{"version": 474, "notes": "Caminar en segundo plano: el juego no toma el click mantenido por mensajes (caminaba 4-6 baldosas hasta el punto y frenaba 2 s). Ahora da un click nuevo en cada paso, siempre unas baldosas adelante: camina de corrido."}
+{"version": 475, "notes": "Arreglo de la 474 (en segundo plano no caminaba): vuelve el click mantenido; si en 0,6 s no se movió, suelta y vuelve a apretar más adelante (antes esperaba 2 s)."}
