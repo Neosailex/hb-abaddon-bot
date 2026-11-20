@@ -1206,6 +1206,16 @@ class Bot:
                 self._gear_mem()
         except Exception:
             pass
+        # experiencia real: el cartel 'EXP obtenida en los últimos 10 segundos' (abajo a la izquierda), cada 5 s
+        try:
+            if self.running and cfgmod.server_slug(cfg) != "abaddon" and self.img is not None \
+                    and time.time() - getattr(self, "_expscan_t", 0) > 5:
+                self._expscan_t = time.time()
+                H_, W_ = self.img.shape[:2]
+                ws_ = ocr.read_words(self.img, {"x1": 0, "y1": int(H_ * 0.80), "x2": int(W_ * 0.55), "y2": int(H_ * 0.915)}, scale=1.0)
+                self._exp_msg(" ".join(w[0].lower() for w in ws_), time.time())
+        except Exception:
+            pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
         try:
             if cfg["mode"] == "auto" and not self._fleeing() and not self._carto_go() and self._reflex():
@@ -5802,6 +5812,44 @@ class Bot:
         r["kills"] = int(r.get("kills", 0)) + 1
         r["xu"] = float(r.get("xu", 0)) + self._mob_xu(name)
 
+    def _exp_msg(self, t, now):
+        """El juego avisa abajo a la izquierda 'EXP obtenida en los últimos 10 segundos: +6.525' (idea de Juan).
+        Es la experiencia REAL: la sumo al nido donde estoy y a la cuenta de la sesión."""
+        import re as _re
+        m = _re.search(r"ltimos?\s+(\d+)\s*seg\w*\W*\+?\s*([\d][\d\.,]*)", t)
+        if not m:
+            return
+        v = int(_re.sub(r"[^\d]", "", m.group(2)) or 0)
+        if v <= 0 or v > 50_000_000:
+            return
+        last = getattr(self, "_expm_last", (0, -1))
+        if v == last[1] and now - last[0] < 15:
+            return  # el mismo cartel todavía en pantalla
+        self._expm_last = (now, v)
+        if not getattr(self, "_expm_said", False):
+            self._expm_said = True
+            self.log(f"📈 Leo la experiencia real del juego: +{v:,} en {m.group(1)} s. Con esto mido los nidos de verdad.".replace(",", "."))
+        lg = self.__dict__.setdefault("_exp_log", [])
+        lg.append((now, v))
+        while lg and now - lg[0][0] > 3600:
+            lg.pop(0)
+        na = getattr(self, "_nest_active", None)
+        mk = (self.pos.get("map") or "").strip().lower()
+        if na and na.get("mk") == mk and not self._in_town():
+            r = self._nest_rec(mk, na["x"], na["y"], na.get("mob"))
+            if not r.get("real"):
+                # desde ahora mido con la experiencia real: empiezo el nido de cero
+                r.update(exp=0, secs=0.0, xu=0.0, kills=0, gold=0, real=True)
+            r["exp"] = int(r.get("exp", 0)) + v
+
+    def exp_hour(self):
+        """Experiencia real de la última hora (de los carteles del juego), o None si todavía no vi ninguno."""
+        lg = getattr(self, "_exp_log", None)
+        if not lg:
+            return None
+        span = max(600.0, time.time() - lg[0][0])
+        return int(sum(v for _t, v in lg) * 3600.0 / span)
+
     def _xu_k(self):
         """Experiencia real por 'unidad' de la base (cuánto paga este server). Sale de comparar lo que subió la barra
         con lo que maté en todos los nidos juntos (la mediana: una subida de nivel mal leída no la arruina)."""
@@ -5809,7 +5857,7 @@ class Bot:
         for d in (self.world.learn.get("nest_rate") or {}).values():
             for r in d.values():
                 xu, ex = float(r.get("xu", 0)), float(r.get("exp", 0))
-                if xu >= 200 and ex > 0:
+                if xu >= 200 and ex > 0 and r.get("real"):
                     vals.append(ex / xu)
         vals.sort()
         return vals[len(vals) // 2] if vals else None
@@ -5823,9 +5871,14 @@ class Bot:
             return None
         key = key or ("gold" if self.bot_mode() == "economico" else "exp")
         if key == "exp":
+            if r.get("real"):
+                return 3600.0 * float(r.get("exp", 0)) / float(r["secs"])  # experiencia real (carteles del juego)
             if "xu" not in r:
                 return None  # medida vieja (de la barra): no sirve, se vuelve a medir
-            k = self._xu_k() or 1000.0
+            k = self._xu_k()
+            if not k:
+                return None  # todavía no sé cuánto paga este server: sin inventar números
+            k = k
             return 3600.0 * float(r.get("xu", 0)) * k / float(r["secs"])
         return 3600.0 * float(r.get(key, 0)) / float(r["secs"])
 
@@ -13016,6 +13069,10 @@ class Bot:
             H, W = self.img.shape[:2]
             ws = ocr.read_words(self.img, {"x1": 0, "y1": int(H * 0.80), "x2": int(W * 0.55), "y2": int(H * 0.915)}, scale=1.0)
             t = " ".join(w[0].lower() for w in ws)
+            try:
+                self._exp_msg(t, now)
+            except Exception:
+                pass
             if any(k in t for k in ("desgast", "repáral", "reparal", "se rompi", "está roto", "esta roto", "agotad", "exhaust", "broken")):
                 self._worn_seen = now
                 return True
@@ -14925,7 +14982,7 @@ class Bot:
             "progress": {"level": self.cfg.get("travel", {}).get("my_level"), "exp": self.progress.get("exp"),
                          "rate": self.progress.get("rate"), "eta_min": self.progress.get("eta_min"),
                          "exp_num": self.progress.get("exp_num"), "exp_left": self.progress.get("exp_left"),
-                         "levelups": self.progress.get("levelups", 0)},
+                         "levelups": self.progress.get("levelups", 0), "exp_h": self.exp_hour()},
             "nav": {"status": self.nav["status"], "dest": self.nav["dest"]},
             "mobs": self._mobs_near_view(),
             "goto": getattr(self, "goto", None),

@@ -767,7 +767,7 @@ async function poll(){
     $('#cNav').textContent=s.nav&&s.nav.status?s.nav.status:'';
     const a=$('#cAdmin'); a.textContent=s.admin?'Admin':'Sin admin'; a.className='chip '+(s.admin?'good':'');
     const pr=s.progress||{};$('#pLvl').textContent=pr.level||'—';
-    $('#bExp').style.width=(pr.exp||0)+'%';$('#tExp').textContent=pr.exp==null?'sin leer todavía':pr.exp.toFixed(2)+'%'+(pr.exp_left!=null?' · faltan '+fmtN(pr.exp_left):'');
+    $('#bExp').style.width=(pr.exp||0)+'%';$('#tExp').textContent=pr.exp==null?(pr.exp_h!=null?fmtN(pr.exp_h)+' exp/hora':'sin leer todavía'):pr.exp.toFixed(2)+'%'+(pr.exp_left!=null?' · faltan '+fmtN(pr.exp_left):'')+(pr.exp_h!=null?' · '+fmtN(pr.exp_h)+'/h':'');
     $('#pEta').textContent=pr.rate?`+${pr.rate}%/h · próximo nivel en ${pr.eta_min!=null?(pr.eta_min>=60?Math.floor(pr.eta_min/60)+' h '+(pr.eta_min%60)+' min':pr.eta_min+' min'):'—'}${pr.levelups?` · ${pr.levelups} niveles hoy`:''}`:'Midiendo el ritmo…';
     setBar('#bHp','#tHp',s.bars.hp); setBar('#bMp','#tMp',s.bars.mp); setBar('#bSp','#tSp',s.bars.sp);
     $('#sK').textContent=s.stats.kills; $('#sKh').textContent=s.stats.kph; $('#sT').textContent=fmtT(s.stats.runtime);
