@@ -1,1 +1,1 @@
-{"version": 448, "notes": "Modo Quest: hora de 50 min de misiones + 10 min de mantenimiento (reparar, stats, ordenar bolso, pociones). Fuera de esa franja solo frena si se rompe el equipo. Con una misión lista va directo al NPC y la cobra apenas llega (antes llegaba, se ponía a cazar un slime y se alejaba)."}
+{"version": 449, "notes": "Modo Quest: con el bolso lleno el NPC no paga (aunque el premio sea oro). Antes de cobrar come 2 comidas para hacer lugar; si no alcanza, va a la tienda a vender y vuelve a cobrar. En Quest no prueba nidos nuevos cada hora."}

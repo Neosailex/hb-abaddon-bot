@@ -5780,7 +5780,7 @@ class Bot:
                      + (f"{int(rt):,}".replace(",", ".") + " de experiencia por hora." if rt is not None else "no llegué a medirlo.")
                      + " Comparo con los otros y me quedo con el que más rinde.")
             self.world.learn.setdefault("oly_hot", {}).pop(mk, None)  # que la comparación de abajo elija de cero
-        elif now - getattr(self, "_nest_probe_t", 0) > 60 * float(self.cfg.get("nest_probe_min", 60)) and not (
+        elif md_ != "quest" and now - getattr(self, "_nest_probe_t", 0) > 60 * float(self.cfg.get("nest_probe_min", 60)) and not (
                 md_ == "caza" and any(self._nest_rate(r_) is not None for _p, _n, r_ in ok)):  # Caza: ya tengo uno medido, me quedo
             unk = [(p, nm, r) for p, nm, r in ok if self._nest_rate(r) is None or now - float((r or {}).get("t", 0)) > 6 * 3600]
             if unk:
@@ -9305,6 +9305,39 @@ class Bot:
                     return False
             except Exception:
                 pass
+            # modo Quest: con el bolso lleno el NPC no paga (ni siquiera si el premio es oro). Antes de cobrar, o si
+            # apreté cobrar y no salió, voy a la tienda a vender y vuelvo
+            if self.bot_mode() == "quest":
+                bs_ = getattr(self, "_bag_slots", None)
+                full_ = bool(bs_ and now - bs_[2] < 1800 and bs_[0] >= bs_[1] - 1)
+                fq_ = qf.get(hud[0], {})
+                sth_ = getattr(self, "_shop_th", None)
+                if sth_ is not None and sth_.is_alive():
+                    return True
+                if (full_ or fq_.get("n", 0) >= 1) and now - getattr(self, "_q_eat_t", 0) > 120:
+                    # primero como 2 comidas (aunque esté lleno) para liberar lugar: es lo más rápido
+                    self._q_eat_t = now
+                    sm0 = self._supplies_mem() or {}
+                    if (sm0.get("meat") or 0) > 0:
+                        self.__dict__.get("_no_item", {}).pop("meat", None)
+                        ate = sum(1 for _ in range(2) if self._consume("meat") and time.sleep(1.2) is None)
+                        sm1 = self._supplies_mem() or {}
+                        self.log(f"📜 Bolso lleno para cobrar '{hud[0]}': comí {ate} comida/s para hacer lugar"
+                                 + (f" ({sm0.get('items')}→{sm1.get('items')} cosas)." if sm1 else "."))
+                        if sm1 and sm0.get("items") and sm1.get("items", 99) < sm0["items"]:
+                            qf[hud[0]] = {"t0": now, "n": 0, "until": 0}
+                            self._bag_slots = None
+                            self._q_t = 0
+                            return True
+                if (full_ or fq_.get("n", 0) >= 1) and now - getattr(self, "_q_sell_t", 0) > 600:
+                    self._q_sell_t = now
+                    qf[hud[0]] = {"t0": now, "n": 0, "until": 0}
+                    self.goto, self._q_npc = None, None
+                    self.log(f"📜 Bolso lleno: el NPC no me paga '{hud[0]}'. Voy a vender a la tienda y vuelvo a cobrar.")
+                    self._shop_last = now
+                    self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
+                    self._shop_th.start()
+                    return True
             # las misiones nunca bloquean la caza: 3 minutos para llegar y cobrar; si no sale, la dejo media hora
             f_ = qf.setdefault(hud[0], {"t0": now, "n": 0, "until": 0})
             if now - f_.get("seen", 0) > 120:
