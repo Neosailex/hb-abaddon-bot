@@ -1,1 +1,1 @@
-{"version": 476, "notes": "Segundo plano: re-aprieta a los 0,2 s sin moverse (antes 0,6)."}
+{"version": 477, "notes": "Caminar: nunca clickea encima del propio personaje (el juego lo toma como levantar y se agacha). Apunta al menos 2 baldosas adelante; si no puede, corre el punto al costado. Re-apretado en segundo plano: 0,6 s."}

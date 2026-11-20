@@ -7971,6 +7971,14 @@ class Bot:
                         self.log("🧹 Trabado muchas veces seguidas: solté teclas, cerré ventanas y guardé una captura (trabado_dbg.jpg).")
                     except Exception:
                         pass
+        # nunca clickear encima del propio personaje: el juego lo toma como 'levantar' y se agacha (Juan). La
+        # baldosa de arriba y las pegadas tapan el cuerpo: apunto al menos 2 baldosas adelante en el camino.
+        if max(abs(wp[0] - px), abs(wp[1] - py)) < 2:
+            far_ = next((q for q in path[2:5] if max(abs(q[0] - px), abs(q[1] - py)) >= 2 and m.los((px, py), q)), None)
+            if far_:
+                wp = far_
+            elif wp[1] < py and abs(wp[0] - px) <= 1:
+                wp = (wp[0] + (1 if wp[0] >= px else -1), wp[1])  # justo arriba = el cuerpo: corro una baldosa
         tw, th = self._tile()
         cx, cy = self._char()
         # en Helbreath se camina manteniendo el click: muevo el cursor hacia el próximo punto y lo dejo apretado
