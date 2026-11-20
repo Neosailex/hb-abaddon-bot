@@ -1,4 +1,5 @@
 """Acceso a Windows: ventana del juego, teclado y mouse por SendInput (scan codes, funciona con juegos DirectX viejos)."""
+import os
 import ctypes
 import sys
 import time
@@ -161,10 +162,39 @@ def list_windows():
     return out
 
 
+_NOT_GAME = ("brave", "chrome", "msedge", "firefox", "opera", "vivaldi", "discord", "explorer", "code", "notepad",
+             "pythonw", "python", "claude", "telegram", "whatsapp", "obs", "spotify", "steam", "msedgewebview2")
+
+
+def window_exe(hwnd):
+    """Nombre del programa dueño de la ventana (ej. 'OlympiaGame.exe'), o ''."""
+    if not IS_WIN or not hwnd:
+        return ""
+    try:
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        k32 = ctypes.windll.kernel32
+        h = k32.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return ""
+        buf = ctypes.create_unicode_buffer(520)
+        n = wintypes.DWORD(520)
+        ok = k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n))
+        k32.CloseHandle(h)
+        return os.path.basename(buf.value) if ok else ""
+    except Exception:
+        return ""
+
+
 def find_window(title_part):
+    """La ventana del juego por título, pero nunca la de un navegador u otro programa (pasó: una pestaña de Brave
+    con 'Helbreath Olympia Farm Bot - YouTube' le ganó al juego y el bot leía YouTube)."""
     title_part = (title_part or "").lower()
     for hwnd, title in list_windows():
         if title_part and title_part in title.lower():
+            exe = window_exe(hwnd).lower()
+            if exe and any(exe.startswith(b) for b in _NOT_GAME):
+                continue
             return hwnd, title
     return None, None
 
