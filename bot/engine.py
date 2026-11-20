@@ -5380,6 +5380,10 @@ class Bot:
                     pass
                 self.log(f"✝ {tr.name} muerto (kill #{self.stats['kills']}).")
                 try:
+                    self._nest_kill(tr.name)
+                except Exception:
+                    pass
+                try:
                     if getattr(tr, "adj_since", None):
                         self._hit_pace(tr.name, now - tr.adj_since, now)
                 except Exception:
@@ -5599,17 +5603,57 @@ class Bot:
     # ---------- rendimiento por nido: experiencia por hora REAL (con caminar y descansar) ----------
     def _nest_rec(self, mk, x, y, mob=None):
         d = self.world.learn.setdefault("nest_rate", {}).setdefault(mk, {})
-        r = d.setdefault(f"{int(x)},{int(y)}", {"exp": 0, "secs": 0.0})
+        r = d.setdefault(f"{int(x)},{int(y)}", {"exp": 0, "secs": 0.0, "xu": 0.0, "kills": 0})
+        if "xu" not in r:  # medida vieja (solo de la barra de experiencia): empiezo de cero contando muertes
+            r.update(exp=0, secs=0.0, xu=0.0, kills=0, gold=0)
         if mob:
             r["mob"] = mob
         return r
 
+    def _mob_xu(self, name):
+        """Cuánta experiencia da un bicho, en 'unidades' de la base del juego (exp_dice: Slime 4, Ant 8, Snake 12,
+        Orc 20, Scorpion 28). Sirve para comparar nidos sin depender de leer la barra de experiencia."""
+        n_ = str(name or "").lower()
+        for m in self._creatures_db().values():
+            if str(m.get("name", "")).lower() == n_:
+                return float(m.get("exp_dice") or 0)
+        return 0.0
+
+    def _nest_kill(self, name):
+        """Cada bicho que mato le suma al nido donde estoy: 1 muerte y su experiencia de la base del juego."""
+        na = getattr(self, "_nest_active", None)
+        mk = (self.pos.get("map") or "").strip().lower()
+        if not na or na.get("mk") != mk or self._in_town():
+            return
+        r = self._nest_rec(mk, na["x"], na["y"], na.get("mob"))
+        r["kills"] = int(r.get("kills", 0)) + 1
+        r["xu"] = float(r.get("xu", 0)) + self._mob_xu(name)
+
+    def _xu_k(self):
+        """Experiencia real por 'unidad' de la base (cuánto paga este server). Sale de comparar lo que subió la barra
+        con lo que maté en todos los nidos juntos (la mediana: una subida de nivel mal leída no la arruina)."""
+        vals = []
+        for d in (self.world.learn.get("nest_rate") or {}).values():
+            for r in d.values():
+                xu, ex = float(r.get("xu", 0)), float(r.get("exp", 0))
+                if xu >= 200 and ex > 0:
+                    vals.append(ex / xu)
+        vals.sort()
+        return vals[len(vals) // 2] if vals else None
+
     def _nest_rate(self, r, key=None):
         """Experiencia (o con key='gold', oro) por hora de un nido, o None si no lo medí al menos 10 minutos.
-        Sin key: el modo Económico mide oro, los demás experiencia."""
+        Sin key: el modo Económico mide oro, los demás experiencia. La experiencia sale de LO QUE MATO (cantidad x
+        lo que da cada bicho), no de la barra: la barra depende de leer bien el nivel y en Manual eso no pasa
+        (medía Giant Scorpion 14.677/h matando 48 por hora, y Giant Ant 960.341 por una subida de nivel)."""
         if not r or float(r.get("secs", 0)) < 600:
             return None
         key = key or ("gold" if self.bot_mode() == "economico" else "exp")
+        if key == "exp":
+            if "xu" not in r:
+                return None  # medida vieja (de la barra): no sirve, se vuelve a medir
+            k = self._xu_k() or 1000.0
+            return 3600.0 * float(r.get("xu", 0)) * k / float(r["secs"])
         return 3600.0 * float(r.get(key, 0)) / float(r["secs"])
 
     def _nest_track(self):
@@ -5655,6 +5699,8 @@ class Bot:
                 r["secs"] *= 0.5
                 r["exp"] = int(r.get("exp", 0) * 0.5)
                 r["gold"] = int(r.get("gold", 0) * 0.5)
+                r["xu"] = float(r.get("xu", 0)) * 0.5
+                r["kills"] = int(r.get("kills", 0) * 0.5)
         self._nest_decide(mk, pits, now)
 
     def _nest_decide(self, mk, pits, now):
