@@ -5566,13 +5566,24 @@ class Bot:
             if a.get("mk") == mk:
                 self.world.learn.setdefault("oly_hot", {})[mk] = {"x": a["x"], "y": a["y"], "t": now, "exp": 0}
         elif m == "quest":
+            # QUEST (Juan): al prender cobra todo lo que pueda, después pide lo que pueda hacer (solo de matar,
+            # también las diarias), termina una, la cobra y sigue con la siguiente en el orden en que las pidió.
+            # Si no tiene ninguna y no hay ninguna que pueda pedir, pasa a Automático.
             qs = getattr(self, "quests", None)
-            if qs is not None and not qs:
+            hud = getattr(self, "quest", None)
+            sin_activa = (qs is not None and not qs) or (qs is None and not hud)
+            puede_pedir = False
+            if sin_activa:
+                try:
+                    puede_pedir = self._quest_pick() is not None
+                except Exception:
+                    pass
+            if sin_activa and not puede_pedir:
                 if not getattr(self, "_mq_empty", 0):
                     self._mq_empty = now
                 elif now - self._mq_empty > 300:
                     self._mq_empty = 0
-                    self.set_mode("auto", "no quedan misiones")
+                    self.set_mode("auto", "no hay misiones que pueda hacer")
             else:
                 self._mq_empty = 0
         elif m == "cartografo":
@@ -5936,10 +5947,37 @@ class Bot:
             pass
         pr = getattr(self, "_nest_probe", None)
         nxt = getattr(self, "_nest_probe_t", 0)
-        return {"nests": nests, "probe": (pr or {}).get("mob"),
+        return {"nests": nests, "quests": self._quests_view(), "probe": (pr or {}).get("mob"),
                 "next_probe_min": int(max(0, 60 * float(self.cfg.get("nest_probe_min", 60)) - (now - nxt)) / 60) if nxt else None,
                 "running": self.running, "age": int(now - dv["t"]) if dv.get("t") else None, "turno": dv.get("turno"),
                 "rinde": dv.get("rinde"), "peleando": fighting, "estado": self.stats.get("state"), "mods": mods, "salud": sal}
+
+    def _quests_view(self):
+        """Tablero de misiones para el Cerebro: todas las del juego, por nivel, con dónde se piden, qué hay que hacer
+        y qué dan. Marca la activa y las que tocan para mi nivel."""
+        try:
+            db = self._quest_db() or {}
+        except Exception:
+            return []
+        npcs = db.get("npcs") or {}
+        lvl = int((self.cfg.get("travel") or {}).get("my_level") or 0)
+        try:
+            qa = self._quest_active()
+            act = qa[0]["name"] if qa else None
+        except Exception:
+            act = None
+        out = []
+        for q in sorted(db.get("quests") or [], key=lambda q: (int(q.get("level") or 1), q.get("name", ""))):
+            where = [f"{m} ({p[0]},{p[1]})" for m, p in (npcs.get(q.get("npc")) or {}).items()]
+            objs = [f"{o['count']} {o['mob'] if o['mob'] != '*' else 'bichos (cualquiera)'}{' élite' if o.get('elite') else ''}"
+                    for o in q.get("objectives") or []]
+            mx = q.get("max_level")
+            out.append({"name": q.get("name"), "npc": q.get("npc"), "donde": where, "mapas": q.get("maps") or [],
+                        "nivel": int(q.get("level") or 1), "max": mx, "hacer": objs, "notas": q.get("notes") or "",
+                        "exp": int(q.get("exp") or 0), "oro": int(q.get("gold") or 0), "repite_h": q.get("repeat_h"),
+                        "activa": q.get("name") == act,
+                        "mia": bool(lvl) and int(q.get("level") or 1) <= lvl and (not mx or lvl < int(mx))})
+        return out
 
     def _salud(self):
         """TABLERO DE SALUD: cada minuto miro si las funciones básicas se están cumpliendo y, si una no, lo digo
@@ -9171,7 +9209,8 @@ class Bot:
     def _quest_step(self):
         """Misiones: acepta las que ofrezca un NPC con '!' amarillo y, cuando el cartel marca la misión completa,
         vuelve al NPC (Ctrl+Q dice dónde está) y cobra eligiendo el premio más útil para el guerrero 2H."""
-        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.cfg.get("quests_auto", True):
+        # modo Quest (Juan): cobra y pide aunque el cobro automático esté apagado para los otros modos
+        if cfgmod.server_slug(self.cfg) == "abaddon" or (not self.cfg.get("quests_auto", True) and self.bot_mode() != "quest"):
             return False
         now = time.time()
         if self.state != "seek" or self._under_attack() or self._fleeing() or not self.rect:

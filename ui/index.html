@@ -448,6 +448,12 @@ input[type=range]{accent-color:var(--gold);width:100%}
           <div class="kv" id="brNests" style="grid-template-columns:1.4fr 1fr 1fr .8fr"></div>
           <p class="hint" style="margin-top:10px">Cuenta el tiempo de caminar y descansar, no el del pueblo. Hace falta medir 10 min para tener número. Cada hora prueba 15 min un nido sin medir y se queda con el que más rinde (la misión activa le suma 50% a su bicho).</p>
         </div>
+        <div class="card" style="grid-column:1/-1">
+          <h2>Misiones (por nivel)</h2>
+          <div class="chips" style="margin-bottom:10px"><label class="chip" style="cursor:pointer"><input type="checkbox" id="qMine" checked style="margin-right:6px">Solo las de mi nivel</label><span class="chip" id="qCount">—</span></div>
+          <div id="brQuests" style="max-height:440px;overflow:auto;padding-right:6px"></div>
+          <p class="hint" style="margin-top:10px">Salen de los archivos del juego. Tocá una para ver dónde se pide, qué hay que hacer y qué da. ★ = la que tenés activa.</p>
+        </div>
       </div>
     </section>
 
@@ -609,6 +615,24 @@ async function loadEco(){
 }
 setInterval(()=>{if(curPage==='eco')loadEco()},5000);
 setInterval(()=>{if(curPage==='brain')loadBrain()},2000);
+let QOPEN=new Set();
+function renderQuests(qs){
+  const box=$('#brQuests'); if(!box)return;
+  box.querySelectorAll('details').forEach(d=>{const k=d.dataset.k; if(d.open)QOPEN.add(k); else QOPEN.delete(k)});
+  const mine=$('#qMine').checked; const L=qs.filter(q=>!mine||q.mia||q.activa);
+  $('#qCount').textContent=L.length+' de '+qs.length+' misiones';
+  const sig=JSON.stringify(L.map(q=>[q.name,q.activa]))+mine; if(box.dataset.sig===sig)return; box.dataset.sig=sig;
+  box.innerHTML=L.map(q=>{const k=esc(q.name+'|'+q.npc);
+    const rep=q.repite_h?('se repite cada '+q.repite_h+' h'):'una sola vez';
+    return `<details data-k="${k}" ${QOPEN.has(q.name+'|'+q.npc)?'open':''} style="border-bottom:1px solid rgba(255,255,255,.06);padding:6px 0">
+      <summary style="cursor:pointer;${q.activa?'color:var(--gold,#e7c66b);font-weight:700':(q.mia?'':'color:var(--muted)')}">Nv ${q.nivel}${q.max?'–'+(q.max-1):''} · ${q.activa?'★ ':''}${esc(q.name)} <span style="color:var(--muted)">— ${esc(q.npc||'?')}</span></summary>
+      <div class="kv" style="grid-template-columns:1fr 3fr;margin:8px 0 4px 14px">
+        <span style="color:var(--muted)">Dónde se pide</span><span>${esc(q.npc||'?')}${q.donde.length?' — '+esc(q.donde.join(' / ')):''}</span>
+        <span style="color:var(--muted)">Qué hay que hacer</span><span>${esc(q.hacer.join(', ')||'—')}${q.mapas.length?' en '+esc(q.mapas.join(', ')):''}${q.notas?'<br>'+esc(q.notas):''}</span>
+        <span style="color:var(--muted)">Recompensa</span><span>${q.exp?fmtN(q.exp)+' de exp':''}${q.exp&&q.oro?' + ':''}${q.oro?fmtN(q.oro)+' de oro':''}${!q.exp&&!q.oro?'—':''} · ${rep}</span>
+      </div></details>`}).join('')||'<span>No hay misiones para mostrar</span>';
+}
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='qMine'){$('#brQuests').dataset.sig='';loadBrain()}});
 async function loadBrain(){
   if(!API||!API.brain)return;
   let b; try{b=await API.brain()}catch(_){return}
@@ -625,6 +649,7 @@ async function loadBrain(){
   $('#brProbe').textContent=b.probe?('🔎 Probando el nido de '+b.probe):(b.next_probe_min==null?'Próxima prueba: —':'Próxima prueba de nido en '+b.next_probe_min+' min');
   const nh=['Nido','Exp/hora','Medido','Zona'].map(h=>`<span style="color:var(--muted)">${h}</span>`).join('');
   $('#brNests').innerHTML=nh+((b.nests||[]).map(n=>`<span style="${n.zona?'color:var(--gold,#e7c66b);font-weight:700':''}">${esc(n.mob)} (${n.x},${n.y})</span><span>${n.rate==null?'sin medir':fmtN(Math.round(n.rate))}</span><span>${n.min} min</span><span>${n.zona?'◀ acá':''}</span>`).join('')||'<span>Todavía sin datos</span><span></span><span></span><span></span>');
+  renderQuests(b.quests||[]);
   const s=b.salud;
   if(!s){$('#brSalOk').textContent='Sin datos todavía';$('#brAlerts').innerHTML='';$('#brSal').innerHTML='';return}
   $('#brSalOk').innerHTML=s.ok?'<span style="color:#5fe08a">✔ Todo en orden</span>':'<span style="color:#ff6b6b">🚨 Hay problemas</span>';
