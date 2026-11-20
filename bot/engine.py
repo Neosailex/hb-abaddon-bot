@@ -9514,8 +9514,14 @@ class Bot:
         pre_ = any(norm(w[0]).startswith("abandon") for w in self._q_words(grab()))
         if not pre_:
             click(cx + (qn["x"] - self.pos["x"]) * tw, cy + (qn["y"] - self.pos["y"]) * th - th * 0.3)
-            time.sleep(2.2)
-            ws = self._q_words(grab())
+            # si estoy lejos el pj camina hasta el NPC antes de abrir la charla: espero hasta 8 s a que aparezca
+            # (la ventana se abre en cualquier lugar de la pantalla y queda quieta aunque me mueva: la busco entera)
+            t_ = time.time()
+            while True:
+                time.sleep(0.8)
+                ws = self._q_words(grab())
+                if any(norm(w[0]).startswith("misi") for w in ws) or time.time() - t_ > 8:
+                    break
             # la charla cambia según el NPC (Kiora: Comerciar/Descansar/Misión/Cancelar; Enzu: dos 'Misión:'): elijo el
             # renglón 'Misión: <esta misión>' o el que dice '(Completada)'
             cands_ = []
