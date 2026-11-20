@@ -5882,7 +5882,8 @@ class Bot:
         tr = str.maketrans({"o": "0", "O": "0", "D": "0", "Q": "0", "l": "1", "I": "1", "|": "1", "S": "5", "B": "8", "Z": "2"})
         for t in (ocr.read_text(crop), ocr.read_text_fixed(crop, 3, 150), ocr.read_text_fixed(crop, 4, 150)):
             t = (t or "").replace("Cl", "0")
-            m = _re.search(r"niv\w*\W*([\dOoDQlISBZ\.,]+)\s*\(\s*([\dOoDQlISBZ]+[\.,][\dOoDQlISBZ]+)\s*%", t)
+            # el '%' a veces sale '0/0' y el ')' como 'i' ('(69.290/0i'): tomo 2 decimales y listo
+            m = _re.search(r"niv\w*\W*([\dOoDQlISBZ\.,]+)\s*\(\s*([\dOoDQlISBZ]{1,2}[\.,][\dOoDQlISBZ]{1,2})", t)
             if not m:
                 continue
             left = int(_re.sub(r"[^\d]", "", m.group(1).translate(tr)) or -1)
