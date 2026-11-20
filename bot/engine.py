@@ -7162,6 +7162,9 @@ class Bot:
                     self._hot_go = None
                     self.log("🎯 Mi zona buena está vacía: la descarto y voy a un nido.")
                     h, dry = None, True
+                pg_ = getattr(self, "_pit_go", None)
+                if h and pg_ and now - pg_.get("t", 0) < 45 and tuple(pg_.get("k") or ()) != (h["x"], h["y"]):
+                    h = None  # ya voy a un nido: una sola orden de caminar (antes las dos se pisaban y frenaba)
                 if h and max(abs(h["x"] - px), abs(h["y"] - py)) > 8 and now - getattr(self, "_hot_fail", 0) > 300:
                     m = self.world.map_for(self.pos.get("map") or "")
                     g = m.nearest_walkable(h["x"], h["y"], r=5) if m else None
@@ -7196,6 +7199,9 @@ class Bot:
                         if not pg or pg["k"] != (p["x"], p["y"]):
                             pg = self._pit_go = {"k": (p["x"], p["y"]), "t": now, "d": 999, "p": p, "nm": nm}
                             self.log(f"🗺 Acá no gano experiencia: voy al nido de {nm} en ({p['x']},{p['y']}).")
+                            # ese nido pasa a ser mi zona buena: 'volver a la zona' y 'ir al nido' apuntan al mismo lugar
+                            self.world.learn.setdefault("oly_hot", {})[(self.pos.get("map") or "").strip().lower()] = \
+                                {"x": int(p["x"]), "y": int(p["y"]), "t": now, "exp": 0}
                         dcur = max(abs(p["x"] - px), abs(p["y"] - py))
                         if dcur < pg["d"]:
                             pg["d"], pg["t"] = dcur, now
@@ -7907,7 +7913,8 @@ class Bot:
             wp = p
         # parado con el click apretado: el cursor quedó sobre otro jugador/NPC/objeto y el juego no camina. Antes lo
         # notaba a los 4 s (se frenaba cada 5-8 baldosas en la ciudad); ahora a 1,2 s suelto y apunto corrido.
-        stuck = now - self.nav["still_since"] > (1.2 if self.nav.get("walking") else 4)
+        # (1,2 s era muy ansioso: con dos órdenes de caminar peleándose saltaba al costado y volvía, bailando en el lugar)
+        stuck = now - self.nav["still_since"] > (2.0 if self.nav.get("walking") else 4)
         if stuck:
             n_st = self.nav.get("stuck_n", 0) + 1
             self.nav["stuck_n"] = n_st
@@ -7916,8 +7923,10 @@ class Bot:
             self._release()
             if n_st == 2:
                 self._drop_cursor_item()
-            if n_st % 3:
-                # trabado: apunto al camino pero corrido una baldosa al costado (para no caer arriba de alguien)
+            if n_st % 3 == 1:
+                wp = path[min(1, len(path) - 1)]  # primera vez: solo suelto y vuelvo a apretar, mismo camino
+            elif n_st % 3:
+                # segunda: apunto al camino pero corrido una baldosa al costado (para no caer arriba de alguien)
                 b_ = path[min(3, len(path) - 1)]
                 dx_, dy_ = b_[0] - px, b_[1] - py
                 side_ = 1 if n_st % 2 else -1
