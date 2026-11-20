@@ -1186,6 +1186,12 @@ class Bot:
             self._hunger_watch()
         except Exception:
             pass
+        try:
+            if time.time() - getattr(self, "_chat_chk", 0) > 3 and not getattr(self, "_busy_ui", False):
+                self._chat_chk = time.time()
+                self._chat_close()
+        except Exception:
+            pass
         # durabilidad del equipo por memoria (cada 10 s, sin ventanas). Va ANTES de la regla de oro: en un nido lleno
         # el tick casi siempre termina ahí y antes nunca llegaba (el equipo se rompió sin aviso).
         try:
@@ -1838,7 +1844,12 @@ class Bot:
                 self._cover_since = now
             # Olympia: la vida en memoria no siempre está (hm None). Ahí la barra sola NO alcanza para darme por muerto
             # (la tienda o el chat la tapan y me 'moría' adentro de la tienda): manda el botón 'Reiniciar'
-            if hm is not None or cfgmod.server_slug(self.cfg) != "abaddon" or now - self._cover_since < 15:
+            # PERO barra en 0 (con maná) 10 s seguidos, afuera y sin ventanas mías abiertas = muerto aunque la
+            # memoria diga otra cosa (pasó: muerto tirado y 'Vida 0% y nadie me pega: descanso', sin revivir nunca)
+            mn_ = (self.pos.get("map") or "").lower()
+            indoors_ = any(k in mn_ for k in ("shop", "blacksmith", "hall", "warehouse", "guild", "church", "tienda", "herrer"))
+            long0_ = now - self._cover_since >= 10 and not getattr(self, "_busy_ui", False) and not indoors_
+            if not long0_ and (hm is not None or cfgmod.server_slug(self.cfg) != "abaddon" or now - self._cover_since < 15):
                 scr_dead = False
             if not scr_dead and now - getattr(self, "_cover_t", 0) > 6:
                 self._cover_t = now
@@ -2030,7 +2041,7 @@ class Bot:
                     self._release()
                     self.stats["state"] = f"descansando ({hp:.0f}%)"
                     return True
-            elif hp < self.learner.knob("rest_below_pct", 50) and not fighting and now > getattr(self, "_rest_block", 0) and not self._is_travelling():
+            elif hp > 0 and hp < self.learner.knob("rest_below_pct", 50) and not fighting and now > getattr(self, "_rest_block", 0) and not self._is_travelling():
                 self._rest_since = now
                 self._release()
                 self.state, self.target = "seek", None
@@ -3298,6 +3309,39 @@ class Bot:
             time.sleep(0.14)
         time.sleep(0.5)
 
+    def _chat_open(self, img=None):
+        """La barra de escribir del chat está abierta (franja negra sobre la barra de abajo). Con el chat abierto las
+        teclas (pociones, etc.) se escriben ahí en vez de usarse."""
+        img = self.img if img is None else img
+        if img is None:
+            return False
+        H, W = img.shape[:2]
+        st = img[int(H * 0.892):int(H * 0.908), int(W * 0.2):int(W * 0.85)].astype(int)
+        if st.size == 0:
+            return False
+        frac = float(((st < 30).all(axis=2)).mean())
+        if frac < 0.8:
+            return False
+        above = float(img[int(H * 0.80):int(H * 0.86), int(W * 0.2):int(W * 0.85)].mean())
+        return above > float(st.mean()) + 15  # pantalla toda oscura (cargando, cueva) no cuenta
+
+    def _chat_close(self, fresh=False):
+        """Si el chat quedó abierto (Enter), lo cierro con ESC (Enter mandaría lo escrito a todos). True = lo cerré."""
+        if cfgmod.server_slug(self.cfg) == "abaddon" or not self.rect:
+            return False
+        img = self.screen.grab(self.rect) if fresh else self.img
+        if not self._chat_open(img):
+            return False
+        for k_ in ("SHIFT", "ALT", "CTRL"):
+            winapi.key_up(k_)
+        winapi.press("ESC")
+        time.sleep(0.25)
+        now = time.time()
+        if now - getattr(self, "_chat_said", 0) > 120:
+            self._chat_said = now
+            self.log("💬 El chat estaba abierto (las teclas se escribían ahí en vez de tomar pociones): lo cerré.")
+        return True
+
     def _pot_key(self):
         """Poción de vida con la tecla del juego (1), sin abrir el bolso. Verifico en la memoria que haya una
         poción menos (mirar si sube la vida no sirve: en plena pelea la vida baja igual y parecía que fallaba)."""
@@ -3308,6 +3352,13 @@ class Bot:
         sm0 = self._supplies_mem()
         if not sm0 or sm0["pot"] <= 0:
             return False
+        # con el chat abierto la tecla se escribe en el chat ('!!') y no tomo nada: lo cierro antes. Y suelto Shift
+        # (levantar loot lo usa): con Shift apretado el 1 sale '!'.
+        try:
+            winapi.key_up("SHIFT")
+            self._chat_close(fresh=True)
+        except Exception:
+            pass
         winapi.press(str(key))
         t0 = time.time()
         while time.time() - t0 < 0.7:
