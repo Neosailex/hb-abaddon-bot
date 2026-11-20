@@ -5877,7 +5877,8 @@ class Bot:
         if img is None:
             return
         x1, y1, x2, y2 = (int(box[k]) for k in ("x1", "y1", "x2", "y2"))
-        crop = img[max(0, y1):y2, max(0, x1):x2]
+        # el texto 'A sig. nivel: 531.031 (49.23%)' es más largo que la posición: agrando el recorte a la derecha
+        crop = img[max(0, y1):y2, max(0, x1):min(img.shape[1], x2 + int(0.08 * img.shape[1]))]
         tr = str.maketrans({"o": "0", "O": "0", "D": "0", "Q": "0", "l": "1", "I": "1", "|": "1", "S": "5", "B": "8", "Z": "2"})
         for t in (ocr.read_text(crop), ocr.read_text_fixed(crop, 3, 150), ocr.read_text_fixed(crop, 4, 150)):
             t = (t or "").replace("Cl", "0")

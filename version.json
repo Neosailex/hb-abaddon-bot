@@ -1,1 +1,1 @@
-{"version": 463, "notes": "Nivel: cada 5 min, tranquilo, aprieta CTRL medio segundo y lee 'A sig. nivel: N (P%)' del cuadro de la posición. En el Panel: % del nivel, cuánto falta, % por hora y en cuánto sube (con la exp real por hora)."}
+{"version": 464, "notes": "Lectura de 'A sig. nivel' con CTRL: el recorte cortaba el porcentaje; ahora lo agranda a la derecha."}
