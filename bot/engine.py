@@ -9510,17 +9510,29 @@ class Bot:
         tw, th = self._tile()
         cx, cy = self._char()
         self._release()
-        click(cx + (qn["x"] - self.pos["x"]) * tw, cy + (qn["y"] - self.pos["y"]) * th - th * 0.3)
-        time.sleep(2.2)
-        ws = self._q_words(grab())
-        ms = next((w for w in ws if norm(w[0]).startswith("misi")), None)
-        if not ms:
-            self.log(f"📜 No me abre la charla con {qn['npc']}. Pruebo de nuevo en un rato.")
-            self._q_fail_shot(qn, hud, "no abre la charla")
-            self._q_npc = None
-            return
-        click(ms[1] + 60 * tw / 72, ms[2])
-        time.sleep(1.5)
+        # si la ventana 'Misiones' ya está abierta con el botón de cobrar (ej. la dejó Juan), voy directo al botón
+        pre_ = any(norm(w[0]).startswith("abandon") for w in self._q_words(grab()))
+        if not pre_:
+            click(cx + (qn["x"] - self.pos["x"]) * tw, cy + (qn["y"] - self.pos["y"]) * th - th * 0.3)
+            time.sleep(2.2)
+            ws = self._q_words(grab())
+            # la charla cambia según el NPC (Kiora: Comerciar/Descansar/Misión/Cancelar; Enzu: dos 'Misión:'): elijo el
+            # renglón 'Misión: <esta misión>' o el que dice '(Completada)'
+            cands_ = []
+            for w in ws:
+                if not norm(w[0]).startswith("misi"):
+                    continue
+                row_ = norm(" ".join(v[0] for v in ws if abs(v[2] - w[2]) < 10 * th / 72))
+                sc_ = (2 if norm(hud[0])[:8] and norm(hud[0])[:8] in row_ else 0) + (1 if "complet" in row_ else 0)
+                cands_.append((sc_, w))
+            ms = max(cands_, key=lambda c: c[0])[1] if cands_ else None
+            if not ms:
+                self.log(f"📜 No me abre la charla con {qn['npc']}. Pruebo de nuevo en un rato.")
+                self._q_fail_shot(qn, hud, "no abre la charla")
+                self._q_npc = None
+                return
+            click(ms[1] + 60 * tw / 72, ms[2])
+            time.sleep(1.5)
         ws = self._q_words(grab())
         el = next((w for w in ws if norm(w[0]).startswith("elige")), None)
         pick = None
@@ -9538,6 +9550,15 @@ class Bot:
                 self.log(f"📜 Premio elegido: {pick[0]}.")
         ws = self._q_words(grab())
         bt = next((w for k in self.QUEST_TURNIN for w in ws if norm(w[0]) == k or norm(w[0]).startswith(k) and len(norm(w[0])) <= len(k) + 2), None)
+        if not bt:
+            # el chat (celeste) a veces tapa la ventana y el OCR no lee 'Reclamar': está a la izquierda de 'Abandonar
+            # Misión', simétrico respecto del centro de la ventana 'Misiones'
+            ab_ = next((w for w in ws if norm(w[0]).startswith("abandon")), None)
+            if ab_:
+                ti_ = next((w for w in ws if norm(w[0]) in ("misiones", "misione") and w[2] < ab_[2]), None)
+                rx_ = (2 * ti_[1] - ab_[1]) if ti_ else ab_[1] - 0.15 * self.rect[2]
+                bt = ("reclamar?", int(rx_), ab_[2], 0, 0)
+                self.log("📜 No leo 'Reclamar' (¿chat encima?): lo ubico al lado de 'Abandonar Misión'.")
         if bt:
             click(bt[1], bt[2])
             time.sleep(1.5)
