@@ -8933,8 +8933,10 @@ class Bot:
         if not qs:
             return None
         # una misión lista que no puedo cobrar (vencida, o falló el cobro) no tapa a las demás: sigo con las otras
-        blocked = (self.__dict__.get("_q_turn_fail", {}).get("*", {}) or {}).get("until", 0) > time.time()
-        done = None if blocked else next((q for q in qs if q["done"]), None)
+        qf_ = self.__dict__.get("_q_turn_fail", {}) or {}
+        bl_ = lambda nm: (qf_.get(nm, {}) or {}).get("until", 0) > time.time()
+        done = next((q for q in qs if q["done"] and not bl_(q["name"])), None)
+        blocked = any(q["done"] and bl_(q["name"]) for q in qs)
         if done:
             return done["name"], 1, 1
         if blocked:
@@ -9239,7 +9241,14 @@ class Bot:
                 self._q_last_seen = (qa[0]["name"], now)
         # 1) misión completa: voy a cobrar
         qf = self.__dict__.setdefault("_q_turn_fail", {})
-        if hud and hud[2] > 0 and hud[1] >= hud[2] and qf.get("*", {}).get("until", 0) > now:
+        qf.pop("*", None)  # antes una sola misión trabada bloqueaba el cobro de TODAS (6 h): ahora es por misión
+        # el cartel de una misión terminada dice '¡Completado!' sin números (0/0): uso la lista de misiones, que
+        # sabe cuáles están listas. En modo Quest cobro la primera lista que no haya fallado (en orden).
+        for q_ in (getattr(self, "quests", None) or []):
+            if q_.get("done") and qf.get(q_["name"], {}).get("until", 0) <= now:
+                hud = (q_["name"], 1, 1)
+                break
+        if hud and hud[2] > 0 and hud[1] >= hud[2] and qf.get(hud[0], {}).get("until", 0) > now:
             return False  # ya probé cobrarla y no pude: no me quedo dando vueltas, sigo cazando y pruebo más tarde
         if hud and hud[2] > 0 and hud[1] >= hud[2]:
             # misión que ya me quedó chica (el juego no la paga pasado cierto nivel): no pierdo tiempo en cobrarla
@@ -9248,17 +9257,17 @@ class Bot:
                 lv_ = int(self.cfg.get("travel", {}).get("my_level", 1) or 1)
                 qd_ = next((q for q in self._quest_db().get("quests", [])
                             if difflib.SequenceMatcher(None, nz_(q["name"]), nz_(hud[0])).ratio() >= 0.8), None)
-                if qd_ and qd_.get("max_level") and lv_ >= int(qd_["max_level"]):
+                if qd_ and qd_.get("max_level") and lv_ >= int(qd_["max_level"]) and self.bot_mode() != "quest":
                     if not getattr(self, "_q_obs_said", False):
                         self._q_obs_said = True
                         self.log(f"📜 '{qd_['name']}' quedó vencida (se cobra hasta nivel {qd_['max_level']} y soy {lv_}): no la cobro más y sigo con las otras.")
-                    qf["*"] = {"t0": now, "n": 0, "until": now + 6 * 3600}
+                    qf[hud[0]] = {"t0": now, "n": 0, "until": now + 6 * 3600}
                     self.goto = None
                     return False
             except Exception:
                 pass
             # las misiones nunca bloquean la caza: 3 minutos para llegar y cobrar; si no sale, la dejo media hora
-            f_ = qf.setdefault("*", {"t0": now, "n": 0, "until": 0})
+            f_ = qf.setdefault(hud[0], {"t0": now, "n": 0, "until": 0})
             if now - f_.get("seen", 0) > 120:
                 f_["t0"] = now
             f_["seen"] = now
@@ -9443,7 +9452,7 @@ class Bot:
                 self.log("📜 Apreté para cobrar pero la misión sigue sin cobrar; pruebo de nuevo en un rato.")
                 self._q_npc = None
                 try:
-                    self.__dict__.setdefault("_q_turn_fail", {}).setdefault("*", {"t0": time.time(), "n": 0, "until": 0})["n"] += 1
+                    self.__dict__.setdefault("_q_turn_fail", {}).setdefault(hud[0], {"t0": time.time(), "n": 0, "until": 0})["n"] += 1
                 except Exception:
                     pass
                 return
