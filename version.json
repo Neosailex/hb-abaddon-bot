@@ -1,1 +1,1 @@
-{"version": 473, "notes": "Caminar de corrido: cada paso tardaba medio segundo (recalculaba el camino entero y el costo de los bichos) y apuntaba a 1 baldosa porque los bichos pegados marcaban costo: caminaba una, frenaba. Ahora reusa el camino, recalcula los bichos cada 1,5 s y apunta varias baldosas adelante."}
+{"version": 474, "notes": "Caminar en segundo plano: el juego no toma el click mantenido por mensajes (caminaba 4-6 baldosas hasta el punto y frenaba 2 s). Ahora da un click nuevo en cada paso, siempre unas baldosas adelante: camina de corrido."}
