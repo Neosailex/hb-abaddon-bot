@@ -5816,10 +5816,18 @@ class Bot:
         """El juego avisa abajo a la izquierda 'EXP obtenida en los últimos 10 segundos: +6.525' (idea de Juan).
         Es la experiencia REAL: la sumo al nido donde estoy y a la cuenta de la sesión."""
         import re as _re
-        m = _re.search(r"ltimos?\s+(\d+)\s*seg\w*\W*\+?\s*([\d][\d\.,]*)", t)
+        # el lector confunde números con letras en esta letra chica: '10'→'ICl', '+4.350'→'+4.3SCl', '+10.875'→'+1Cl.B7S'
+        m = _re.search(r"ltimos?\s+(\S+)\s*seg\w*\W*?\+\s*(\S+)", t)
         if not m:
             return
-        v = int(_re.sub(r"[^\d]", "", m.group(2)) or 0)
+        raw = m.group(2).replace("cl", "0").replace("Cl", "0")
+        tr = str.maketrans({"o": "0", "q": "9", "d": "0", "c": "0", "i": "1", "l": "1", "|": "1", "!": "1", "s": "5",
+                            "b": "8", "z": "2", "g": "6", "t": "7", "?": "7"})
+        dig = raw.lower().translate(tr)
+        dig = _re.match(r"[\d\.,]+", dig)
+        if not dig or _re.search(r"[\.,]\d{0,2}$", dig.group(0)) or _re.search(r"[\.,]\d{4,}", dig.group(0)):
+            return  # número cortado o mal leído ('+4,35'): mejor no contarlo
+        v = int(_re.sub(r"[^\d]", "", dig.group(0)) or 0)
         if v <= 0 or v > 50_000_000:
             return
         last = getattr(self, "_expm_last", (0, -1))
@@ -5828,7 +5836,7 @@ class Bot:
         self._expm_last = (now, v)
         if not getattr(self, "_expm_said", False):
             self._expm_said = True
-            self.log(f"📈 Leo la experiencia real del juego: +{v:,} en {m.group(1)} s. Con esto mido los nidos de verdad.".replace(",", "."))
+            self.log(f"📈 Leo la experiencia real del juego: +{v:,} cada 10 s. Con esto mido los nidos de verdad.".replace(",", "."))
         lg = self.__dict__.setdefault("_exp_log", [])
         lg.append((now, v))
         while lg and now - lg[0][0] > 3600:

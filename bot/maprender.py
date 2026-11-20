@@ -82,7 +82,10 @@ class Renderer:
         d = open(path, "rb").read()
         w, h = map(int, re.findall(rb"(\d+)", d[:256])[:2])
         dt = np.dtype([("ts", "<i2"), ("tf", "<i2"), ("os", "<i2"), ("of", "<i2"), ("a", "u1"), ("b", "u1")])
-        return np.frombuffer(d[256:256 + 10 * w * h], dtype=dt).reshape(h, w)
+        body = d[256:256 + 10 * w * h]
+        if len(body) < 10 * w * h:
+            body = body + b"\x00" * (10 * w * h - len(body))  # archivo más corto (algunos fightzone): relleno vacío
+        return np.frombuffer(body, dtype=dt).reshape(h, w)
 
     def render(self, amd_path):
         tab = self._table()
@@ -147,11 +150,15 @@ class Renderer:
             if os.path.exists(p) and os.path.getmtime(p) >= os.path.getmtime(amd_path):
                 return p
             img = self.render(amd_path)
+            if img is None or img.size == 0 or not img.any():
+                return None
             os.makedirs(self.out_dir, exist_ok=True)
             cv2.imwrite(p, img, [cv2.IMWRITE_JPEG_QUALITY, 82])
             return p
         except Exception as e:
-            self.log(f"🗺 No pude dibujar {key}: {e!r}")
+            self.fails = getattr(self, "fails", 0) + 1
+            if self.fails <= 1:
+                self.log(f"🗺 Algunos mapas no se pueden dibujar ({key}: {e!r}); quedan con el dibujo simple.")
             return None
 
     def render_all(self, files, keys=None):
