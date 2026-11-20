@@ -7696,7 +7696,9 @@ class Bot:
                        for t in range(1, n_s + 1)):
                     break
             wp = p
-        stuck = now - self.nav["still_since"] > 4
+        # parado con el click apretado: el cursor quedó sobre otro jugador/NPC/objeto y el juego no camina. Antes lo
+        # notaba a los 4 s (se frenaba cada 5-8 baldosas en la ciudad); ahora a 1,2 s suelto y apunto corrido.
+        stuck = now - self.nav["still_since"] > (1.2 if self.nav.get("walking") else 4)
         if stuck:
             n_st = self.nav.get("stuck_n", 0) + 1
             self.nav["stuck_n"] = n_st
@@ -7706,15 +7708,19 @@ class Bot:
             if n_st == 2:
                 self._drop_cursor_item()
             if n_st % 3:
-                # trabado: doy el paso siguiente del camino, de a una baldosa, en vez de apuntar lejos
-                wp = path[min(1, len(path) - 1)]
+                # trabado: apunto al camino pero corrido una baldosa al costado (para no caer arriba de alguien)
+                b_ = path[min(3, len(path) - 1)]
+                dx_, dy_ = b_[0] - px, b_[1] - py
+                side_ = 1 if n_st % 2 else -1
+                c_ = (b_[0] - side_ * (1 if dy_ else 0), b_[1] + side_ * (1 if dx_ else 0))
+                wp = c_ if m.ok(*c_) and m.los((px, py), c_) else path[min(1, len(path) - 1)]
             else:
                 for _ in range(10):
                     wp = (px + random.randint(-3, 3), py + random.randint(-3, 3))
                     if m.ok(*wp) and m.los((px, py), wp) and not m.near_tele(wp[0], wp[1], 1):
                         break
                 self.log("Trabado: pruebo para otro lado.")
-                if n_st >= 9 and n_st % 9 == 0:
+                if n_st >= 18 and n_st % 18 == 0:
                     # muchas veces trabado seguido: algo en la pantalla me frena (ventana abierta, tecla apretada,
                     # objeto en el cursor). Suelto todas las teclas, cierro ventanas y guardo una captura.
                     try:
