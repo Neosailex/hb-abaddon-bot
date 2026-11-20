@@ -1124,7 +1124,7 @@ class Bot:
             self.stats["state"] = "buscando"
         if self._survival():
             # descansando: buen momento para revisar los stats (sin bichos cerca, quieto)
-            if getattr(self, "_rest_since", 0) and self.bot_mode() not in ("manual", "caza", "quest"):
+            if getattr(self, "_rest_since", 0) and self.bot_mode() not in ("manual", "caza", "quest", "cartografo"):
                 self._census()
                 if (cfg.get("stats_auto", {}).get("enabled") and getattr(self, "_last_stats", 1) == 0
                         and cfgmod.server_slug(cfg) != "abaddon" and self._mobs_within(3) == 0):
@@ -1201,7 +1201,7 @@ class Bot:
             pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
         try:
-            if cfg["mode"] == "auto" and not self._fleeing() and self._reflex():
+            if cfg["mode"] == "auto" and not self._fleeing() and not self._carto_go() and self._reflex():
                 return
         except Exception as e_:
             if time.time() - getattr(self, "_rfx_err", 0) > 300:
@@ -1249,7 +1249,7 @@ class Bot:
                 if self._census():
                     return
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0 \
-                and (self.bot_mode() not in ("manual", "caza", "quest")
+                and (self.bot_mode() not in ("manual", "caza", "quest", "cartografo")
                      or (self.bot_mode() == "quest" and (self._quest_maint() or time.time() - getattr(self, "_rep_last", 0) < 900))) \
                 and not getattr(self, "_busy_ui", False) and not self._ui_th_alive() \
                 and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or self._mobs_within(3) > 0
@@ -1345,6 +1345,21 @@ class Bot:
         in_town = self._in_town()
         if in_town and not self._attacked_recently():
             focused = True  # en la ciudad no hay nada que cazar: lo que "veo" ahí son vecinos, gatos y guardias
+        if self._carto_go() and not in_building:
+            # CARTÓGRAFO: directo, sin cazar ni frenar (salvo que me rodeen). Recorro el mapa y anoto nidos.
+            try:
+                self._carto_note()
+            except Exception:
+                pass
+            if self.state != "seek":
+                self._release()
+                self.state, self.target = "seek", None
+            if not getattr(self, "goto", None):
+                try:
+                    self._explore_step()
+                except Exception:
+                    pass
+            return
         if focused and self.state != "seek":
             self._release()
             self.state, self.target = "seek", None
@@ -4861,8 +4876,8 @@ class Bot:
             self.log(f"🗺 Relevamiento de {mk} listo ({why}): {len(zs)} zona/s de bichos. "
                      + ", ".join(sorted({z['mob'] for z in zs})[:8]))
             return False
-        if self._under_attack() or self._adjacent_mobs() > 0:
-            return False  # primero me defiendo (lo hace la caza normal)
+        if (self._under_attack() or self._adjacent_mobs() > 0) and not self._carto_go():
+            return False  # primero me defiendo (lo hace la caza normal); en Cartógrafo sigo de largo
         self._exploring = True
         px, py = self.pos["x"], self.pos["y"]
         g = plan["pts"][0]
@@ -4994,6 +5009,69 @@ class Bot:
         self.stats["state"] = "en el pueblo: me preparo antes de cazar"
         return True
 
+    def _carto_go(self):
+        """Cartógrafo: sigo de largo aunque me peguen. Solo freno a pelear si me rodean (3+ bichos pegados)."""
+        if self.bot_mode() != "cartografo":
+            return False
+        try:
+            return self._adjacent_mobs() < 3
+        except Exception:
+            return True
+
+    def _carto_init(self):
+        """Al prender Cartógrafo: guardo dónde estaba y armo la lista de mapas vecinos a relevar (de cero)."""
+        cur = self.pos.get("map") or ""
+        todo = []
+        for (_xy, v) in (self.world.links_from(cur) if cur else []):
+            to = v.get("to") or ""
+            if to and not self._same(to, cur) and to not in todo and not any(k in to.lower() for k in self.TOWNS):
+                todo.append(to)
+        ex = self._survey().setdefault("explored", {})
+        for t_ in todo:
+            ex.pop(t_, None)  # los releva de nuevo (puede haber nidos nuevos)
+        self._exp_plan = None
+        self.cfg["carto"] = {"start": {"map": cur, "x": self.pos.get("x"), "y": self.pos.get("y")}, "todo": todo,
+                             "done": [], "t0": time.time()}
+        cfgmod.save(self.cfg)
+        self.log(f"🗺 Cartógrafo: relevo {len(todo)} mapa/s vecinos de {cur}: " + (", ".join(todo) or "ninguno")
+                 + ". Solo anoto nidos (6+ bichos), no cazo. Al terminar vuelvo acá y paso a Automático.")
+
+    def _carto_note(self):
+        """Cartógrafo: grupo de 6+ bichos iguales a 8 baldosas → nido. Lo anoto en la base de nidos del mapa."""
+        now = time.time()
+        if now - getattr(self, "_carto_n_t", 0) < 3:
+            return
+        self._carto_n_t = now
+        mk = (self.pos.get("map") or "").strip().lower()
+        if not mk:
+            return
+        by = {}
+        for e in (self._oly_ents() or []):
+            nm = (e[2] or {}).get("name")
+            if nm and self._mob_xu(nm) > 0:
+                by.setdefault(nm, []).append((e[0], e[1]))
+        for nm, pts in by.items():
+            for (x0, y0) in pts:
+                grp = [(x, y) for x, y in pts if max(abs(x - x0), abs(y - y0)) <= 8]
+                if len(grp) < 6:
+                    continue
+                cx_ = int(round(sum(p[0] for p in grp) / len(grp)))
+                cy_ = int(round(sum(p[1] for p in grp) / len(grp)))
+                d = self.world.learn.setdefault("pits", {}).setdefault(mk, {"t": 0, "list": []})
+                L = d.setdefault("list", [])
+                old = next((p for p in L if max(abs(int(p["x"]) - cx_), abs(int(p["y"]) - cy_)) <= 10
+                            and (p.get("mob") in (None, nm))), None)
+                if old:
+                    if not old.get("mob"):
+                        old["mob"] = nm
+                    old["n"] = max(int(old.get("n", 0) or 0), len(grp))
+                    old["carto"] = True
+                else:
+                    L.append({"x": cx_, "y": cy_, "r": 8, "guess": nm, "mob": nm, "seen": {}, "n": len(grp), "carto": True})
+                    self.log(f"🗺 Nido nuevo: {len(grp)} {nm} en {self.pos.get('map')} ({cx_},{cy_}). Lo anoto.")
+                    self.world.save()
+                break
+
     def _quest_maint(self):
         """Modo Quest (Juan): de cada hora, 50 min misiones y 10 min mantenimiento (reparar, stats, ordenar bolso,
         pociones). La franja se abre cuando pasaron 50 min desde la última y no hay una misión lista para cobrar."""
@@ -5014,6 +5092,8 @@ class Bot:
         return False
 
     def _town_need(self, why):
+        if self.bot_mode() == "cartografo":
+            return  # Cartógrafo: todo apagado, no vuelvo al pueblo
         if self.bot_mode() == "quest" and not self._quest_maint() and not any(k in str(why) for k in ("roto", "sin arma", "dejé de matar", "mataron")):
             return  # modo Quest: al pueblo solo si no puedo matar (arma rota o sin arma)
         if any(k in str(why) for k in ("dejé de matar", "mataron")):
@@ -5444,6 +5524,10 @@ class Bot:
         m = m if m in self.MODES else "auto"
         prev = self.bot_mode()
         self.cfg["bot_mode"] = m
+        if m == "cartografo" and prev != "cartografo":
+            self.cfg["carto"] = None  # _mode_tick lo arma con la posición de ahora
+        if m != "cartografo" and prev == "cartografo":
+            self.cfg["carto"] = None
         if m == "quest" and prev != "quest":
             self._qm_t0, self._qm_said = time.time(), False  # la hora de Quest arranca ahora (50 misiones / 10 mantenimiento)
         if m == "manual" and self.pos.get("x") is not None:
@@ -5576,7 +5660,7 @@ class Bot:
     def _mode_tick(self):
         """Lo que cada modo hace por su cuenta (cada 30 s, barato)."""
         now = time.time()
-        if now - getattr(self, "_mt_t", 0) < 30:
+        if now - getattr(self, "_mt_t", 0) < (5 if self.bot_mode() == "cartografo" else 30):
             return
         self._mt_t = now
         m = self.bot_mode()
@@ -5612,32 +5696,44 @@ class Bot:
             else:
                 self._mq_empty = 0
         elif m == "cartografo":
-            if getattr(self, "goto", None) or getattr(self, "_exploring", False) or self._in_town() is False and \
-                    not ((self._survey().get("explored") or {}).get(self.pos.get("map") or "") or {}).get("done", False):
-                return  # viajando, relevando o en un mapa que todavía no relevé (lo releva solo al pisarlo)
-            ex = self._survey().get("explored") or {}
+            c = self.cfg.get("carto")
+            if not c or not c.get("start"):
+                if self.pos.get("x") is None:
+                    return
+                self._carto_init()
+                c = self.cfg["carto"]
+            if getattr(self, "goto", None):
+                return  # viajando
             cur = self.pos.get("map") or ""
-            cand = []
-            for (_xy, v) in self.world.links_from(cur) if cur else []:
-                to = v.get("to") or ""
-                if to and not (ex.get(to) or {}).get("done") and not any(k in to.lower() for k in self.TOWNS):
-                    cand.append(to)
-            for k_, v in (self.world.learn.get("links") or {}).items():
-                to = v.get("to") or ""
-                if to and to not in cand and not (ex.get(to) or {}).get("done") and not any(k in to.lower() for k in self.TOWNS):
-                    try:
-                        if self._known_route(cur, to, self._avoid()):
-                            cand.append(to)
-                    except Exception:
-                        pass
-            if not cand:
-                self.set_mode("auto", "no quedan mapas conocidos sin relevar")
+            ex = self._survey().get("explored") or {}
+            todo = c.get("todo") or []
+            while todo and (ex.get(todo[0]) or {}).get("done"):
+                c.setdefault("done", []).append(todo.pop(0))
+                cfgmod.save(self.cfg)
+            if todo:
+                if self._same(cur, todo[0]):
+                    return  # lo estoy relevando (_explore_step)
+                to = todo[0]
+                mp = self.world.map_for(to)
+                g = mp.nearest_walkable(mp.w // 2, mp.h // 2, r=12) if mp else None
+                if not self._known_route(cur, to, self._avoid()) and not self._same(cur, to):
+                    self.log(f"🗺 Cartógrafo: no sé llegar a {to}. Lo salteo.")
+                    todo.pop(0)
+                    cfgmod.save(self.cfg)
+                    return
+                self.goto = {"map": to, "x": int(g[0]) if g else 0, "y": int(g[1]) if g else 0, "t": now}
+                self.log(f"🗺 Cartógrafo: voy a {to} a relevarlo (directo, sin frenar).")
                 return
-            to = cand[0]
-            mp = self.world.map_for(to)
-            g = mp.nearest_walkable(mp.w // 2, mp.h // 2, r=12) if mp else None
-            self.goto = {"map": to, "x": int(g[0]) if g else 0, "y": int(g[1]) if g else 0, "t": now}
-            self.log(f"🗺 Cartógrafo: voy a {to} a relevarlo.")
+            st_ = c["start"]
+            if self._same(cur, st_.get("map") or "") and max(abs((self.pos.get("x") or 0) - int(st_.get("x") or 0)),
+                                                               abs((self.pos.get("y") or 0) - int(st_.get("y") or 0))) <= 2:
+                self.cfg["carto"] = None
+                self.set_mode("auto", "terminé de relevar los mapas vecinos")
+                return
+            if now - float(c.get("back_t", 0) or 0) > 60:
+                c["back_t"] = now
+                self.goto = {"map": st_["map"], "x": int(st_.get("x") or 0), "y": int(st_.get("y") or 0), "t": now}
+                self.log(f"🗺 Cartógrafo: terminé ({', '.join(c.get('done') or []) or 'nada nuevo'}). Vuelvo a {st_['map']} ({st_.get('x')},{st_.get('y')}).")
 
     # ---------- rendimiento por nido: experiencia por hora REAL (con caminar y descansar) ----------
     def _nest_rec(self, mk, x, y, mob=None):
@@ -5910,7 +6006,13 @@ class Bot:
             # CAZA (Juan): solo matar en el nido; sale a reparar y a pociones (de paso vende) y vuelve
             for k_ in ("misión cobrar/aceptar", "estrategia", "plan", "mejoras", "nidos"):
                 w[k_] = -1000
-        elif md_ in ("economico", "cartografo"):
+        elif md_ == "cartografo":
+            # CARTÓGRAFO (Juan): todo apagado. Solo recorre los mapas vecinos y anota nidos. Sin pociones, herrero,
+            # stats, bolso, compras ni misiones.
+            for k_ in ("misión cobrar/aceptar", "tienda", "herrero", "chequeo", "estrategia", "equipo", "bolso",
+                       "auditoría", "plan", "mejoras", "nidos"):
+                w[k_] = -1000
+        elif md_ == "economico":
             w["misión cobrar/aceptar"] = -1000  # en estos modos no persigo misiones
         score = lambda m: m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)
         ranked = sorted(mods, key=lambda m: -score(m))
@@ -6248,8 +6350,8 @@ class Bot:
         """Ritmo sostenible: con las pociones que llevo tengo que poder cazar 'hunt_hours' (5 h) sin volver.
         Mido en la memoria cuántas tomo por hora. Si a ese ritmo no llego, bajo el ritmo (menos bichos juntos,
         descanso en vez de tomar); si ni así llego, este lugar me queda grande: me voy a otro. Para cualquier pj."""
-        if self._anchored() or self.bot_mode() == "quest":
-            return  # Manual/Caza/Quest: el nido está fijo (en Manual mata aunque no tenga pociones): no cambio de nido ni de ritmo
+        if self._anchored() or self.bot_mode() in ("quest", "cartografo"):
+            return  # Manual/Caza/Quest/Cartógrafo: el nido está fijo (en Manual mata aunque no tenga pociones): no cambio de nido ni de ritmo
         if cfgmod.server_slug(self.cfg) == "abaddon":
             return
         now = time.time()
@@ -6611,7 +6713,9 @@ class Bot:
                 # la mitad o más cayó fuera del mapa: leí mal la escala del minimapa. No guardo nada, pruebo más tarde.
                 self.log(f"🗺 Lectura de nidos dudosa ({n_out} fuera del mapa): la descarto y pruebo más tarde.")
                 return False
-            self.world.learn.setdefault("pits", {})[mk] = {"t": now, "list": pits}
+            keep_ = [p for p in ((self.world.learn.get("pits") or {}).get(mk) or {}).get("list", []) if p.get("carto")
+                     and not any(max(abs(int(q["x"]) - int(p["x"])), abs(int(q["y"]) - int(p["y"]))) <= 6 for q in pits)]
+            self.world.learn.setdefault("pits", {})[mk] = {"t": now, "list": pits + keep_}  # los del Cartógrafo quedan
             self.world.save()
             self.log(f"🗺 Leí {len(pits)} nidos del minimapa de {self.pos.get('map')}: "
                      + ", ".join(f"{p['guess'] or '¿?'} ({p['x']},{p['y']})" for p in pits) + ".")
@@ -7453,7 +7557,7 @@ class Bot:
             self.log("🗺 Cancelé el viaje del mapa: tardaba más de 30 min.")
             self.goto = None
             return False
-        if self._attacked_recently() and not (getattr(self, "_qdrive", None) and self._adjacent_mobs() < 3):
+        if self._attacked_recently() and not (getattr(self, "_qdrive", None) and self._adjacent_mobs() < 3) and not self._carto_go():
             return False  # (yendo al nido de la misión no me freno por uno o dos bichos: sigo caminando)
         cur = self.pos["map"]
         label = f"{g['map']} ({g['x']},{g['y']})"
@@ -10594,9 +10698,9 @@ class Bot:
             self._worn_seen = now  # lo roto se sale al bolso: después del herrero me lo vuelvo a poner
             if not manual:
                 self._town_need("equipo roto")
-            if not rep_busy:
+            if not rep_busy and self.bot_mode() != "cartografo":
                 go("equipo roto")  # roto no espera: salgo aunque me peguen (también en Manual)
-        elif low and (self.bot_mode() != "quest" or self._quest_maint()) and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
+        elif low and self.bot_mode() != "cartografo" and (self.bot_mode() != "quest" or self._quest_maint()) and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
             # en un nido lleno nunca estoy 'libre': si estoy peleando espero hasta 60 s a que afloje y salgo igual
             if fighting and now - self._gm_low_t < 60:
                 return True
