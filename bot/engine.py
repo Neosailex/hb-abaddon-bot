@@ -290,6 +290,9 @@ class Bot:
                 self.cfg["mode_anchor"] = None  # apagado a mano: borro la zona; al prender guardo la nueva
                 cfgmod.save(self.cfg)
                 self.log("🎛 Manual: borré la zona. Movete adonde quieras y prendeme: esa va a ser la nueva.")
+            elif self.bot_mode() == "caza" and self.cfg.get("mode_anchor"):
+                self.cfg["mode_anchor"] = None  # Caza: al prender vuelve a elegir el mejor nido
+                cfgmod.save(self.cfg)
         with self.lock:
             was = self.running
             self.running = False
@@ -1337,7 +1340,7 @@ class Bot:
         if focused and self.state != "seek":
             self._release()
             self.state, self.target = "seek", None
-        if mem_ok and not in_building and not focused and self.bot_mode() != "manual" and self._zone_step():
+        if mem_ok and not in_building and not focused and not self._anchored() and self._zone_step():
             return
         if mem_ok and not in_building and not focused:
             if self.state in ("attack", "loot", "lootq") or self._mem_near():
@@ -4903,6 +4906,7 @@ class Bot:
             return
         if not any("enven" in w[0].lower() or "poison" in w[0].lower() for w in ws):
             return
+        self._poisoned_t = now  # el veneno baja la vida sin que nadie me pegue (el reflejo lo tiene en cuenta)
         if now - getattr(self, "_poi_used", 0) < 6.0:
             return
         self._poi_used = now
@@ -5019,8 +5023,11 @@ class Bot:
                "d0": any(d(e) == 0 for e in ents), "pos": [px, py], "mem": list(mv) if mv else None,
                "ocr": self.pos.get("text"), "pos_age": round(now - self.pos.get("t", 0), 1),
                "loot": bool(getattr(self, "_kill_q", None)), "mode": self.bot_mode()}
+        rec["poison"] = now - getattr(self, "_poisoned_t", 0) < 8
         # causa probable, en el orden de las sospechas
-        if ths or rec["busy_ui"]:
+        if rec["poison"] and (not near or d(near[0]) > 2):
+            why = "veneno (nadie me pega)"
+        elif ths or rec["busy_ui"]:
             why = "ventana/viaje ocupado"
         elif rec["d0"]:
             why = "bicho en mi misma baldosa"
@@ -5066,7 +5073,9 @@ class Bot:
         px, py = self.pos["x"], self.pos["y"]
         d = lambda e: max(abs(e[0] - px), abs(e[1] - py))
         adj = [e for e in ents if d(e) <= self._adj_tol(e[2]["name"])]
-        if not adj and self._under_attack() and now - getattr(self, "_atk_t", 0) > 2.0:
+        # envenenado (Snakes): la vida baja sola. Si no hay nadie a 2 baldosas, no es que me peguen: no barro el aire
+        poisoned_ = now - getattr(self, "_poisoned_t", 0) < 8 and not any(d(e) <= 2 for e in ents)
+        if not adj and self._under_attack() and now - getattr(self, "_atk_t", 0) > 2.0 and not poisoned_:
             # REGLA DE ORO, ANTI-QUIETO: me pegan y hace 2 s que no doy un golpe. Nada (correa, élite, modo, zona) me
             # deja parado: le pego al más cercano a 3 baldosas (la memoria a veces los marca corridos) y, si no hay,
             # barro las 8 baldosas de alrededor.
@@ -5091,7 +5100,7 @@ class Bot:
             h_ = [v for t, v in getattr(self, "_hp_hist", []) if now - t < 3]
             real = len(h_) >= 2 and max(h_) - h_[-1] >= 8
             dl = [t for t in getattr(self, "_rfx_defs", []) if now - t < 30]
-            if real and not any(d(e) <= 3 for e in ents) and len(dl) < 3 and (not dl or now - dl[-1] > 2.0):
+            if real and not poisoned_ and not any(d(e) <= 3 for e in ents) and len(dl) < 3 and (not dl or now - dl[-1] > 2.0):
                 self._rfx_defs = dl + [now]
                 self._defend()
                 return True
@@ -5358,6 +5367,9 @@ class Bot:
             mk = (self.pos.get("map") or "").strip().lower()
             self.cfg["mode_anchor"] = {"mk": mk, "map": self.pos.get("map"), "x": int(self.pos["x"]), "y": int(self.pos["y"])}
             self.world.learn.setdefault("oly_hot", {})[mk] = {"x": int(self.pos["x"]), "y": int(self.pos["y"]), "t": time.time(), "exp": 0}
+        elif m != prev and m in ("caza", "auto", "quest", "economico", "cartografo"):
+            self.cfg["mode_anchor"] = None  # Caza elige su nido sola (_caza_tick); los demás no usan nido fijo
+            self._caza_dry = 0
         self._nest_probe = None
         self._mode_since = time.time()
         cfgmod.save(self.cfg)
@@ -5399,10 +5411,58 @@ class Bot:
         self._goto_step()
         return True
 
+    def _anchored(self):
+        """Modos con nido fijo: Manual (lo elegís vos) y Caza (lo elige el bot: el que más rinde)."""
+        return self.bot_mode() in ("manual", "caza")
+
+    def _caza_tick(self, now):
+        """CAZA (Juan): va al nido que más rinde y mata a rolete. Solo sale a reparar y a pociones, y vuelve a ESE
+        nido. El nido sale de lo medido (experiencia por hora real de cada nido); si todavía no hay ninguno medido,
+        el primer lugar donde rinda (mato seguido sin bajar del 20% de vida). Si el nido se seca (5 min sin un
+        bicho a 14 baldosas estando ahí), busca otro."""
+        mk = (self.pos.get("map") or "").strip().lower()
+        a = self.cfg.get("mode_anchor") or {}
+        if self.pos.get("x") is None or self._in_town() or any(k in mk for k in ("shop", "blacksmith", "hall", "warehouse")):
+            return
+        if a.get("x") is None:
+            h = (self.world.learn.get("oly_hot") or {}).get(mk)
+            rinde = False
+            try:
+                rinde = self._rinde()
+            except Exception:
+                pass
+            if h and h.get("x") is not None:
+                x, y = int(h["x"]), int(h["y"])
+            elif rinde:
+                x, y = int(self.pos["x"]), int(self.pos["y"])
+            else:
+                return  # todavía buscando: el modo Automático elige y mide nidos; apenas uno rinde, lo fijo
+            self.cfg["mode_anchor"] = {"mk": mk, "map": self.pos.get("map"), "x": x, "y": y}
+            self.world.learn.setdefault("oly_hot", {})[mk] = {"x": x, "y": y, "t": now, "exp": 0}
+            cfgmod.save(self.cfg)
+            self.log(f"🎯 Caza: mi nido es {self.pos.get('map')} ({x},{y}). Mato acá; solo salgo a reparar y a pociones.")
+            return
+        if a.get("mk") != mk:
+            return
+        px, py = self.pos["x"], self.pos["y"]
+        near_anchor = max(abs(px - a["x"]), abs(py - a["y"])) <= 12
+        ents = self._oly_ents() or []
+        if near_anchor and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
+            t0 = getattr(self, "_caza_dry", 0) or now
+            self._caza_dry = t0
+            if now - t0 > 300:
+                self._caza_dry = 0
+                self.cfg["mode_anchor"] = None
+                (self.world.learn.get("oly_hot") or {}).pop(mk, None)
+                cfgmod.save(self.cfg)
+                self.log(f"🎯 Caza: el nido ({a['x']},{a['y']}) se secó (5 min sin bichos): busco otro.")
+        else:
+            self._caza_dry = 0
+
     def _manual_return(self):
         """Manual: si estoy lejos de donde me dejaste (más de 12 baldosas, u otro mapa después del herrero) y no me
         pegan, vuelvo EXACTO ahí. True = estoy volviendo."""
-        if self.bot_mode() != "manual" or self.pos.get("x") is None:
+        if not self._anchored() or self.pos.get("x") is None:
             return False
         a = self.cfg.get("mode_anchor") or {}
         if a.get("x") is None or self._under_attack() or self._adjacent_mobs() > 0 or getattr(self, "_busy_ui", False):
@@ -5438,7 +5498,12 @@ class Bot:
         self._mt_t = now
         m = self.bot_mode()
         mk = (self.pos.get("map") or "").strip().lower()
-        if m == "manual":
+        if m == "caza":
+            try:
+                self._caza_tick(now)
+            except Exception:
+                pass
+        if m in ("manual", "caza"):
             a = self.cfg.get("mode_anchor") or {}
             if a.get("mk") == mk:
                 self.world.learn.setdefault("oly_hot", {})[mk] = {"x": a["x"], "y": a["y"], "t": now, "exp": 0}
@@ -5551,6 +5616,8 @@ class Bot:
         md_ = self.bot_mode()
         if md_ in ("manual", "cartografo"):
             return  # Manual: el nido lo eligió Juan. Cartógrafo: no caza en nidos, recorre.
+        if md_ == "caza" and (self.cfg.get("mode_anchor") or {}).get("x") is not None:
+            return  # Caza: ya fijé el nido; me quedo ahí hasta que se seque
         recs = (self.world.learn.get("nest_rate") or {}).get(mk) or {}
         key_ = "gold" if md_ == "economico" else "exp"
         tried = self.__dict__.setdefault("_pit_tried", {})
@@ -5695,7 +5762,11 @@ class Bot:
             for k_ in ("misión cobrar/aceptar", "tienda", "chequeo", "estrategia", "bolso", "auditoría",
                        "plan", "mejoras", "nidos"):
                 w[k_] = -1000
-        elif md_ in ("caza", "economico", "cartografo"):
+        elif md_ == "caza":
+            # CAZA (Juan): solo matar en el nido; sale a reparar y a pociones (de paso vende) y vuelve
+            for k_ in ("misión cobrar/aceptar", "estrategia", "plan", "mejoras", "nidos"):
+                w[k_] = -1000
+        elif md_ in ("economico", "cartografo"):
             w["misión cobrar/aceptar"] = -1000  # en estos modos no persigo misiones
         score = lambda m: m[1] + float(w.get(m[0], 0)) + min(30.0, (now - last.get(m[0], now - 60)) / 10.0)
         ranked = sorted(mods, key=lambda m: -score(m))
@@ -6006,8 +6077,8 @@ class Bot:
         """Ritmo sostenible: con las pociones que llevo tengo que poder cazar 'hunt_hours' (5 h) sin volver.
         Mido en la memoria cuántas tomo por hora. Si a ese ritmo no llego, bajo el ritmo (menos bichos juntos,
         descanso en vez de tomar); si ni así llego, este lugar me queda grande: me voy a otro. Para cualquier pj."""
-        if self.bot_mode() == "manual":
-            return  # en Manual mata aunque no tenga pociones: no cambio de nido ni de ritmo
+        if self._anchored():
+            return  # Manual/Caza: el nido está fijo (en Manual mata aunque no tenga pociones): no cambio de nido ni de ritmo
         if cfgmod.server_slug(self.cfg) == "abaddon":
             return
         now = time.time()
@@ -6601,7 +6672,7 @@ class Bot:
                     self._hot_go = None
                     self.log(f"🎯 Mi zona buena ({h['x']},{h['y']}) es donde me mataron: la descarto.")
                     h = None
-                if h and self.bot_mode() != "manual" and max(abs(h["x"] - px), abs(h["y"] - py)) <= 8 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
+                if h and not self._anchored() and max(abs(h["x"] - px), abs(h["y"] - py)) <= 8 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents):
                     # llegué a mi zona buena y no hay nada: ya no es buena. La borro y voy a un nido ahora, sin esperar.
                     del self.world.learn["oly_hot"][mk]
                     self._hot_go = None
@@ -6628,7 +6699,7 @@ class Bot:
                 pass
             # mi zona buena se secó o no tengo ninguna: voy al nido que más conviene (los saqué del minimapa)
             try:
-                if self.bot_mode() != "manual" and (dry or not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents)) and now - getattr(self, "_pit_go_t", 0) > 20:
+                if not self._anchored() and (dry or not any(max(abs(e[0] - px), abs(e[1] - py)) <= 14 for e in ents)) and now - getattr(self, "_pit_go_t", 0) > 20:
                     bp = self._pit_pick()
                     pg0 = getattr(self, "_pit_go", None)
                     if pg0 and pg0.get("p") and now - pg0["t"] < 45 and self.__dict__.get("_pit_tried", {}).get(pg0["k"], 0) < now:
@@ -6763,7 +6834,7 @@ class Bot:
                 ok = [e for e in ok if crowd(e) <= max(allow, low)]
         if getattr(self, "_exp_plan", None) and getattr(self, "_exploring", False):
             ok = [e for e in ok if d(e) <= 1]  # relevando: solo me defiendo
-        if self.bot_mode() == "manual":
+        if self._anchored():
             a_ = self.cfg.get("mode_anchor") or {}
             if a_.get("x") is not None:
                 # Manual: cazo alrededor de donde me dejaste (12 baldosas); lo que me pegue igual lo mato
@@ -7507,7 +7578,7 @@ class Bot:
                 return True
             self._portal_goal = None
             # tengo la tabla de zonas de bichos de este mapa: voy a la zona que corresponde y busco ahí
-            if not (self.ents.center and self._mem_struct()) and self.pos.get("x") is not None and self.bot_mode() != "manual":
+            if not (self.ents.center and self._mem_struct()) and self.pos.get("x") is not None and not self._anchored():
                 mk_ = cur.strip().lower()
                 z_ = self.world.learn.setdefault("xpz", {}).setdefault(mk_, {})
                 r_ = self._spawn_step(m, mk_, z_, self.pos["x"], self.pos["y"])

@@ -1,1 +1,1 @@
-{"version": 438, "notes": "Diagnóstico del 'me pegan y no estaba pegando': anota qué pasaba en cada caso (data/reflejo.json) y cada 10 casos escribe en el log el resumen de causas."}
+{"version": 440, "notes": "Modo Caza (Juan): elige el nido que más rinde (lo medido, o el primero donde mata seguido sin bajar del 20%), mata ahí sin misiones ni cambios de plan, solo sale a reparar y pociones (de paso vende) y vuelve a ESE nido. Si se seca 5 min, busca otro. Incluye el arreglo del veneno (439)."}
