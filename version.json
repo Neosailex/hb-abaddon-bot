@@ -1,1 +1,1 @@
-{"version": 475, "notes": "Arreglo de la 474 (en segundo plano no caminaba): vuelve el click mantenido; si en 0,6 s no se movió, suelta y vuelve a apretar más adelante (antes esperaba 2 s)."}
+{"version": 476, "notes": "Segundo plano: re-aprieta a los 0,2 s sin moverse (antes 0,6)."}

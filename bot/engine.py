@@ -7979,9 +7979,9 @@ class Bot:
             winapi.key_up(self.mod_held)
             self.mod_held = None
         winapi.move(ax, ay)
-        if self.cfg.get("background_mode") and self.mouse_held and now - self.nav["still_since"] > 0.6:
+        if self.cfg.get("background_mode") and self.mouse_held and now - self.nav["still_since"] > float(self.cfg.get("bg_repress_s", 0.2)):
             # SEGUNDO PLANO: el juego toma el click 'mantenido' por mensajes como un click suelto: camina hasta ese
-            # punto y se para. Si en 0,6 s no me moví, suelto y vuelvo a apretar más adelante (antes esperaba 2 s).
+            # punto y se para. Si en 0,2 s no me moví, suelto y vuelvo a apretar más adelante (antes esperaba 2 s).
             # (clicks sueltos en cada paso NO sirven: no caminaba nada)
             self._release()
         if not self.mouse_held:
