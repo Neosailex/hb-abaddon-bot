@@ -515,6 +515,13 @@ input[type=range]{accent-color:var(--gold);width:100%}
           <button class="btn sm" id="wExp" title="Recorrer este mapa entero y anotar dónde sale cada bicho">🧭 Relevar</button></div>
         <div class="hint" id="wInfo" style="position:absolute;left:18px;bottom:14px"></div>
       </div>
+      <div class="card" style="margin-top:10px">
+        <h3 style="margin:0 0 6px">Mapas prohibidos</h3>
+        <p class="hint" style="margin:0 0 8px">El bot prohíbe solo los mapas que le quedan grandes por nivel o equipo, o donde lo mataron. Acá mandás vos: 🚫 prohibir siempre, ✅ habilitar aunque el bot no quiera, 🤖 que decida el bot.</p>
+        <div style="display:flex;gap:6px;margin-bottom:8px"><input id="mrName" placeholder="nombre del mapa (ej. promiseland)" style="flex:1">
+          <button class="btn sm" onclick="mapRule($('#mrName').value,'ban')">🚫 Prohibir</button></div>
+        <div id="mrList" class="hint">cargando…</div>
+      </div>
     </section>
     <section class="page" id="p-events">
       <h1>Eventos</h1><p class="sub">Horarios en la hora de tu PC. Los raids marcados en rojo abren las capitales: cuidado si dejás el bot en la ciudad.</p>
@@ -666,7 +673,15 @@ const CELL=340, BOX=300;
 function wMap(k){return WORLD&&WORLD.maps.find(m=>m.key===k)}
 function wPt(m,x,y){const s=BOX/Math.max(m.w,m.h);return [m.gx*CELL+(BOX-m.w*s)/2+x*s, m.gy*CELL+(BOX-m.h*s)/2+y*s]}
 function wCur(){if(!WORLD||!WPOS||!WPOS.map)return null;const n=WPOS.map.toLowerCase();return WORLD.maps.find(m=>m.name.toLowerCase()===n)||null}
-async function loadWorld(){
+async function loadMapRules(){if(!API.map_rules){$('#mrList').textContent='Reiniciá la app para ver esto.';return}
+  const L=await API.map_rules();if(!Array.isArray(L)){$('#mrList').textContent='No pude leer la lista.';return}
+  if(!L.length){$('#mrList').textContent='Ningún mapa prohibido.';return}
+  $('#mrList').innerHTML=L.map(r=>{const st=r.rule==='ban'?'🚫 prohibido por vos':r.rule==='allow'?'✅ habilitado por vos':(r.auto?'🤖 prohibido por el bot':'—');
+    const nm=r.map.replace(/'/g,"\\'");
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #ffffff10"><b style="flex:1;text-transform:capitalize">${r.map}</b><span style="min-width:170px">${st}</span>`+
+      `<button class="btn sm" onclick="mapRule('${nm}','allow')" title="El bot puede ir">✅</button><button class="btn sm" onclick="mapRule('${nm}','ban')" title="Prohibido siempre">🚫</button><button class="btn sm" onclick="mapRule('${nm}','')" title="Lo decide el bot">🤖</button></div>`}).join('')}
+async function mapRule(n,r){if(!n||!API.map_rule)return;const res=await API.map_rule(n,r);toast(res.msg);loadMapRules()}
+async function loadWorld(){loadMapRules();
   if(!WORLD){$('#wInfo').textContent='Armando el mapa…';WORLD=await API.world_map();
     WORLD.maps.forEach(m=>{if(m.img){const i=new Image();i.onload=drawWorld;i.src=m.img;WIMG[m.key]=i}});
     $('#wInfo').textContent=WORLD.error?('No pude armar el mapa: '+WORLD.error):'';wFit()}

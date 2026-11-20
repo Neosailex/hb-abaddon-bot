@@ -4621,7 +4621,38 @@ class Bot:
             except Exception:
                 self._avoid_v = [a.lower() for a in self.cfg.get("travel", {}).get("avoid", [])]
             self._avoid_t = now
-        return self._avoid_v
+        # reglas de Juan desde la sección Mapa: 'allow' levanta la prohibición automática, 'ban' prohíbe siempre
+        rules = self.cfg.get("map_rules") or {}
+        out = [m for m in self._avoid_v if rules.get(m) != "allow"]
+        out += [m for m, r in rules.items() if r == "ban" and m not in out]
+        return out
+
+    def map_rules_view(self):
+        """Para la sección Mapa: cada mapa prohibido (por el bot o por Juan) y los que Juan habilitó a mano."""
+        self._avoid()
+        rules = self.cfg.get("map_rules") or {}
+        auto = list(getattr(self, "_avoid_v", []) or [])
+        names = sorted(set(auto) | set(rules))
+        return [{"map": n, "auto": n in auto, "rule": rules.get(n, ""),
+                 "avoid": (rules.get(n) == "ban") or (n in auto and rules.get(n) != "allow")} for n in names]
+
+    def map_rule(self, name, rule):
+        """Juan prohíbe ('ban'), habilita ('allow') o deja en automático ('') un mapa."""
+        n = str(name or "").strip().lower()
+        if not n:
+            return {"ok": False, "msg": "Falta el mapa."}
+        rules = dict(self.cfg.get("map_rules") or {})
+        if rule in ("ban", "allow"):
+            rules[n] = rule
+        else:
+            rules.pop(n, None)
+        self.cfg["map_rules"] = rules
+        cfgmod.save(self.cfg)
+        self._avoid_t = 0
+        msg = {"ban": f"🚫 {name}: prohibido (el bot no entra).", "allow": f"✅ {name}: habilitado (el bot puede ir)."}.get(
+            rule, f"🤖 {name}: lo decide el bot según nivel y equipo.")
+        self.log("🗺 " + msg)
+        return {"ok": True, "msg": msg, "rules": self.map_rules_view()}
 
     def _map_cost(self, name):
         """Cuánto me cuesta pisar un mapa al armar un camino: ciudad y farm casi nada; mapas con bichos bravos
@@ -7897,7 +7928,8 @@ class Bot:
             return False
         # viaje pedido (clic en el mapa, modo, misión): es una orden. No me frena la lista de mapas 'peligrosos por
         # nivel' (antes: clic en Promiseland → 'No encuentro camino', porque estaba en esa lista)
-        avoid = [] if force_dest else self._avoid()
+        avoid = ([m for m, r in (self.cfg.get("map_rules") or {}).items() if r == "ban" and not self._same(m, dest)]
+                 if force_dest else self._avoid())  # en un viaje pedido solo esquivo los que prohibió Juan
         # nombre "real" del destino según lo aprendido
         known = {v["to"] for _, v in [(k, v) for k, v in self.world.learn["links"].items()]}
         dest_key = next((k for k in known if self._same(k, dest)), dest.lower())

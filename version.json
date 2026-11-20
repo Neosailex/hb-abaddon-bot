@@ -1,1 +1,1 @@
-{"version": 457, "notes": "Clic en el mapa (o viaje de un modo) es una orden: ya no lo frena la lista de mapas 'peligrosos por nivel'. Antes, clic en Promiseland → 'No encuentro camino' y se borraba la X. El Cartógrafo tampoco saltea vecinos por esa lista."}
+{"version": 458, "notes": "Sección Mapa: nueva lista 'Mapas prohibidos'. Ves los que prohibió el bot (por nivel, equipo o muertes) y podés ✅ habilitarlos, 🚫 prohibirlos siempre o 🤖 dejar que decida el bot. Un clic en el mapa va igual a donde clickeaste, pero en el camino esquiva los que prohibiste vos."}

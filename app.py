@@ -164,6 +164,15 @@ class Api:
             v["spawns"], v["spawn_error"] = [], repr(e)
         return v
 
+    def map_rules(self):
+        try:
+            return self._bot.map_rules_view()
+        except Exception as e:
+            return {"error": repr(e)}
+
+    def map_rule(self, name, rule):
+        return self._bot.map_rule(name, rule)
+
     def server_status(self):
         try:
             return self._bot.server_status()
