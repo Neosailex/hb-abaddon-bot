@@ -1220,8 +1220,11 @@ class Bot:
         # Cada 5 min, tranquilo (sin bichos pegados ni caminando), aprieto CTRL medio segundo y lo leo.
         try:
             if self.running and cfgmod.server_slug(cfg) != "abaddon" and time.time() - getattr(self, "_ctrlx_t", 0) > 300 \
-                    and self.state == "seek" and not self._under_attack() and self._adjacent_mobs() == 0 \
+                    and (self.state == "seek" or time.time() - getattr(self, "_ctrlx_t", 0) > 900) \
+                    and (self.bars.get("hp") or 100) >= 50 \
                     and not getattr(self, "_busy_ui", False) and not self.nav.get("walking"):
+                # en un nido lleno no hay momento 'tranquilo': lo hago entre un bicho y el siguiente (o a los 15 min
+                # igual), suelto el click y aprieto CTRL medio segundo sin clickear
                 self._ctrlx_t = time.time()
                 self._ctrl_exp()
         except Exception:
