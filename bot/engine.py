@@ -9347,6 +9347,11 @@ class Bot:
                 f_.update(until=now + 1800, n=0, t0=now)
                 self.goto = None
                 self._q_npc = None
+                if self.bot_mode() == "quest":
+                    # ya comí/vendí para hacer lugar y no sale: paso a Automático DE VERDAD (el botón cambia en la app)
+                    self.log(f"📜 No pude cobrar '{hud[0]}' ni haciendo lugar: paso a modo Automático.")
+                    self.set_mode("auto", f"no pude cobrar '{hud[0]}'")
+                    return False
                 self.log(f"📜 No pude cobrar '{hud[0]}' (¿bolso lleno?): la dejo media hora y sigo cazando.")
                 return False
             qn = getattr(self, "_q_npc", None)
@@ -9482,6 +9487,22 @@ class Bot:
                     time.sleep(0.4)
         return out
 
+    def _q_fail_shot(self, qn, hud, why):
+        """Fallo al cobrar: guardo la captura (data/quest_fail_<npc>.png) para ver qué ventana trae el NPC, y sumo
+        el fallo a esa misión. En modo Quest reintento en 1 minuto (no 10)."""
+        try:
+            import cv2
+            cv2.imwrite(os.path.join(cfgmod.DATA, f"quest_fail_{''.join(c for c in qn['npc'].lower() if c.isalnum())}.png"),
+                        self.screen.grab(self.rect))
+            self.world.learn.setdefault("quest_fail", {})[qn["npc"]] = {"q": hud[0], "why": why, "t": time.time()}
+        except Exception:
+            pass
+        if self.bot_mode() == "quest":
+            try:
+                self.__dict__.setdefault("_q_turn_fail", {}).setdefault(hud[0], {"t0": time.time(), "n": 0, "until": 0})["n"] += 1
+            except Exception:
+                pass
+
     def _quest_turnin(self, qn, hud):
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         grab = lambda: self.screen.grab(self.rect)
@@ -9495,6 +9516,7 @@ class Bot:
         ms = next((w for w in ws if norm(w[0]).startswith("misi")), None)
         if not ms:
             self.log(f"📜 No me abre la charla con {qn['npc']}. Pruebo de nuevo en un rato.")
+            self._q_fail_shot(qn, hud, "no abre la charla")
             self._q_npc = None
             return
         click(ms[1] + 60 * tw / 72, ms[2])
@@ -9543,7 +9565,8 @@ class Bot:
                 pass
         else:
             self.log("📜 No encuentro el botón para cobrar la misión (dejo la ventana para que la veas).")
-            self._q_t = time.time() + 600
+            self._q_fail_shot(qn, hud, "sin botón de cobrar")
+            self._q_t = time.time() + (60 if self.bot_mode() == "quest" else 600)
             return
         self._q_npc = None
         if any(norm(w[0]) == "activas" for w in self._q_words(grab())):

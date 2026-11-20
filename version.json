@@ -1,1 +1,1 @@
-{"version": 449, "notes": "Modo Quest: con el bolso lleno el NPC no paga (aunque el premio sea oro). Antes de cobrar come 2 comidas para hacer lugar; si no alcanza, va a la tienda a vender y vuelve a cobrar. En Quest no prueba nidos nuevos cada hora."}
+{"version": 450, "notes": "Modo Quest: si falla al cobrar reintenta en 1 minuto (antes 10, y mientras se iba a cazar). Si ni comiendo ni vendiendo puede cobrar, pasa a Automático de verdad (el botón vuelve a verde). Cada fallo guarda la captura en data/quest_fail_<npc>.png para ver la ventana del NPC."}
