@@ -1,1 +1,1 @@
-{"version": 462, "notes": "Tabla de nidos: los medidos con la exp real del juego en blanco; los viejos (medidos antes contando bichos) en gris con '≈', estimados con lo que paga este server. Se corrigen solos cuando vuelve a cazar ahí."}
+{"version": 463, "notes": "Nivel: cada 5 min, tranquilo, aprieta CTRL medio segundo y lee 'A sig. nivel: N (P%)' del cuadro de la posición. En el Panel: % del nivel, cuánto falta, % por hora y en cuánto sube (con la exp real por hora)."}

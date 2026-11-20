@@ -1216,6 +1216,16 @@ class Bot:
                 self._exp_msg(" ".join(w[0].lower() for w in ws_), time.time())
         except Exception:
             pass
+        # nivel: con CTRL apretado el cuadro de la posición muestra 'A sig. nivel: 993.180 (5.04%)' (idea de Juan).
+        # Cada 5 min, tranquilo (sin bichos pegados ni caminando), aprieto CTRL medio segundo y lo leo.
+        try:
+            if self.running and cfgmod.server_slug(cfg) != "abaddon" and time.time() - getattr(self, "_ctrlx_t", 0) > 300 \
+                    and self.state == "seek" and not self._under_attack() and self._adjacent_mobs() == 0 \
+                    and not getattr(self, "_busy_ui", False) and not self.nav.get("walking"):
+                self._ctrlx_t = time.time()
+                self._ctrl_exp()
+        except Exception:
+            pass
         # REGLA DE ORO: antes que cualquier otra cosa (viaje, misión, compras, pensar), si me pegan me defiendo
         try:
             if cfg["mode"] == "auto" and not self._fleeing() and not self._carto_go() and self._reflex():
@@ -5849,6 +5859,45 @@ class Bot:
                 # desde ahora mido con la experiencia real: empiezo el nido de cero
                 r.update(exp=0, secs=0.0, xu=0.0, kills=0, gold=0, real=True)
             r["exp"] = int(r.get("exp", 0)) + v
+
+    def _ctrl_exp(self):
+        """Aprieto CTRL un instante y leo 'A sig. nivel: N (P%)' en el cuadro de la posición."""
+        import re as _re
+        box = self.cfg["calib"].get("pos_box")
+        if not box or not self.rect:
+            return
+        self._release()
+        img = None
+        try:
+            winapi.key_down("CTRL")
+            time.sleep(0.4)
+            img = self.screen.grab(self.rect)
+        finally:
+            winapi.key_up("CTRL")
+        if img is None:
+            return
+        x1, y1, x2, y2 = (int(box[k]) for k in ("x1", "y1", "x2", "y2"))
+        crop = img[max(0, y1):y2, max(0, x1):x2]
+        tr = str.maketrans({"o": "0", "O": "0", "D": "0", "Q": "0", "l": "1", "I": "1", "|": "1", "S": "5", "B": "8", "Z": "2"})
+        for t in (ocr.read_text(crop), ocr.read_text_fixed(crop, 3, 150), ocr.read_text_fixed(crop, 4, 150)):
+            t = (t or "").replace("Cl", "0")
+            m = _re.search(r"niv\w*\W*([\dOoDQlISBZ\.,]+)\s*\(\s*([\dOoDQlISBZ]+[\.,][\dOoDQlISBZ]+)\s*%", t)
+            if not m:
+                continue
+            left = int(_re.sub(r"[^\d]", "", m.group(1).translate(tr)) or -1)
+            pct = float(m.group(2).translate(tr).replace(",", "."))
+            if left < 0 or not (0 <= pct < 100):
+                continue
+            self.progress["exp"], self.progress["exp_left"] = pct, left
+            eh = self.exp_hour()
+            if eh and eh > 0:
+                tot = left / max(0.01, 1 - pct / 100.0)
+                self.progress["rate"] = round(eh / tot * 100.0, 1)
+                self.progress["eta_min"] = int(left / eh * 60)
+            if not getattr(self, "_ctrlx_said", False):
+                self._ctrlx_said = True
+                self.log(f"📈 Nivel: {pct:.2f}% (faltan {left:,} de exp). Lo leo cada 5 min con CTRL.".replace(",", "."))
+            return
 
     def exp_hour(self):
         """Experiencia real de la última hora (de los carteles del juego), o None si todavía no vi ninguno."""
