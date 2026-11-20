@@ -1,1 +1,1 @@
-{"version": 442, "notes": "Nidos: la experiencia por hora sale de lo que mata (cantidad x experiencia de cada bicho en la base del juego, escalada a lo que paga el server), no de la barra de experiencia (dependía de leer bien el nivel). Las medidas viejas se borran y se vuelven a medir."}
+{"version": 443, "notes": "Bolso: reconoce el encabezado aunque no diga 'Peso:' (con el bolso lleno sale solo '431/1085 (50/50)'): no lo veía abierto y por eso no comía ni vendía. Stats: si la ventana dice 0 puntos por repartir, el tablero ya no avisa 'no repartí'."}

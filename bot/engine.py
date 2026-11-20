@@ -4099,6 +4099,9 @@ class Bot:
             pts = points(img)
         if pts == 0 and not getattr(self, "_stats_force", None):
             self._stats_fail = 0
+            self._sal_stats_t = time.time()  # no queda nada por repartir: está al día (el tablero no debe alarmar)
+            self.log("📈 Stats al día: no quedan puntos por repartir.") if time.time() - getattr(self, "_st0_said", 0) > 3600 else None
+            self._st0_said = time.time() if time.time() - getattr(self, "_st0_said", 0) > 3600 else getattr(self, "_st0_said", 0)
             click((st[1] + ap[1]) / 2, st[2] - 60, "right")  # nada para repartir: cierro
             return
         def boxes(im):
@@ -9446,6 +9449,22 @@ class Bot:
                 digs = sum(c.isdigit() for c in w[0]) + sum(sum(c.isdigit() for c in v[0]) for v in row if 0 < v[1] - w[1] < 300 * kx)
                 if digs >= 4:
                     return w
+            # a veces el encabezado sale sin 'Peso:' (pasó con el bolso lleno: '431/1085 (50/50)'): el número
+            # arranca justo donde iba 'Peso:'. Devuelvo un 'Peso:' de mentira en ese lugar, así todo lo que se mide
+            # desde el encabezado (lugares del bolso, oro, items) sigue igual.
+            import re as _re
+            for w in ws:
+                t = w[0].strip()
+                if not _re.match(r"^\d{1,4}/\d{2,5}", t):
+                    continue
+                row = [v for v in ws if v is not w and abs(v[2] - w[2]) < 12 * ky]
+                if any(0 < w[1] - v[1] < 130 * kx for v in row):
+                    continue
+                if "(" not in t and not any(_re.search(r"\(\d+/\d+", v[0]) for v in row if 0 < v[1] - w[1] < 260 * kx):
+                    continue
+                ww = w[3] if len(w) > 3 else 80 * kx
+                left = w[1] - ww / 2
+                return ("Peso:", left + 26 * kx, w[2], 52 * kx, w[4] if len(w) > 4 else 16 * ky)
             return None
         if words is None:
             try:
