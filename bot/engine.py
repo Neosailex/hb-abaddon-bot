@@ -15041,10 +15041,8 @@ class Bot:
             t0 = time.time()
             try:
                 if self.preview_on and self.rect and time.time() - getattr(self, "_frame_wanted", 0) < 2.0:
-                    if scr is None or (not isinstance(self.screen, vision.Screen) and scr is not self.screen):
-                        scr = vision.Screen() if isinstance(self.screen, vision.Screen) else self.screen
-                    scr.hwnd = self.hwnd
-                    scr.use_printwindow = bool(self.cfg.get("background_mode"))
+                    # uso la MISMA captura del bot (antes abría otra: dos capturas de 60 cuadros por segundo a la vez)
+                    scr = self.screen
                     img = scr.grab(self.rect)
                     if img is not None:
                         mons = getattr(self, "_last_mons", []) if self.running else []
@@ -15052,14 +15050,14 @@ class Bot:
                             mons = [self.target]
                         ov = vision.draw_overlay(img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None), grid=self._grid_overlay())
                         url = vision.to_data_url(ov, int(self.cfg.get("preview_quality", 75)),
-                                                 max_w=int(self.cfg.get("preview_width", 1280)))
+                                                 max_w=int(self.cfg.get("preview_width", 960)))
                         self.preview = url
                         self.frame_id += 1
                 else:
                     time.sleep(0.1)
             except Exception:
                 time.sleep(0.3)
-            fps = max(5, min(30, int(self.cfg.get("preview_fps", 15))))
+            fps = max(3, min(30, int(self.cfg.get("preview_fps", 8))))  # la vista en vivo no necesita más
             time.sleep(max(0.005, 1.0 / fps - (time.time() - t0)))
 
     def frame(self, last_id=0):

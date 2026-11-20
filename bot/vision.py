@@ -44,6 +44,10 @@ class Screen:
             @cap.event
             def on_frame_arrived(frame, control):
                 try:
+                    # el juego entrega 60+ cuadros por segundo; el bot con ~20 tiene de sobra. Convertir y copiar cada
+                    # cuadro se comía casi un núcleo entero: salteo los que llegan antes de tiempo.
+                    if time.time() - st["t"] < st.get("min_dt", 0.05):
+                        return
                     img = frame.convert_to_bgr().frame_buffer
                     with st["lock"]:
                         st["img"] = np.ascontiguousarray(img[:, :, :3])

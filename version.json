@@ -1,1 +1,1 @@
-{"version": 470, "notes": "Ventana del juego: nunca toma la de un navegador u otro programa. Una pestaña de Brave con Helbreath Olympia en el título le ganaba al juego y el bot leía YouTube."}
+{"version": 471, "notes": "Menos consumo: la captura de pantalla procesa ~20 cuadros por segundo (antes todos los que dibuja el juego, 60+); la vista en vivo usa la misma captura del bot (antes abría otra) y va a 8 cuadros por segundo y 960 px."}
