@@ -9565,6 +9565,13 @@ class Bot:
                 rx_ = (2 * ti_[1] - ab_[1]) if ti_ else ab_[1] - 0.15 * self.rect[2]
                 bt = ("reclamar?", int(rx_), ab_[2], 0, 0)
                 self.log("📜 No leo 'Reclamar' (¿chat encima?): lo ubico al lado de 'Abandonar Misión'.")
+        lr_ = (self.world.learn or {}).get("quest_reclamar")
+        if not bt and lr_ and any(norm(w[0]).startswith(("recompens", "misiones", "abandon")) for w in ws):
+            # la ventana de cobrar está siempre en el mismo lugar de la pantalla (Juan): uso donde lo leí la última vez
+            bt = ("reclamar@", int(lr_[0] * self.rect[2]), int(lr_[1] * self.rect[3]), 0, 0)
+            self.log("📜 No leo 'Reclamar': aprieto donde está siempre.")
+        elif bt and bt[0][-1:] not in ("?", "@"):
+            self.world.learn["quest_reclamar"] = [bt[1] / self.rect[2], bt[2] / self.rect[3]]
         if bt:
             click(bt[1], bt[2])
             time.sleep(1.5)

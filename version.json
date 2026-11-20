@@ -1,1 +1,1 @@
-{"version": 452, "notes": "Cobro: después de clickear al NPC espera hasta 8 s a que se abra la charla (si está lejos el pj camina primero; antes miraba a los 2 s y decía 'no me abre la charla'). La charla se busca en toda la pantalla: aparece en distintos lugares y queda quieta aunque te muevas."}
+{"version": 453, "notes": "Cobro: la ventana 'Misiones' con Reclamar está siempre en el mismo lugar. La primera vez que lee 'Reclamar' guarda dónde está; si después el chat lo tapa, aprieta ahí."}
