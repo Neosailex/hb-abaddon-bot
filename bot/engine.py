@@ -7871,9 +7871,13 @@ class Bot:
     def _walk_to(self, m, goal, label):
         if getattr(m, "_no_pisar", None) is None and cfgmod.server_slug(self.cfg) != "abaddon":
             self._apply_no_pisar(m)
-        if cfgmod.server_slug(self.cfg) != "abaddon":
-            m.extra = self._mob_costs(m, goal)
         now = time.time()
+        # costo de los bichos: cada 1,5 s (calcularlo en cada paso hacía que cada llamada tardara medio segundo)
+        if cfgmod.server_slug(self.cfg) != "abaddon":
+            mc_ = self.nav.get("mc_cache")
+            if not mc_ or mc_[0] is not m or mc_[1] != tuple(goal) or now - mc_[2] > 1.5:
+                m.extra = self._mob_costs(m, goal)
+                self.nav["mc_cache"] = (m, tuple(goal), now)
         px, py = self.pos["x"], self.pos["y"]
         if (px, py) != self.nav.get("last_pos"):
             self.nav["last_pos"], self.nav["still_since"] = (px, py), now
@@ -7883,10 +7887,23 @@ class Bot:
         if max(abs(goal[0] - px), abs(goal[1] - py)) <= 1 and not m.tele[goal[1], goal[0]]:
             self._release()
             return
-        path = m.astar((px, py), goal)
+        # reuso el camino calculado si sigo arriba de él (A* largo en cada paso = medio segundo parado)
+        path = None
+        pc_ = self.nav.get("path_cache")
+        if pc_ and pc_[0] is m and pc_[1] == tuple(goal) and now - pc_[3] < 2.5:
+            try:
+                i_ = pc_[2].index((px, py))
+                if i_ <= 12:
+                    path = pc_[2][i_:]
+            except ValueError:
+                pass
         if not path:
-            g2 = m.nearest_walkable(*goal)
-            path = m.astar((px, py), g2) if g2 else None
+            path = m.astar((px, py), goal)
+            if not path:
+                g2 = m.nearest_walkable(*goal)
+                path = m.astar((px, py), g2) if g2 else None
+            if path:
+                self.nav["path_cache"] = (m, tuple(goal), [tuple(q) for q in path], now)
         if not path:
             self.nav["status"] = f"sin camino a {label}"
             self._roam()
@@ -7907,8 +7924,10 @@ class Bot:
             if ex_ and wp != path[min(1, len(path) - 1)] or ex_ and p != path[1]:
                 # el camino rodea un nido: no lo corto en línea recta por el medio
                 n_s = max(abs(p[0] - px), abs(p[1] - py))
-                if any(ex_.get((int(round(px + (p[0] - px) * t / n_s)), int(round(py + (p[1] - py) * t / n_s))), 0.0) >= 4.0
-                       for t in range(1, n_s + 1)):
+                # (desde la 3ª baldosa: los bichos pegados a mí marcaban costo en la primera y el punto quedaba a 1
+                # baldosa: caminaba una, frenaba, caminaba una...)
+                if n_s >= 3 and any(ex_.get((int(round(px + (p[0] - px) * t / n_s)), int(round(py + (p[1] - py) * t / n_s))), 0.0) >= 4.0
+                                    for t in range(3, n_s + 1)):
                     break
             wp = p
         # parado con el click apretado: el cursor quedó sobre otro jugador/NPC/objeto y el juego no camina. Antes lo
