@@ -1,1 +1,1 @@
-{"version": 456, "notes": "Caminar sin frenadas: si el personaje se queda quieto con el click apretado (cursor arriba de otro jugador, NPC u objeto), a los 1,2 s suelta y apunta una baldosa corrido. Antes tardaba 4 s y en la ciudad frenaba cada 5-8 baldosas."}
+{"version": 457, "notes": "Clic en el mapa (o viaje de un modo) es una orden: ya no lo frena la lista de mapas 'peligrosos por nivel'. Antes, clic en Promiseland → 'No encuentro camino' y se borraba la X. El Cartógrafo tampoco saltea vecinos por esa lista."}

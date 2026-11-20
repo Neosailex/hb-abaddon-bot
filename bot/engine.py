@@ -5716,7 +5716,7 @@ class Bot:
                 to = todo[0]
                 mp = self.world.map_for(to)
                 g = mp.nearest_walkable(mp.w // 2, mp.h // 2, r=12) if mp else None
-                if not self._known_route(cur, to, self._avoid()) and not self._same(cur, to):
+                if not self._known_route(cur, to, []) and not self._same(cur, to):
                     self.log(f"🗺 Cartógrafo: no sé llegar a {to}. Lo salteo.")
                     todo.pop(0)
                     cfgmod.save(self.cfg)
@@ -7895,7 +7895,9 @@ class Bot:
                 self._release()
             self.nav["walking"] = False
             return False
-        avoid = self._avoid()
+        # viaje pedido (clic en el mapa, modo, misión): es una orden. No me frena la lista de mapas 'peligrosos por
+        # nivel' (antes: clic en Promiseland → 'No encuentro camino', porque estaba en esa lista)
+        avoid = [] if force_dest else self._avoid()
         # nombre "real" del destino según lo aprendido
         known = {v["to"] for _, v in [(k, v) for k, v in self.world.learn["links"].items()]}
         dest_key = next((k for k in known if self._same(k, dest)), dest.lower())
