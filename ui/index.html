@@ -655,7 +655,7 @@ async function loadBrain(){
   $('#brMods').innerHTML=head.map(h=>`<span style="color:var(--muted)">${h}</span>`).join('')+(rows.join('')||'<span>Todavía no corrió (prendé el bot)</span><span></span><span></span><span></span><span></span><span></span>');
   $('#brProbe').textContent=b.probe?('🔎 Probando el nido de '+b.probe):(b.next_probe_min==null?'Próxima prueba: —':'Próxima prueba de nido en '+b.next_probe_min+' min');
   const nh=['Nido','Exp/hora','Medido','Zona'].map(h=>`<span style="color:var(--muted)">${h}</span>`).join('');
-  $('#brNests').innerHTML=nh+((b.nests||[]).map(n=>`<span style="${n.zona?'color:var(--gold,#e7c66b);font-weight:700':''}">${esc(n.mob)} (${n.x},${n.y})</span><span>${n.rate==null?'sin medir':fmtN(Math.round(n.rate))}</span><span>${n.min} min</span><span>${n.zona?'◀ acá':''}</span>`).join('')||'<span>Todavía sin datos</span><span></span><span></span><span></span>');
+  $('#brNests').innerHTML=nh+((b.nests||[]).map(n=>`<span style="${n.zona?'color:var(--gold,#e7c66b);font-weight:700':''}">${esc(n.mob)} (${n.x},${n.y})</span><span ${n.real?'':'style="color:var(--muted)" title="Estimado: lo medí antes contando bichos muertos; se corrige cuando vuelva a cazar ahí"'}>${n.rate==null?'sin medir':(n.real?'':'≈ ')+fmtN(Math.round(n.rate))}</span><span>${n.min} min</span><span>${n.zona?'◀ acá':''}</span>`).join('')||'<span>Todavía sin datos</span><span></span><span></span><span></span>');
   renderQuests(b.quests||[]);
   const s=b.salud;
   if(!s){$('#brSalOk').textContent='Sin datos todavía';$('#brAlerts').innerHTML='';$('#brSal').innerHTML='';return}

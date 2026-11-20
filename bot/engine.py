@@ -6173,7 +6173,7 @@ class Bot:
             hot = (self.world.learn.get("oly_hot") or {}).get(mk) or {}
             for k, r in ((self.world.learn.get("nest_rate") or {}).get(mk) or {}).items():
                 x_, y_ = (int(v) for v in k.split(","))
-                nests.append({"mob": r.get("mob") or "?", "x": x_, "y": y_, "rate": self._nest_rate(r),
+                nests.append({"mob": r.get("mob") or "?", "x": x_, "y": y_, "rate": self._nest_rate(r), "real": bool(r.get("real")),
                               "min": int(float(r.get("secs", 0)) / 60),
                               "zona": bool(hot) and max(abs(hot.get("x", -99) - x_), abs(hot.get("y", -99) - y_)) <= 18})
             nests.sort(key=lambda n: -(n["rate"] or -1))
