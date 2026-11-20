@@ -1250,7 +1250,7 @@ class Bot:
                     return
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0 \
                 and (self.bot_mode() not in ("manual", "caza", "quest")
-                     or (self.bot_mode() == "quest" and time.time() - getattr(self, "_rep_last", 0) < 900)) \
+                     or (self.bot_mode() == "quest" and (self._quest_maint() or time.time() - getattr(self, "_rep_last", 0) < 900))) \
                 and not getattr(self, "_busy_ui", False) and not self._ui_th_alive() \
                 and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or self._mobs_within(3) > 0
                          or (self.bars.get("hp") or 100) < 50)):
@@ -4994,8 +4994,27 @@ class Bot:
         self.stats["state"] = "en el pueblo: me preparo antes de cazar"
         return True
 
+    def _quest_maint(self):
+        """Modo Quest (Juan): de cada hora, 50 min misiones y 10 min mantenimiento (reparar, stats, ordenar bolso,
+        pociones). La franja se abre cuando pasaron 50 min desde la última y no hay una misión lista para cobrar."""
+        now = time.time()
+        t0 = self.__dict__.setdefault("_qm_t0", now)  # arranca contando desde que prendo el modo
+        if now - t0 < 3000:
+            return False
+        if now - t0 < 3600:
+            if not getattr(self, "_qm_said", False):
+                q_ = getattr(self, "quest", None)
+                if q_ and q_[2] > 0 and q_[1] >= q_[2]:
+                    return False  # primero cobro lo que está listo
+                self._qm_said = True
+                self.log("🧰 Modo Quest: 10 minutos de mantenimiento (reparar, stats, bolso, pociones) y sigo con las misiones.")
+            return True
+        self._qm_t0, self._qm_said = now, False
+        self.log("📜 Modo Quest: termina el mantenimiento, sigo con las misiones.")
+        return False
+
     def _town_need(self, why):
-        if self.bot_mode() == "quest" and not any(k in str(why) for k in ("roto", "sin arma", "dejé de matar", "mataron")):
+        if self.bot_mode() == "quest" and not self._quest_maint() and not any(k in str(why) for k in ("roto", "sin arma", "dejé de matar", "mataron")):
             return  # modo Quest: al pueblo solo si no puedo matar (arma rota o sin arma)
         if any(k in str(why) for k in ("dejé de matar", "mataron")):
             self._gear_t = 0  # leo qué tengo puesto apenas pueda
@@ -5425,6 +5444,8 @@ class Bot:
         m = m if m in self.MODES else "auto"
         prev = self.bot_mode()
         self.cfg["bot_mode"] = m
+        if m == "quest" and prev != "quest":
+            self._qm_t0, self._qm_said = time.time(), False  # la hora de Quest arranca ahora (50 misiones / 10 mantenimiento)
         if m == "manual" and self.pos.get("x") is not None:
             mk = (self.pos.get("map") or "").strip().lower()
             self.cfg["mode_anchor"] = {"mk": mk, "map": self.pos.get("map"), "x": int(self.pos["x"]), "y": int(self.pos["y"])}
@@ -5866,7 +5887,11 @@ class Bot:
         # modos (más adelante): cada modo sube o baja pesos, ej. {'misión cobrar/aceptar': +40}
         w = dict(self.cfg.get("mode_weights") or {})
         md_ = self.bot_mode()
-        if md_ == "quest":
+        if md_ == "quest" and self._quest_maint():
+            # QUEST, franja de mantenimiento (10 min por hora): herrero, stats, bolso y pociones; nada de compras/nidos
+            for k_ in ("estrategia", "plan", "mejoras", "nidos", "auditoría"):
+                w[k_] = -1000
+        elif md_ == "quest":
             # QUEST (Juan): orden absoluta. Cobrar y hacer misiones, nada más: sin stats, sin ordenar el bolso, sin
             # auditorías ni compras de mejoras. Ni tienda ni pociones ni herrero (solo si se rompe el arma, para poder matar).
             w["misión cobrar/aceptar"] = w.get("misión cobrar/aceptar", 0) + 200
@@ -9223,11 +9248,17 @@ class Bot:
         if cfgmod.server_slug(self.cfg) == "abaddon" or (not self.cfg.get("quests_auto", True) and self.bot_mode() != "quest"):
             return False
         now = time.time()
-        if self.state != "seek" or self._under_attack() or self._fleeing() or not self.rect:
+        # modo Quest con una misión lista: cobrar manda (no espero a 'buscar bicho' ni 20 s entre vueltas; antes llegaba
+        # al NPC, se ponía a cazar un slime y se alejaba antes de la próxima vuelta)
+        rdy = self.bot_mode() == "quest" and any(q_.get("done") for q_ in (getattr(self, "quests", None) or [])) \
+            or (self.bot_mode() == "quest" and getattr(self, "quest", None) and self.quest[2] > 0 and self.quest[1] >= self.quest[2])
+        if (self.state != "seek" and not rdy) or self._under_attack() or self._fleeing() or not self.rect:
             return False
-        if now - getattr(self, "_q_t", 0) < 20:
+        if now - getattr(self, "_q_t", 0) < (3 if rdy else 20):
             return False
         self._q_t = now
+        if rdy and self.state != "seek":
+            self.target, self.state = None, "seek"
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         grab = lambda: self.screen.grab(self.rect)
         click = lambda x, y, b="left": winapi.click(*self.abs_pt(x, y), button=b)
@@ -9295,7 +9326,7 @@ class Bot:
                     self._q_npc = qn
             if not qn:
                 return False
-            if not self._same(self.pos.get("map") or "", qn["map"]) or max(abs(self.pos["x"] - qn["x"]), abs(self.pos["y"] - qn["y"])) > 2:
+            if not self._same(self.pos.get("map") or "", qn["map"]) or max(abs(self.pos["x"] - qn["x"]), abs(self.pos["y"] - qn["y"])) > (4 if rdy else 2):
                 if not getattr(self, "goto", None):
                     self.log(f"📜 Misión '{hud[0]}' lista ({hud[1]}/{hud[2]}): voy a cobrarla con {qn['npc']} ({qn['map']} {qn['x']},{qn['y']}).")
                     self.goto = {"map": qn["map"], "x": qn["x"], "y": qn["y"] + 1, "t": now}
@@ -10433,7 +10464,7 @@ class Bot:
                 self._town_need("equipo roto")
             if not rep_busy:
                 go("equipo roto")  # roto no espera: salgo aunque me peguen (también en Manual)
-        elif low and self.bot_mode() != "quest" and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
+        elif low and (self.bot_mode() != "quest" or self._quest_maint()) and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
             # en un nido lleno nunca estoy 'libre': si estoy peleando espero hasta 60 s a que afloje y salgo igual
             if fighting and now - self._gm_low_t < 60:
                 return True
