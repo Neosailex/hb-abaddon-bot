@@ -142,7 +142,7 @@ class Renderer:
         return img
 
     def path_for(self, key):
-        return os.path.join(self.out_dir, f"{key.lower()}.jpg")
+        return os.path.join(self.out_dir, f"{key.lower()}.v2.jpg")  # .v2: los de antes salieron negros
 
     def ensure(self, key, amd_path):
         p = self.path_for(key)
@@ -150,7 +150,8 @@ class Renderer:
             if os.path.exists(p) and os.path.getmtime(p) >= os.path.getmtime(amd_path):
                 return p
             img = self.render(amd_path)
-            if img is None or img.size == 0 or not img.any():
+            # dibujo casi todo negro (faltaron gráficos): no lo guardo, queda el dibujo simple
+            if img is None or img.size == 0 or (img.max(axis=2) > 25).mean() < 0.3:
                 return None
             os.makedirs(self.out_dir, exist_ok=True)
             cv2.imwrite(p, img, [cv2.IMWRITE_JPEG_QUALITY, 82])
