@@ -684,8 +684,11 @@ async function mapRule(n,r){if(!n||!API.map_rule)return;const res=await API.map_
 async function loadWorld(){loadMapRules();
   if(!WORLD){$('#wInfo').textContent='Armando el mapa…';WORLD=await API.world_map();
     WORLD.maps.forEach(m=>{if(m.img){const i=new Image();i.onload=drawWorld;i.src=m.img;WIMG[m.key]=i}});
-    $('#wInfo').textContent=WORLD.error?('No pude armar el mapa: '+WORLD.error):'';wFit()}
+    $('#wInfo').textContent=WORLD.error?('No pude armar el mapa: '+WORLD.error):'';wFit();loadMapArt()}
   drawWorld()}
+// dibujos con los gráficos del juego: los pido de a uno y reemplazan al dibujo simple
+async function loadMapArt(){if(!API.map_art||!WORLD)return;for(const m of WORLD.maps){if(m._hd)continue;
+  try{const u=await API.map_art(m.key);if(u){const i=new Image();i.onload=()=>{WIMG[m.key]=i;m._hd=1;drawWorld()};i.src=u}}catch(e){}}}
 function wSize(){const c=$('#wCanvas');const r=c.getBoundingClientRect();const d=window.devicePixelRatio||1;
   if(c.width!==Math.round(r.width*d)||c.height!==Math.round(r.height*d)){c.width=Math.round(r.width*d);c.height=Math.round(r.height*d)}return [r.width,r.height,d]}
 function wFit(){if(!WORLD||!WORLD.maps.length)return;const [W,H]=wSize();const xs=WORLD.maps.map(m=>m.gx),ys=WORLD.maps.map(m=>m.gy);

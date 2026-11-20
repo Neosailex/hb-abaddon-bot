@@ -17,3 +17,4 @@ data/latido.json
 data/crash.log
 data/vigia.log
 data/vigia.pid
+data/maprender/

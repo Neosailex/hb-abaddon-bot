@@ -64,6 +64,13 @@ class Bot:
             except Exception:
                 pass
         self.world = worldmod.World(gd, os.path.join(self.pdir, "mundo.json"))
+        # dibujos lindos de los mapas (con los gráficos del juego) para la sección Mapa; se arman en segundo plano
+        try:
+            from . import maprender
+            self.maprender = maprender.Renderer(gd, os.path.join(cfgmod.DATA, "maprender"), self.log)
+            self.maprender.render_all(self.world.files)
+        except Exception:
+            self.maprender = None
         self.pos = {"map": None, "x": None, "y": None, "t": 0, "text": ""}
         mp = (self.cfg.get("memory") or {}).get("pos")
         self.mem = memory.PosFinder(self.log, saved=mp)

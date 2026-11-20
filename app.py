@@ -164,6 +164,21 @@ class Api:
             v["spawns"], v["spawn_error"] = [], repr(e)
         return v
 
+    def map_art(self, key):
+        """Dibujo del mapa con los gráficos del juego (o None si todavía no está)."""
+        try:
+            r = getattr(self._bot, "maprender", None)
+            if not r:
+                return None
+            u = r.data_url(key)
+            if u is None:
+                fp = next((v for k, v in self._bot.world.files.items() if k.lower() == str(key).lower()), None)
+                if fp and r.ensure(key, fp):
+                    u = r.data_url(key)
+            return u
+        except Exception:
+            return None
+
     def map_rules(self):
         try:
             return self._bot.map_rules_view()
