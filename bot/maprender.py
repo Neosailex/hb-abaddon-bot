@@ -80,7 +80,18 @@ class Renderer:
     @staticmethod
     def _amd(path):
         d = open(path, "rb").read()
-        w, h = map(int, re.findall(rb"(\d+)", d[:256])[:2])
+        import zstandard as zstd
+        if d[:4] == b"AMD\x02":
+            # formato nuevo de Olympia: 'AMD'+2, ancho, alto (uint16) y zstd con 9 bytes por baldosa:
+            # atributos, objeto, cuadro del objeto, piso, cuadro del piso (comparado con el .amd clásico)
+            w, h = struct.unpack_from("<HH", d, 4)
+            raw = zstd.ZstdDecompressor().decompress(d[8:], max_output_size=64 << 20)[:9 * w * h]
+            dt9 = np.dtype([("a", "u1"), ("os", "<i2"), ("of", "<i2"), ("ts", "<i2"), ("tf", "<i2")])
+            return np.frombuffer(raw.ljust(9 * w * h, b"\x00"), dtype=dt9).reshape(h, w)
+        if d[256:260] == b"\x28\xb5\x2f\xfd":  # cuerpo clásico comprimido con zstd
+            d = d[:256] + zstd.ZstdDecompressor().decompress(d[256:], max_output_size=64 << 20)
+        w = int(re.search(rb"MAPSIZEX\s*=\s*(\d+)", d[:256]).group(1))
+        h = int(re.search(rb"MAPSIZEY\s*=\s*(\d+)", d[:256]).group(1))
         dt = np.dtype([("ts", "<i2"), ("tf", "<i2"), ("os", "<i2"), ("of", "<i2"), ("a", "u1"), ("b", "u1")])
         body = d[256:256 + 10 * w * h]
         if len(body) < 10 * w * h:
