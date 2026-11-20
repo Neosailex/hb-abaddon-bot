@@ -1,1 +1,1 @@
-{"version": 453, "notes": "Cobro: la ventana 'Misiones' con Reclamar está siempre en el mismo lugar. La primera vez que lee 'Reclamar' guarda dónde está; si después el chat lo tapa, aprieta ahí."}
+{"version": 454, "notes": "Regla máxima al cobrar misiones: si el bolso está lleno (50), ANTES de ir al NPC toma una poción o come (aunque no le haga falta) hasta liberar un lugar, empezando por la pila más chica. Si no puede, en modo Quest va a vender y después cobra."}

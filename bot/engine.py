@@ -9354,6 +9354,17 @@ class Bot:
                     return False
                 self.log(f"📜 No pude cobrar '{hud[0]}' (¿bolso lleno?): la dejo media hora y sigo cazando.")
                 return False
+            # REGLA MÁXIMA: antes de ir a cobrar, un lugar libre en el bolso (si no, el NPC no paga)
+            if now - getattr(self, "_q_free_t", 0) > 60:
+                self._q_free_t = now
+                if not self._q_free_slot() and self.bot_mode() == "quest" and now - getattr(self, "_q_sell_t", 0) > 600:
+                    self._q_sell_t = now
+                    self.goto, self._q_npc = None, None
+                    self.log(f"📜 Voy a vender a la tienda para hacer lugar y después cobro '{hud[0]}'.")
+                    self._shop_last = now
+                    self._shop_th = threading.Thread(target=self._oly_shop_trip, daemon=True)
+                    self._shop_th.start()
+                    return True
             qn = getattr(self, "_q_npc", None)
             if not qn or now - qn.get("t", 0) > 600 or qn.get("q") != hud[0]:
                 qn = self._quest_npc_db(hud[0]) or self._quest_where()
@@ -9486,6 +9497,37 @@ class Bot:
                     winapi.click(*self.abs_pt(hd[1], hd[2]), button="right")
                     time.sleep(0.4)
         return out
+
+    def _q_free_slot(self):
+        """REGLA MÁXIMA (Juan): con el bolso lleno el NPC no paga la misión. Antes de ir a cobrar, si el bolso está
+        lleno (50 en memoria) tomo una poción o como una comida (aunque no tenga hambre ni me falte vida) hasta
+        liberar un lugar. Empiezo por la pila más chica de comida/pociones. True = hay lugar."""
+        oi = self._inv_oly()
+        if oi is None:
+            return True  # no sé: pruebo igual
+        cap = int(self.cfg.get("bag_slots_max", 50))
+        if len(oi) < cap:
+            return True
+        n0 = len(oi)
+        st = sorted([i for i in oi if i["id"] in (self.ID_POT, self.ID_MEAT, self.ID_BAGUETTE)], key=lambda i: max(1, i["count"]))
+        if not st or max(1, st[0]["count"]) > 4:
+            self.log("📜 Bolso lleno y no tengo una comida/poción suelta para liberar lugar.")
+            return False
+        kind = "pot" if st[0]["id"] == self.ID_POT else "meat"
+        self.__dict__.get("_no_item", {}).pop(kind, None)
+        for _ in range(max(1, st[0]["count"]) + 1):
+            try:
+                self._consume(kind)
+            except Exception:
+                pass
+            time.sleep(1.3)
+            oi = self._inv_oly() or oi
+            if len(oi) < n0:
+                self.log(f"📜 Bolso lleno: {'tomé una poción' if kind == 'pot' else 'comí'} para liberar un lugar y poder cobrar.")
+                self._bag_slots = None
+                return True
+        self.log(f"📜 Bolso lleno: {'tomé pociones' if kind == 'pot' else 'comí'} pero no se liberó lugar.")
+        return False
 
     def _q_fail_shot(self, qn, hud, why):
         """Fallo al cobrar: guardo la captura (data/quest_fail_<npc>.png) para ver qué ventana trae el NPC, y sumo
