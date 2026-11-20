@@ -2200,6 +2200,17 @@ class Bot:
     def _hold_on(self, x, y):
         if not self.running:
             return
+        # reacción humana (Juan: 'ningún humano dispara así'): al cambiar de blanco, una pausa al azar antes de
+        # apretar, como el tiempo de ver el bicho y mover la mano. Configurable: human_react_ms [min, max].
+        try:
+            tk_ = (round(x / 40), round(y / 40))
+            if self.cfg.get("human_react", True) and not self.mouse_held and tk_ != getattr(self, "_hr_last", None) \
+                    and not self._under_attack():
+                lo_, hi_ = self.cfg.get("human_react_ms", [180, 420])
+                time.sleep(random.uniform(lo_, hi_) / 1000.0)
+            self._hr_last = tk_
+        except Exception:
+            pass
         ax, ay = self.abs_pt(x, y)
         mod = (self.cfg.get("attack_modifier") or "").upper() or None
         if mod and self.mod_held != mod:

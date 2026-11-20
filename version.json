@@ -1,1 +1,1 @@
-{"version": 477, "notes": "Caminar: nunca clickea encima del propio personaje (el juego lo toma como levantar y se agacha). Apunta al menos 2 baldosas adelante; si no puede, corre el punto al costado. Re-apretado en segundo plano: 0,6 s."}
+{"version": 478, "notes": "Reacción humana: al pasar a un bicho nuevo espera entre 0,18 y 0,42 s al azar antes de pegarle (si no le están pegando). Configurable (human_react, human_react_ms)."}
