@@ -5091,12 +5091,22 @@ class Bot:
     def _carto_go(self):
         """Cartógrafo (o botón Investigar): sigo de largo aunque me peguen. Solo freno a pelear si me rodean (3+)."""
         fx_ = getattr(self, "_explore_force", None)
+        bth_ = getattr(self, "_bld_th", None)
+        if bth_ is not None and bth_.is_alive():
+            return False  # recorriendo edificios: lo maneja ese hilo (viaje + entrar), la caza no se mete
         if fx_ and not self._same(self.pos.get("map") or "", fx_):
             self._explore_force = None  # cambié de mapa: se cancela
             fx_ = None
         if fx_:
             st_ = (self._survey().get("explored") or {}).get(fx_) or {}
             if st_.get("done"):
+                blds = self._bld_links(fx_)
+                if blds and not getattr(self, "_bld_done", {}).get(fx_):
+                    # Juan: 'que entre en edificios'. Terminé el mapa: ahora entro a cada local y anoto quién hay
+                    self.__dict__.setdefault("_bld_done", {})[fx_] = True
+                    self._bld_th = threading.Thread(target=self._visit_buildings, args=(fx_, blds), daemon=True)
+                    self._bld_th.start()
+                    return False
                 self._explore_force = None
                 self.log(f"🧭 Investigar: terminé de relevar {fx_}. Sigo con lo que estaba haciendo.")
                 fx_ = None
@@ -5106,6 +5116,63 @@ class Bot:
             return self._adjacent_mobs() < 3
         except Exception:
             return True
+
+    def _bld_links(self, mk):
+        """Puertas a locales (tienda, herrero, depósito, cityhall, iglesia, guild…) que conozco en este mapa."""
+        out, seen = [], set()
+        for xy, v in self.world.links_from(mk):
+            to = (v.get("to") or "")
+            if to and any(k in to.lower() for k in self.TOWNS) and to.lower() not in seen:
+                seen.add(to.lower())
+                out.append(((int(xy[0]), int(xy[1])), to))
+        return out
+
+    def _visit_buildings(self, city, blds):
+        """Botón Investigar en una ciudad: entro a cada local, anoto los personajes de adentro (nombre, tipo y
+        baldosa: así el bot sabe dónde está el herrero o la tendera) y salgo. Al final vuelvo a lo que hacía."""
+        self.log(f"🧭 Investigar: entro a los {len(blds)} locales de {city} para anotar quién hay adentro.")
+        npcs = self.world.learn.setdefault("npcs", {})
+        for (x, y), to in blds:
+            if not (self.running and self.alive) or not getattr(self, "_explore_force", None):
+                break
+            t0 = time.time()
+            self.goto = {"map": city, "x": x, "y": y + 2, "t": t0}
+            while self.goto and time.time() - t0 < 240 and self.running and self.alive:
+                time.sleep(0.5)
+            self.mission = {"map": city, "goal": [x, y], "label": f"Investigar: {to}", "until": time.time() + 90,
+                            "enter": True, "hold": True}
+            t1 = time.time()
+            while self._same(self.pos.get("map") or "", city) and time.time() - t1 < 90 and self.running and self.alive:
+                time.sleep(0.4)
+            self.mission = None
+            inside = self.pos.get("map") or ""
+            if inside and not self._same(inside, city):
+                time.sleep(2.0)
+                got = []
+                try:
+                    for e in (self._oly_ents() or []):
+                        cr = e[2] or {}
+                        got.append({"name": cr.get("name") or "?", "x": int(e[0]), "y": int(e[1])})
+                except Exception:
+                    pass
+                try:
+                    for r in self.oly.read(self.mem.proc):
+                        if r[0] > 0:
+                            got.append({"type": int(r[2]), "x": int(r[0]), "y": int(r[1])})
+                except Exception:
+                    pass
+                npcs[inside.lower()] = {"t": time.time(), "door": [x, y], "from": city, "list": got[:40]}
+                names = sorted({g["name"] for g in got if g.get("name") and g["name"] != "?"})
+                self.log(f"🧭 {inside}: {len(got)} personaje/s adentro" + (f" ({', '.join(names[:6])})" if names else "") + ". Lo anoto.")
+                self.world.save()
+                t2 = time.time()
+                self.goto = {"map": city, "x": x, "y": y + 3, "t": t2}
+                while self.goto and time.time() - t2 < 180 and self.running and self.alive:
+                    time.sleep(0.5)
+            else:
+                self.log(f"🧭 No pude entrar a {to}: sigo con el próximo.")
+        self._explore_force = None
+        self.log(f"🧭 Investigar: terminé {city} y sus locales. Sigo con lo que estaba haciendo.")
 
     def _carto_init(self):
         """Al prender Cartógrafo: guardo dónde estaba y armo la lista de mapas vecinos a relevar (de cero)."""

@@ -1,1 +1,1 @@
-{"version": 481, "notes": "Botón Investigar: ahora releva el mapa YA, en cualquier modo (antes solo en Automático y nunca arrancaba en Manual). Va directo, solo pelea si lo rodean, anota bichos y nidos; al terminar sigue con lo que estaba haciendo (en Manual vuelve a su lugar)."}
+{"version": 482, "notes": "Investigar entra a los edificios: después de relevar una ciudad, entra a cada local (tienda, herrero, depósito, cityhall, iglesia, guild, torre…), anota quién hay adentro y dónde, y sale. Al final vuelve a lo que estaba haciendo."}
