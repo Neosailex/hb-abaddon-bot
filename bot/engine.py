@@ -12484,6 +12484,28 @@ class Bot:
     def _place(self, kind):
         p = dict((self.PLACES.get(cfgmod.server_slug(self.cfg)) or {}).get(kind) or {})
         p.update((self.cfg.get("places") or {}).get(kind) or {})
+        # la granja tiene tope de nivel (Juan: 'ya no puede entrar a la farm, tiene que operar en la city'). Si la
+        # granja está prohibida (Mapa → Mapas prohibidos), uso la tienda / el herrero de la ciudad: la puerta sale de
+        # los portales conocidos de la ciudad y el vendedor lo busca por tipo y lo anota (places_city).
+        try:
+            rules = self.cfg.get("map_rules") or {}
+            if p and "farm" in (p.get("map") or "").lower() and rules.get((p.get("map") or "").lower()) == "ban":
+                city = (p.get("map") or "").replace("Farm", "City").replace("farm", "city")
+                key = {"smith": ("blacksmith", "bsmith", "smith"), "shop": ("shop", "gshop")}.get(kind, (kind,))
+                learned = ((self.cfg.get("places_city") or {}).get(kind) or {})
+                door = learned.get("door")
+                if not door:
+                    for xy, v in self.world.links_from(city):
+                        to = (v.get("to") or "").lower()
+                        if any(k in to for k in key):
+                            door = [int(xy[0]), int(xy[1])]
+                            break
+                if door:
+                    q = {"map": city, "door": door, "inside": p.get("inside"), "npc_type": p.get("npc_type")}
+                    q.update({k: v for k, v in learned.items() if k in ("npc", "npc_type", "wrong_doors")})
+                    return q
+        except Exception:
+            pass
         return p or None
 
     def _npc_find(self, kind, want):
@@ -12499,7 +12521,9 @@ class Bot:
         for x, y, typ in cands[:10]:
             menu = self._npc_menu(typ, (x, y), want, tries=2)
             if menu:
-                pl = self.cfg.setdefault("places", {}).setdefault(kind, {})
+                pp_ = self._place(kind) or {}
+                bucket = "places_city" if "city" in (pp_.get("map") or "").lower() else "places"
+                pl = self.cfg.setdefault(bucket, {}).setdefault(kind, {})
                 pl.update({"npc_type": int(typ), "npc": [int(x), int(y)]})
                 cfgmod.save(self.cfg)
                 self.log(f"📌 Encontré al vendedor ({kind}) en ({x},{y}): lo anoto.")

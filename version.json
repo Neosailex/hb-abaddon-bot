@@ -1,1 +1,1 @@
-{"version": 478, "notes": "Reacción humana: al pasar a un bicho nuevo espera entre 0,18 y 0,42 s al azar antes de pegarle (si no le están pegando). Configurable (human_react, human_react_ms)."}
+{"version": 479, "notes": "Tienda y herrero en la ciudad: si la granja está prohibida (Mapa → Mapas prohibidos), el bot repara y compra en el herrero y la tienda de Aresden City. Saca la puerta de los portales conocidos y busca al vendedor por su tipo, y lo anota. La granja y Promiseland quedan prohibidas (tope de nivel 119)."}
