@@ -673,8 +673,10 @@ const CELL=340, BOX=300;
 function wMap(k){return WORLD&&WORLD.maps.find(m=>m.key===k)}
 function wPt(m,x,y){const s=BOX/Math.max(m.w,m.h);return [m.gx*CELL+(BOX-m.w*s)/2+x*s, m.gy*CELL+(BOX-m.h*s)/2+y*s]}
 function wCur(){if(!WORLD||!WPOS||!WPOS.map)return null;const n=WPOS.map.toLowerCase();return WORLD.maps.find(m=>m.name.toLowerCase()===n)||null}
+let MBAN=new Set();
 async function loadMapRules(){if(!API.map_rules){$('#mrList').textContent='Reiniciá la app para ver esto.';return}
   const L=await API.map_rules();if(!Array.isArray(L)){$('#mrList').textContent='No pude leer la lista.';return}
+  MBAN=new Set(L.filter(r=>r.avoid).map(r=>(r.map||'').toLowerCase()));if(typeof drawWorld==='function'&&WORLD)drawWorld();
   if(!L.length){$('#mrList').textContent='Ningún mapa prohibido.';return}
   $('#mrList').innerHTML=L.map(r=>{const st=r.rule==='ban'?'🚫 prohibido por vos':r.rule==='allow'?'✅ habilitado por vos':(r.auto?'🤖 prohibido por el bot':'—');
     const nm=r.map.replace(/'/g,"\\'");
@@ -704,6 +706,7 @@ function drawWorld(){
   for(const m of WORLD.maps){const s=BOX/Math.max(m.w,m.h),x=m.gx*CELL+(BOX-m.w*s)/2,y=m.gy*CELL+(BOX-m.h*s)/2;
     g.imageSmoothingEnabled=WV.z<3;const im=WIMG[m.key];if(im&&im.complete)g.drawImage(im,x,y,m.w*s,m.h*s);else{g.fillStyle='#2a2320';g.fillRect(x,y,m.w*s,m.h*s)}
     g.lineWidth=(m===cur?3:1)/WV.z;g.strokeStyle=m===cur?'#e9c46a':'#5b4d44';g.strokeRect(x,y,m.w*s,m.h*s);
+    if(MBAN.has((m.name||'').toLowerCase())||MBAN.has((m.key||'').toLowerCase())){g.fillStyle='rgba(220,40,40,.18)';g.fillRect(x,y,m.w*s,m.h*s);g.lineWidth=3/WV.z;g.strokeStyle='#e5484d';g.strokeRect(x,y,m.w*s,m.h*s)}
     g.fillStyle=m===cur?'#e9c46a':'#cdbfb3';g.font=`${Math.min(30,Math.max(11,13/WV.z))}px system-ui`;g.textAlign='center';g.fillText(m.name,m.gx*CELL+BOX/2,y-6/WV.z)}
   // zonas de spawn de los bichos (color por bicho; el nombre se ve al acercarse)
   if($('#wSp')?.checked!==false)for(const z of (WORLD.spawns||[])){const m=wMap(z.map);if(!m)continue;
