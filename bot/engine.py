@@ -4497,6 +4497,29 @@ class Bot:
         return na == nb or difflib.SequenceMatcher(None, na, nb).ratio() >= 0.9
 
     def travel_dest(self):
+        """Destino de caza, pero nunca un mapa prohibido (Juan: con la granja vedada por nivel se quedaba en la
+        ciudad 'sin camino a Aresden Farm'). Si el que tocaba está prohibido, el mejor nido medido de un mapa que sí
+        puedo pisar y al que sé llegar."""
+        d = self._travel_dest_raw()
+        av = self._avoid()
+        if d and any(self._same(d, a) for a in av):
+            best = None
+            for mk2, recs in (self.world.learn.get("nest_rate") or {}).items():
+                if any(self._same(mk2, a) for a in av) or any(k in mk2 for k in self.TOWNS):
+                    continue
+                for r in recs.values():
+                    rt = self._nest_rate(r) or 0
+                    if rt > (best[0] if best else 0):
+                        best = (rt, mk2)
+            name = next((n for n in self.world.files if best and n.lower() == best[1]), None) if best else None
+            nice = None
+            if best:
+                nice = next((v.get("to") for _xy, v in self.world.links_from(self.pos.get("map") or "")
+                             if self._same(v.get("to") or "", best[1])), None)
+            return nice or name or (best[1] if best else None)
+        return d
+
+    def _travel_dest_raw(self):
         t = self.cfg.get("travel", {})
         d = t.get("dest") or "auto"
         if d != "auto":
@@ -11570,23 +11593,25 @@ class Bot:
         norm = lambda t: "".join(c for c in t.lower() if c.isalnum())
         inshop = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("shop", "tienda"))
         try:
-            self.log(f"🛒 Quedan {getattr(self, '_left', {}).get('pot')} pociones: voy a la tienda de la granja de Aresden.")
+            pl_ = self._place("shop") or {"map": "Aresden Farm", "door": [63, 69]}
+            smap, sdx, sdy = pl_["map"], int(pl_["door"][0]), int(pl_["door"][1])
+            self.log(f"🛒 Quedan {getattr(self, '_left', {}).get('pot')} pociones: voy a la tienda ({smap}).")
             t0 = time.time()
             if any(k in (self.pos.get("map") or "").lower() for k in ("smith", "herrer")):
                 time.sleep(1.0)  # estoy en el herrero: el encargo me saca solo
-            far = self.pos.get("x") is None or max(abs(self.pos["x"] - 63), abs(self.pos["y"] - 72)) > 3
-            if (far or not self._same(self.pos.get("map") or "", "Aresden Farm")) and not inshop():
+            far = self.pos.get("x") is None or max(abs(self.pos["x"] - sdx), abs(self.pos["y"] - sdy - 3)) > 3
+            if (far or not self._same(self.pos.get("map") or "", smap)) and not inshop():
                 # siempre me paro primero frente a la puerta (del lado de afuera): de costado hay pared
-                self.goto = {"map": "Aresden Farm", "x": 63, "y": 72, "t": time.time()}
+                self.goto = {"map": smap, "x": sdx, "y": sdy + 3, "t": time.time()}
                 while self.goto and time.time() - t0 < 600 and self.alive and self.running:
                     time.sleep(0.5)
             if not inshop():
                 self._doors_tok = self._block_doors("shop")
-                self.mission = {"map": "Aresden Farm", "goal": [63, 69], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
+                self.mission = {"map": smap, "goal": [sdx, sdy], "label": "Tienda (pociones)", "until": time.time() + 300, "enter": True, "hold": True}
                 wrongb = lambda: any(k in (self.pos.get("map") or "").lower() for k in ("warehouse", "blacksmith", "hall", "guild", "church"))
                 last_out = None
                 while not inshop() and not wrongb() and time.time() - t0 < 900 and self.alive and self.running:
-                    if "farm" in (self.pos.get("map") or "").lower() and self.pos.get("x") is not None:
+                    if self._same(self.pos.get("map") or "", smap) and self.pos.get("x") is not None:
                         last_out = (int(self.pos["x"]), int(self.pos["y"]))
                     time.sleep(0.3)
                 if wrongb():
@@ -11594,8 +11619,8 @@ class Bot:
                     # la última baldosa de la granja antes de entrar es la puerta equivocada: no la piso más (si no está
                     # pegada a la puerta de la tienda)
                     try:
-                        if last_out and max(abs(last_out[0] - 63), abs(last_out[1] - 69)) >= 3:
-                            bl = self.world.learn.setdefault("no_pisar", {}).setdefault("aresden farm", [])
+                        if last_out and max(abs(last_out[0] - sdx), abs(last_out[1] - sdy)) >= 3:
+                            bl = self.world.learn.setdefault("no_pisar", {}).setdefault(smap.lower(), [])
                             if list(last_out) not in bl:
                                 bl.append(list(last_out))
                                 self.world.save()

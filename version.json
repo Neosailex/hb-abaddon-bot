@@ -1,1 +1,1 @@
-{"version": 482, "notes": "Investigar entra a los edificios: después de relevar una ciudad, entra a cada local (tienda, herrero, depósito, cityhall, iglesia, guild, torre…), anota quién hay adentro y dónde, y sale. Al final vuelve a lo que estaba haciendo."}
+{"version": 484, "notes": "Granja prohibida, de verdad: la compra de pociones usaba la tienda de la granja fija; ahora usa la de la ciudad. Y el destino de caza nunca es un mapa prohibido: si le tocaba la granja, va al mejor nido medido de un mapa permitido (ej. Eternal Field) en vez de quedarse en la ciudad."}
