@@ -1131,7 +1131,7 @@ class Bot:
             self.stats["state"] = "buscando"
         if self._survival():
             # descansando: buen momento para revisar los stats (sin bichos cerca, quieto)
-            if getattr(self, "_rest_since", 0) and self.bot_mode() not in ("manual", "caza", "quest", "cartografo"):
+            if getattr(self, "_rest_since", 0) and self.bot_mode() not in ("manual", "caza", "quest", "cartografo", "investigar"):
                 self._census()
                 if (cfg.get("stats_auto", {}).get("enabled") and getattr(self, "_last_stats", 1) == 0
                         and cfgmod.server_slug(cfg) != "abaddon" and self._mobs_within(3) == 0):
@@ -1279,7 +1279,7 @@ class Bot:
                 if self._census():
                     return
         if sa.get("enabled") and self.state != "attack" and getattr(self, "_last_stats", 1) == 0 \
-                and (self.bot_mode() not in ("manual", "caza", "quest", "cartografo")
+                and (self.bot_mode() not in ("manual", "caza", "quest", "cartografo", "investigar")
                      or (self.bot_mode() == "quest" and (self._quest_maint() or time.time() - getattr(self, "_rep_last", 0) < 900))) \
                 and not getattr(self, "_busy_ui", False) and not self._ui_th_alive() \
                 and not (cfgmod.server_slug(cfg) != "abaddon" and (self._adjacent_mobs() > 0 or self._mobs_within(3) > 0
@@ -4997,9 +4997,9 @@ class Bot:
         # es una ORDEN (Juan: 'el botón investigar no anda'): antes solo borraba la marca y el relevamiento corría
         # únicamente en Automático y sin pelear; en Manual/Caza nunca arrancaba. Ahora releva ya, en cualquier modo,
         # como el Cartógrafo (no frena salvo que lo rodeen) y al terminar vuelve a lo que estaba haciendo.
-        self._explore_force = mk
+        self.set_mode("investigar", "botón Investigar")
         if not self.running:
-            return {"ok": False, "msg": "Prendé el bot para que salga a relevar " + (mk or "el mapa") + "."}
+            return {"ok": False, "msg": "Modo Investigar: prendé el bot para que salga a relevar " + (mk or "el mapa") + "."}
         self.log(f"🧭 Investigar: releva {mk} entero ahora (anota dónde sale cada bicho y los nidos de 6+).")
         return {"ok": True, "msg": f"Voy a relevar {mk or 'este mapa'}: recorro todo y anoto dónde sale cada bicho."}
 
@@ -5131,9 +5131,11 @@ class Bot:
                     self._bld_th.start()
                     return False
                 self._explore_force = None
-                self.log(f"🧭 Investigar: terminé de relevar {fx_}. Sigo con lo que estaba haciendo.")
+                self.log(f"🧭 Investigar: terminé de relevar {fx_}.")
                 fx_ = None
-        if self.bot_mode() != "cartografo" and not fx_:
+                if self.bot_mode() == "investigar":
+                    self.set_mode("auto", "terminé de investigar")
+        if self.bot_mode() not in ("cartografo", "investigar") and not fx_:
             return False
         try:
             return self._adjacent_mobs() < 3
@@ -5195,7 +5197,9 @@ class Bot:
             else:
                 self.log(f"🧭 No pude entrar a {to}: sigo con el próximo.")
         self._explore_force = None
-        self.log(f"🧭 Investigar: terminé {city} y sus locales. Sigo con lo que estaba haciendo.")
+        self.log(f"🧭 Investigar: terminé {city} y sus locales.")
+        if self.bot_mode() == "investigar":
+            self.set_mode("auto", "terminé de investigar")
 
     def _carto_init(self):
         """Al prender Cartógrafo: guardo dónde estaba y armo la lista de mapas vecinos a relevar (de cero)."""
@@ -5271,7 +5275,7 @@ class Bot:
         return False
 
     def _town_need(self, why):
-        if self.bot_mode() == "cartografo":
+        if self.bot_mode() in ("cartografo", "investigar"):
             return  # Cartógrafo: todo apagado, no vuelvo al pueblo
         if self.bot_mode() == "quest" and not self._quest_maint() and not any(k in str(why) for k in ("roto", "sin arma", "dejé de matar", "mataron")):
             return  # modo Quest: al pueblo solo si no puedo matar (arma rota o sin arma)
@@ -5688,7 +5692,7 @@ class Bot:
 
     # ---------- MODOS (botones debajo del encendido) ----------
     MODES = {"auto": "Automático", "caza": "Caza", "manual": "Manual", "quest": "Quest", "economico": "Económico",
-             "cartografo": "Cartógrafo"}
+             "cartografo": "Cartógrafo", "investigar": "Investigar"}
 
     def bot_mode(self):
         m = self.cfg.get("bot_mode") or "auto"
@@ -5703,6 +5707,17 @@ class Bot:
         m = m if m in self.MODES else "auto"
         prev = self.bot_mode()
         self.cfg["bot_mode"] = m
+        if m == "investigar" and prev != "investigar":
+            try:
+                mk_ = self.pos.get("map") or ""
+                self._survey().setdefault("explored", {}).pop(mk_, None)
+                self._exp_plan = None
+                self._explore_force = mk_
+                self.__dict__.setdefault("_bld_done", {}).pop(mk_, None)
+            except Exception:
+                pass
+        if m != "investigar" and prev == "investigar":
+            self._explore_force = None
         if m == "cartografo" and prev != "cartografo":
             self.cfg["carto"] = None  # _mode_tick lo arma con la posición de ahora
         if m != "cartografo" and prev == "cartografo":
@@ -6319,7 +6334,7 @@ class Bot:
             # CAZA (Juan): solo matar en el nido; sale a reparar y a pociones (de paso vende) y vuelve
             for k_ in ("misión cobrar/aceptar", "estrategia", "plan", "mejoras", "nidos"):
                 w[k_] = -1000
-        elif md_ == "cartografo":
+        elif md_ in ("cartografo", "investigar"):
             # CARTÓGRAFO (Juan): todo apagado. Solo recorre los mapas vecinos y anota nidos. Sin pociones, herrero,
             # stats, bolso, compras ni misiones.
             for k_ in ("misión cobrar/aceptar", "tienda", "herrero", "chequeo", "estrategia", "equipo", "bolso",
@@ -6443,7 +6458,7 @@ class Bot:
             kh.append(now)
         if d > st.get("ld", d):
             dh.append(now)
-            if self.bot_mode() in ("cartografo", "manual"):
+            if self.bot_mode() in ("cartografo", "manual", "investigar"):
                 self.set_mode("auto", "me mataron" + (" explorando" if self.bot_mode() == "cartografo" else ""))
         st["lk"], st["ld"] = k, d
         kh[:] = [t for t in kh if now - t < 3600][-500:]
@@ -6663,7 +6678,7 @@ class Bot:
         """Ritmo sostenible: con las pociones que llevo tengo que poder cazar 'hunt_hours' (5 h) sin volver.
         Mido en la memoria cuántas tomo por hora. Si a ese ritmo no llego, bajo el ritmo (menos bichos juntos,
         descanso en vez de tomar); si ni así llego, este lugar me queda grande: me voy a otro. Para cualquier pj."""
-        if self._anchored() or self.bot_mode() in ("quest", "cartografo"):
+        if self._anchored() or self.bot_mode() in ("quest", "cartografo", "investigar"):
             return  # Manual/Caza/Quest/Cartógrafo: el nido está fijo (en Manual mata aunque no tenga pociones): no cambio de nido ni de ritmo
         if cfgmod.server_slug(self.cfg) == "abaddon":
             return
@@ -7141,7 +7156,7 @@ class Bot:
         """La misión de matar N bichos se hace donde vive ese bicho. Si estoy lejos de su nido (cazando otra cosa
         porque rinde), cada media hora voy derecho para allá sin frenarme por lo que haya en el camino (si me pegan,
         la regla de oro me defiende). Al llegar sigo cazando normal. True = estoy yendo."""
-        if not self.cfg.get("quest_drive", True) or self.bot_mode() in ("manual", "caza", "economico", "cartografo"):
+        if not self.cfg.get("quest_drive", True) or self.bot_mode() in ("manual", "caza", "economico", "cartografo", "investigar"):
             return False
         qd = getattr(self, "_qdrive", None)
         if qd is not None and qd.get("goto"):
@@ -8969,7 +8984,7 @@ class Bot:
         """Con la tabla de zonas de bichos del mapa: elijo la zona que más rinde entre las de bichos que ya puedo
         enfrentar (las que todavía no medí valen como "prometedoras": voy y las pruebo). None = no hay tabla."""
         recs_ = (self.world.learn.get("nest_rate") or {}).get(mk) or {}
-        if self.bot_mode() not in ("manual", "cartografo") and any((self._nest_rate(r_) or 0) > 0 for r_ in recs_.values()):
+        if self.bot_mode() not in ("manual", "cartografo", "investigar") and any((self._nest_rate(r_) or 0) > 0 for r_ in recs_.values()):
             return None  # ya medí nidos acá: elijo por experiencia medida, no por la tabla de nivel
         sp = getattr(self, "_spawns", None)
         if sp is None:
@@ -11078,9 +11093,9 @@ class Bot:
             self._worn_seen = now  # lo roto se sale al bolso: después del herrero me lo vuelvo a poner
             if not manual:
                 self._town_need("equipo roto")
-            if not rep_busy and self.bot_mode() != "cartografo":
+            if not rep_busy and self.bot_mode() not in ("cartografo", "investigar"):
                 go("equipo roto")  # roto no espera: salgo aunque me peguen (también en Manual)
-        elif low and self.bot_mode() != "cartografo" and (self.bot_mode() != "quest" or self._quest_maint()) and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
+        elif low and self.bot_mode() not in ("cartografo", "investigar") and (self.bot_mode() != "quest" or self._quest_maint()) and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
             # en un nido lleno nunca estoy 'libre': si estoy peleando espero hasta 60 s a que afloje y salgo igual
             if fighting and now - self._gm_low_t < 60:
                 return True

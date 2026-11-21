@@ -193,7 +193,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
                 <button data-m="quest" title="Solo bichos de la misión hasta cobrarla, después la siguiente">Quest</button>
                 <button data-m="economico" title="El nido que más oro por hora deja">Económico</button>
                 <button data-m="cartografo" title="Va a los mapas vecinos que conoce y los releva; si lo matan vuelve a Automático">Cartógrafo</button>
-                <button id="mInv" title="Releva a fondo este mapa (dónde sale cada bicho)">🧭 Investigar</button>
+                <button data-m="investigar" id="mInv" title="Modo aparte: solo releva este mapa (dónde sale cada bicho, los nidos y, en la ciudad, quién hay en cada local). Todo lo demás apagado. Al terminar pasa a Automático">🧭 Investigar</button>
               </div>
               <div class="chips"><span class="chip" id="cWin">Sin juego</span><span class="chip" id="cState">—</span><span class="chip" id="cAdmin"></span></div>
               <div class="chips"><span class="chip gold" id="cPos">📍 sin leer</span><span class="chip" id="cMem">🧠 —</span><span class="chip" id="cMobs">👾 —</span></div>
@@ -812,7 +812,7 @@ async function frameLoop(){
 }
 $('#power').onclick=async()=>{await API.toggle()};
 document.querySelectorAll('#modes button[data-m]').forEach(b=>b.onclick=async()=>{const r=await API.set_mode(b.dataset.m);if(r&&r.label)toast('Modo '+r.label)});
-$('#mInv').onclick=async()=>{const r=await API.explore_map();toast(r.msg)};
+
 $('#mini').onclick=async()=>{await API.toggle()};
 $('#openGame').onclick=async()=>{const ok=await API.open_game();toast(ok?'Abriendo Helbreath...':'No encontré el juego')};
 $('#miniBtn').onclick=async()=>{const on=await API.toggle_mini();toast(on?'Ventanita arriba del juego':'Ventanita cerrada')};
