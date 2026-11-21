@@ -4971,6 +4971,13 @@ class Bot:
         sv = self._survey()
         sv.setdefault("explored", {}).pop(mk, None)
         self._exp_plan = None
+        # es una ORDEN (Juan: 'el botón investigar no anda'): antes solo borraba la marca y el relevamiento corría
+        # únicamente en Automático y sin pelear; en Manual/Caza nunca arrancaba. Ahora releva ya, en cualquier modo,
+        # como el Cartógrafo (no frena salvo que lo rodeen) y al terminar vuelve a lo que estaba haciendo.
+        self._explore_force = mk
+        if not self.running:
+            return {"ok": False, "msg": "Prendé el bot para que salga a relevar " + (mk or "el mapa") + "."}
+        self.log(f"🧭 Investigar: releva {mk} entero ahora (anota dónde sale cada bicho y los nidos de 6+).")
         return {"ok": True, "msg": f"Voy a relevar {mk or 'este mapa'}: recorro todo y anoto dónde sale cada bicho."}
 
     def _spawns_all(self):
@@ -5082,8 +5089,18 @@ class Bot:
         return True
 
     def _carto_go(self):
-        """Cartógrafo: sigo de largo aunque me peguen. Solo freno a pelear si me rodean (3+ bichos pegados)."""
-        if self.bot_mode() != "cartografo":
+        """Cartógrafo (o botón Investigar): sigo de largo aunque me peguen. Solo freno a pelear si me rodean (3+)."""
+        fx_ = getattr(self, "_explore_force", None)
+        if fx_ and not self._same(self.pos.get("map") or "", fx_):
+            self._explore_force = None  # cambié de mapa: se cancela
+            fx_ = None
+        if fx_:
+            st_ = (self._survey().get("explored") or {}).get(fx_) or {}
+            if st_.get("done"):
+                self._explore_force = None
+                self.log(f"🧭 Investigar: terminé de relevar {fx_}. Sigo con lo que estaba haciendo.")
+                fx_ = None
+        if self.bot_mode() != "cartografo" and not fx_:
             return False
         try:
             return self._adjacent_mobs() < 3
@@ -5701,8 +5718,8 @@ class Bot:
     def _manual_return(self):
         """Manual: si estoy lejos de donde me dejaste (más de 12 baldosas, u otro mapa después del herrero) y no me
         pegan, vuelvo EXACTO ahí. True = estoy volviendo."""
-        if not self._anchored() or self.pos.get("x") is None:
-            return False
+        if not self._anchored() or self.pos.get("x") is None or getattr(self, "_explore_force", None):
+            return False  # (mientras releva por el botón Investigar no lo tiro para atrás; al terminar vuelve)
         a = self.cfg.get("mode_anchor") or {}
         if a.get("x") is None or self._under_attack() or self._adjacent_mobs() > 0 or getattr(self, "_busy_ui", False):
             return False

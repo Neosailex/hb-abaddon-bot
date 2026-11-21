@@ -1,1 +1,1 @@
-{"version": 480, "notes": "Mapa: los mapas prohibidos (por el bot o por vos) se ven con recuadro rojo."}
+{"version": 481, "notes": "Botón Investigar: ahora releva el mapa YA, en cualquier modo (antes solo en Automático y nunca arrancaba en Manual). Va directo, solo pelea si lo rodean, anota bichos y nidos; al terminar sigue con lo que estaba haciendo (en Manual vuelve a su lugar)."}
