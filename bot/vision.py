@@ -273,7 +273,7 @@ def to_data_url(img, quality=60, max_w=None):
     return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
 
 
-def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=None, grid=None):
+def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=None, grid=None, sweep=None):
     """Dibuja lo que ve el bot sobre una copia de la pantalla (para la vista previa)."""
     if img is None:
         return None
@@ -315,8 +315,18 @@ def draw_overlay(img, cfg, monsters=(), items=(), target=None, bars=None, track=
                 cv2.putText(out, str(m["n"]), (x - tw // 2 + 3, y - th // 2 + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.55, col, 2, cv2.LINE_AA)
         import unicodedata as _ud
         cv2.putText(out, "modo: " + _ud.normalize("NFKD", str(grid.get("mode", ""))).encode("ascii", "ignore").decode(), (12, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+    import time as _t
+    if sweep and _t.time() - sweep.get("t", 0) < 1.5:
+        # RODEADO: cuadrado rojo grande (las 8 baldosas de alrededor del pj) y, adentro, la baldosa a la que le pego
+        x, y, tw, th = int(sweep["cx"]), int(sweep["cy"]), int(sweep["tw"]), int(sweep["th"])
+        cv2.rectangle(out, (x - tw * 3 // 2, y - th * 3 // 2), (x + tw * 3 // 2, y + th * 3 // 2), (0, 0, 255), 3)
+        cv2.putText(out, "rodeado", (x - tw * 3 // 2, y - th * 3 // 2 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2, cv2.LINE_AA)
+        if sweep.get("cur"):
+            dx, dy = sweep["cur"]
+            qx, qy = x + dx * tw, y + dy * th
+            cv2.rectangle(out, (qx - tw // 2 + 4, qy - th // 2 + 4), (qx + tw // 2 - 4, qy + th // 2 - 4), (0, 0, 255), 3)
+        track = None  # rodeado: el cuadrado grande manda
     if track:
-        import time as _t
         if _t.time() - track.get("t", 0) < 1.5:
             x, y, tw, th = int(track["x"]), int(track["y"]), int(track["tw"]), int(track["th"])
             # área de seguimiento (3x3 baldosas) fina, y la baldosa del bicho en rojo fuerte

@@ -19,3 +19,4 @@ data/vigia.log
 data/vigia.pid
 data/maprender/
 actualizaciones/
+tests/fixtures/

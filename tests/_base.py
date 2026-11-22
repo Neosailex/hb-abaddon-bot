@@ -45,6 +45,7 @@ def mk_bot(mode="auto"):
     b.target = {"x": 1}
     b.state = "attack"
     b._rep_last = time.time()
+    b.stats = {"state": "", "target": "", "kills": 0}
     return b
 
 

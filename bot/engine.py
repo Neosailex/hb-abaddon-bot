@@ -5562,6 +5562,12 @@ class Bot:
                 return bool(self._oly_kite(ents, force=True))
             except Exception:
                 return False
+        if self.cfg.get("sweep_3x3", True) and (len(adj) >= 3 or now < getattr(self, "_rabia_until", 0)):
+            try:
+                if self._sweep_step(now, ents):
+                    return True
+            except Exception:
+                pass
         if now - getattr(self, "_atk_t", 0) < 1.2:
             return False  # ya le estoy pegando
         cur = getattr(self, "_oly_cur", None) or {}
@@ -7813,6 +7819,14 @@ class Bot:
                 # del centro que calculo). Antes le sumaba de nuevo ese tercio y el clic caía en el borde de abajo.
                 tx_, ty_ = pt[0], pt[1]
                 rab_ = now < getattr(self, "_rabia_until", 0)
+                if self.cfg.get("sweep_3x3", True) and (rab_ or sum(1 for o in ents if d(o) == 1) >= 3):
+                    try:
+                        if self._sweep_step(now, ents):
+                            return True
+                    except Exception as e_:
+                        if now - getattr(self, "_sweep_err", 0) > 300:
+                            self._sweep_err = now
+                            self.log(f"🎯 Error en el barrido de alrededor: {e_!r}")
                 crit_ = False
                 if rab_:
                     # RABIA: la memoria marca a los bichos chicos corridos una baldosa, así que si hace 2,5 s que no
@@ -7830,6 +7844,7 @@ class Bot:
                 bf_ = getattr(self, "_bar_fix", None)
                 if bf_ and bf_[0] == e[3] and now < bf_[3] and (tx_, ty_) == (pt[0], pt[1]):
                     tx_, ty_ = int(tx_ + bf_[1] * tw), int(ty_ + bf_[2] * th)  # donde el cursor confirmó al bicho
+                    self._trk_draw = dict(self._trk_draw or {}, x=tx_, y=ty_, t=now)
                 # golpe crítico (Alt + ataque): lo tiro cada tanto siempre que esté pegando, no solo rodeado. Alt se
                 # aprieta solo para ese golpe y se suelta: nunca queda apretado. Si no hay cargas, sale un golpe común.
                 crit_ = self.cfg.get("crit_use", True) and now - getattr(self, "_crit_t", 0) > (3.2 if rab_ else float(self.cfg.get("crit_every", 6)))
@@ -7938,7 +7953,7 @@ class Bot:
                 self._bar_st = None
             return
         st["miss"] += 1
-        if st["miss"] < 3:
+        if st["miss"] < int(self.cfg.get("bar_miss", 1)):
             return
         st["miss"] = 0
         ring = [(0, -1), (0, 1), (1, 0), (-1, 0), (1, -1), (-1, -1), (1, 1), (-1, 1)]
@@ -8733,6 +8748,62 @@ class Bot:
             return False
         recent = [v for t, v in h if time.time() - t < 3]
         return bool(recent) and max(recent) - recent[-1] >= 2
+
+    SWEEP_RING = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
+
+    def _sweep_step(self, now=None, ents=None):
+        """RODEADO (idea de Juan): cuadrado rojo grande de 3x3 alrededor del pj y le pego a las 8 baldosas de
+        alrededor. Las baldosas salen del PROPIO pj (que está bien ubicado), no de la memoria de los bichos (que a
+        veces llega tarde o corrida). Antes de pegar paso el mouse: si aparece la barra de vida, ahí HAY un bicho.
+        Le sigo pegando mientras su barra esté, y después busco el siguiente. True = usé la vuelta pegando."""
+        now = now or time.time()
+        if not self.rect:
+            return False
+        cx, cy = self._char()
+        tw, th = self._tile()
+        up = th * 0.3  # el juego dibuja al bicho un tercio de baldosa más arriba del centro de su baldosa
+        scr = lambda d_: (int(cx + d_[0] * tw), int(cy + d_[1] * th - up))
+        sw = self.__dict__.setdefault("_sweep", {"cur": None, "since": 0.0, "click": 0.0})
+        hit_every = float(self.cfg.get("sweep_hit_s", 0.9))
+
+        def hit(d_, sx, sy):
+            self._release()
+            winapi.click(*self.abs_pt(sx, sy), button="right")
+            sw["click"] = now
+            self._atk_t = self._last_enemy = now
+            self.state = "seek"
+            self.stats["state"] = "rodeado: le pego a todo lo de alrededor"
+            self._sweep_draw = {"t": now, "cx": int(cx), "cy": int(cy - up), "tw": tw, "th": th, "cur": d_}
+            self._trk_draw = {"x": sx, "y": sy, "tw": tw, "th": th, "name": "", "t": now, "d": 1}
+
+        cur = sw.get("cur")
+        if cur and now - sw["since"] < float(self.cfg.get("sweep_max_s", 15)):
+            sx, sy = scr(cur)
+            if self._bar_read(sx, sy) is not None:  # sigue vivo: le sigo pegando sin mover el mouse
+                if now - sw["click"] >= hit_every:
+                    hit(cur, sx, sy)
+                else:
+                    self._sweep_draw = {"t": now, "cx": int(cx), "cy": int(cy - up), "tw": tw, "th": th, "cur": cur}
+                return True
+        sw["cur"] = None
+        # el siguiente: primero donde la memoria ve bichos pegados, después el resto del anillo
+        px, py = self.pos.get("x"), self.pos.get("y")
+        occ = set()
+        if px is not None:
+            for o in (ents if ents is not None else (self._oly_ents() or [])):
+                if max(abs(o[0] - px), abs(o[1] - py)) == 1:
+                    occ.add((o[0] - px, o[1] - py))
+        order = [d_ for d_ in self.SWEEP_RING if d_ in occ] + [d_ for d_ in self.SWEEP_RING if d_ not in occ]
+        for d_ in order:
+            sx, sy = scr(d_)
+            winapi.move(*self.abs_pt(sx, sy))
+            time.sleep(float(self.cfg.get("sweep_hover_s", 0.11)))
+            if self._bar_read(sx, sy) is not None:
+                sw.update(cur=d_, since=now)
+                hit(d_, sx, sy)
+                return True
+        self._sweep_draw = None
+        return False  # alrededor no hay nadie: vuelvo a buscarlos de a uno
 
     def _defend(self):
         """Me pegan y no veo a quién: pego alrededor (las 8 casillas)."""
@@ -15439,7 +15510,7 @@ class Bot:
                         mons = getattr(self, "_last_mons", []) if self.running else []
                         if self.running and not mons and self.target:
                             mons = [self.target]
-                        ov = vision.draw_overlay(img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None), grid=self._grid_overlay())
+                        ov = vision.draw_overlay(img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None), grid=self._grid_overlay(), sweep=getattr(self, "_sweep_draw", None))
                         url = vision.to_data_url(ov, int(self.cfg.get("preview_quality", 75)),
                                                  max_w=int(self.cfg.get("preview_width", 960)))
                         self.preview = url
@@ -15468,7 +15539,7 @@ class Bot:
             mons = self._monsters()
         elif self.running:
             mons = getattr(self, "_last_mons", []) or ([self.target] if self.target else [])
-        ov = vision.draw_overlay(self.img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None), grid=self._grid_overlay())
+        ov = vision.draw_overlay(self.img, self.cfg, mons, self._loot_items_draw(), self.target, track=getattr(self, "_trk_draw", None), grid=self._grid_overlay(), sweep=getattr(self, "_sweep_draw", None))
         self.preview = vision.to_data_url(ov, 55, max_w=640)
 
     # ---------------------------------------------------------------- state
