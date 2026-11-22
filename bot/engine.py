@@ -5562,6 +5562,11 @@ class Bot:
                 return bool(self._oly_kite(ents, force=True))
             except Exception:
                 return False
+        try:
+            if self._lock_step(now):
+                return True
+        except Exception:
+            self._tlock = None
         if self.cfg.get("sweep_3x3", True) and self._sweep_on(now, len(adj), now < getattr(self, "_rabia_until", 0)):
             try:
                 if self._sweep_step(now, ents):
@@ -7582,6 +7587,11 @@ class Bot:
             return False
         if self._oly_kite(ents):
             return True
+        try:
+            if self._lock_step(now):
+                return True
+        except Exception:
+            self._tlock = None
         # recién maté uno: levanto lo que haya tirado (Shift + clic en la baldosa) si no tengo a nadie encima
         lt = getattr(self, "_oly_loot", None)
         if lt and now - lt[2] < 10 and not any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents):
@@ -7870,6 +7880,15 @@ class Bot:
                 time.sleep(0.35)
                 try:
                     self._bar_check(e, tx_, ty_, tw, th, bad, now)
+                except Exception:
+                    pass
+                try:
+                    bf_ = getattr(self, "_bar_fix", None)
+                    if bf_ and bf_[0] == e[3] and now < bf_[3]:
+                        self._lock_set(e, int(tx_ + bf_[1] * tw) if (tx_, ty_) == (pt[0], pt[1]) else tx_,
+                                       int(ty_ + bf_[2] * th) if (tx_, ty_) == (pt[0], pt[1]) else ty_, now)
+                    else:
+                        self._lock_set(e, tx_, ty_, now)
                 except Exception:
                     pass
                 return True
@@ -8756,6 +8775,80 @@ class Bot:
 
     SWEEP_RING = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 
+    def _lock_step(self, now=None):
+        """OBJETIVO FIJO (Juan: 'mantener el target hasta que lo mate y pasar al próximo'): cuando le pego a un bicho
+        pegado y el mouse confirma su barra de vida, me quedo con ESE hasta que muera. Nadie (el reflejo, la cola,
+        la memoria atrasada) me lo cambia. Frenos: si su barra desaparece sin que muera nadie, lo suelto; si en 15 s
+        no muere, lo suelto y lo dejo un rato. True = usé la vuelta pegándole."""
+        now = now or time.time()
+        lk = getattr(self, "_tlock", None)
+        if not lk or not self.rect:
+            return False
+        if self._sweep_state().get("active"):
+            return False  # rodeado: manda el cuadrado grande
+        try:  # si me rodean mientras le pego a uno, entra el cuadrado grande
+            px_, py_ = self.pos.get("x"), self.pos.get("y")
+            n_adj = sum(1 for o in (self._oly_ents() or []) if max(abs(o[0] - px_), abs(o[1] - py_)) == 1)
+            if self.cfg.get("sweep_3x3", True) and self._sweep_on(now, n_adj, now < getattr(self, "_rabia_until", 0)):
+                self._tlock = None
+                return False
+        except Exception:
+            pass
+        if int(self.stats.get("kills", 0)) > lk["kills"]:
+            self._tlock = None  # murió: paso al próximo
+            return False
+        # bichos con mucha vida (ranas, esqueletos, Rudolph): mientras su barra BAJE le sigo pegando lo que haga falta.
+        # Solo lo suelto si en 15 s no le saqué nada de vida (no le estoy pegando de verdad).
+        if now - lk.get("prog", lk["t0"]) > float(self.cfg.get("lock_nodmg_s", 15)):
+            self._tlock = None
+            self.__dict__.setdefault("_oly_bad", {})[lk["id"]] = now + 20
+            if now - getattr(self, "_lock_said", 0) > 60:
+                self._lock_said = now
+                self.log(f"🎯 Hace 15 s que le pego al {lk['name']} y no le bajo la vida: lo suelto un rato.")
+            return False
+        cx, cy = self._char()
+        tw, th = self._tile()
+        sx, sy = int(cx + lk["d"][0] * tw), int(cy + lk["d"][1] * th - th * 0.3)
+        hp_ = self._bar_read(sx, sy)
+        if hp_ is None:
+            winapi.move(*self.abs_pt(sx, sy))  # el mouse pudo haberse ido a otro lado: vuelvo y miro de nuevo
+            time.sleep(0.08)
+            hp_ = self._bar_read(sx, sy)
+            if hp_ is None:
+                lk["miss"] += 1
+                if lk["miss"] >= 2:
+                    self._tlock = None  # se movió o ya no está: que elija de nuevo
+                return False
+        lk["miss"] = 0
+        if hp_ < lk.get("hp", 9.0) - 0.005:
+            lk["hp"], lk["prog"] = hp_, now  # le estoy bajando la vida
+        if now - lk["click"] >= float(self.cfg.get("lock_hit_s", 0.9)):
+            self._release()
+            winapi.click(*self.abs_pt(sx, sy), button="right")
+            lk["click"] = now
+        self._atk_t = self._last_enemy = now
+        self.state = "seek"
+        self.stats["state"], self.stats["target"] = f"le pego al {lk['name']} hasta que muera", lk["name"]
+        self._trk_draw = {"x": sx, "y": sy, "tw": tw, "th": th, "name": lk["name"], "t": now, "d": 1}
+        return True
+
+    def _lock_set(self, e, tx, ty, now):
+        """Fijo el objetivo si el mouse confirma la barra del bicho en (tx, ty)."""
+        if not self.cfg.get("target_lock", True) or self._sweep_state().get("active"):
+            return
+        cx, cy = self._char()
+        tw, th = self._tile()
+        d_ = (int(round((tx - cx) / tw)), int(round((ty + th * 0.3 - cy) / th)))
+        if max(abs(d_[0]), abs(d_[1])) != 1:
+            return
+        winapi.move(*self.abs_pt(tx, ty))
+        time.sleep(0.06)
+        hp0 = self._bar_read(tx, ty)
+        if hp0 is None:
+            return
+        self._tlock = {"d": d_, "id": e[3], "name": e[2]["name"], "t0": now, "click": now, "miss": 0,
+                       "kills": int(self.stats.get("kills", 0)), "prog": now, "hp": hp0}
+
     def _sweep_state(self):
         return self.__dict__.setdefault("_sweep", {"active": False, "cur": None, "since": 0.0, "click": 0.0,
                                                     "kill": 0.0, "kills": 0, "cool": 0.0})
@@ -8796,8 +8889,8 @@ class Bot:
         k_now = int(self.stats.get("kills", 0))
         if k_now > sw["kills"]:
             sw["kills"], sw["kill"] = k_now, now
-        if now - sw["kill"] > float(self.cfg.get("sweep_nokill_s", 15)):
-            self._sweep_off(now, float(self.cfg.get("sweep_cool_stuck_s", 8)), "15 s sin matar a nadie")
+        if now - max(sw["kill"], sw.get("prog", 0.0)) > float(self.cfg.get("sweep_nodmg_s", 15)):
+            self._sweep_off(now, float(self.cfg.get("sweep_cool_stuck_s", 8)), "15 s sin bajarle la vida a nadie")
             return False
         cx, cy = self._char()
         tw, th = self._tile()
@@ -8819,9 +8912,12 @@ class Bot:
             self._trk_draw = {"x": sx, "y": sy, "tw": tw, "th": th, "name": "", "t": now, "d": 1}
 
         cur = sw.get("cur")
-        if cur and now - sw["since"] < float(self.cfg.get("sweep_max_s", 15)):
+        if cur:
             sx, sy = scr(cur)
-            if self._bar_read(sx, sy) is not None:  # sigue vivo: le sigo pegando sin mover el mouse
+            hp_ = self._bar_read(sx, sy)
+            if hp_ is not None:  # sigue vivo: le sigo pegando sin mover el mouse (aunque tenga mucha vida)
+                if hp_ < sw.get("hp", 9.0) - 0.005:
+                    sw["hp"], sw["prog"] = hp_, now  # le estoy bajando la vida
                 if now - sw["click"] >= hit_every:
                     hit(cur, sx, sy)
                 else:
@@ -8836,13 +8932,15 @@ class Bot:
                 if max(abs(o[0] - px), abs(o[1] - py)) == 1:
                     occ.add((o[0] - px, o[1] - py))
         order = [d_ for d_ in self.SWEEP_RING if d_ in occ] + [d_ for d_ in self.SWEEP_RING if d_ not in occ]
-        found = []
+        found, hps = [], {}
         for d_ in order:
             sx, sy = scr(d_)
             winapi.move(*self.abs_pt(sx, sy))
             time.sleep(float(self.cfg.get("sweep_hover_s", 0.11)))
-            if self._bar_read(sx, sy) is not None:
+            v_ = self._bar_read(sx, sy)
+            if v_ is not None:
                 found.append(d_)
+                hps[d_] = v_
         if len(found) <= 1:
             self._sweep_off(now, float(self.cfg.get("sweep_cool_s", 3)),
                             "queda 1 solo alrededor" if found else "no queda nadie alrededor")
@@ -8851,7 +8949,7 @@ class Bot:
         sx, sy = scr(d_)
         winapi.move(*self.abs_pt(sx, sy))
         time.sleep(0.05)
-        sw.update(cur=d_, since=now)
+        sw.update(cur=d_, since=now, hp=hps.get(d_, 9.0))
         hit(d_, sx, sy)
         return True
 

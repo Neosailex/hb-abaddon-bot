@@ -83,9 +83,23 @@ vivos = {(0, -1), (1, 0), (0, 1)}
 z, clicks3 = setup(vivos)
 z._sweep_on(500.0, 3)
 t.ok(z._sweep_step(505.0, ents=[]), "pegando a uno que no muere (5 s): sigue")
-t.ok(not z._sweep_step(516.0, ents=[]), "15 s sin matar a nadie: sale (no queda en loop)")
+t.ok(not z._sweep_step(516.0, ents=[]), "15 s sin bajarle la vida a nadie: sale (no queda en loop)")
 t.ok(not z._sweep_on(520.0, 3), "después de trabarse espera más antes de volver a entrar")
 t.ok(z._sweep_on(525.0, 3), "y después sí puede volver a entrar")
+
+# rodeado de bichos con mucha vida: mientras les baje la vida, sigue en el cuadrado grande
+vivos = {(0, -1), (1, 0), (0, 1)}
+g, c7 = setup(vivos)
+vida = [1.0]
+g._bar_read = lambda px_, py_: vida[0] if (round((px_ - 959) / 64), round((py_ + 64 * 0.3 - 560) / 64)) in vivos else None
+g._sweep_on(700.0, 3)
+ok_ = True
+for i in range(40):
+    vida[0] -= 0.02
+    if not g._sweep_step(700.0 + i, ents=[]):
+        ok_ = False
+        break
+t.ok(ok_ and g._sweep_state()["active"], "rodeado de bichos de mucha vida: 40 s sin matar pero bajándoles vida, sigue")
 
 # primero donde la memoria ve bichos
 vivos2 = {(0, 1), (-1, -1), (1, 1)}
