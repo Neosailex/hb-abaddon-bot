@@ -5280,6 +5280,15 @@ class Bot:
         return False
 
     def _town_need(self, why):
+        if self.bot_mode() == "manual":
+            # Manual: nada de 'prepararme en el pueblo' (pociones, bolso, compras). Solo el herrero, y vuelve.
+            if any(k in str(why) for k in ("roto", "desgast", "repar", "equipo", "durab")):
+                th = getattr(self, "_rep_th", None)
+                if th is None or not th.is_alive():
+                    self._rep_last = time.time()
+                    self._rep_th = threading.Thread(target=self._oly_repair_trip, args=(str(why),), daemon=True)
+                    self._rep_th.start()
+            return
         if self.bot_mode() in ("cartografo", "investigar"):
             return  # Cartógrafo: todo apagado, no vuelvo al pueblo
         if self.bot_mode() == "quest" and not self._quest_maint() and not any(k in str(why) for k in ("roto", "sin arma", "dejé de matar", "mataron")):
@@ -6332,8 +6341,10 @@ class Bot:
             # misiones, sin cambiar de nido. Si lo matan, vuelve a Automático.
             # el 'encargo' (caminar hasta la puerta y entrar) queda: en Manual solo lo crea el viaje al herrero, y sin
             # él llegaba a la puerta y nunca entraba (equipo roto toda la tarde)
+            # (Juan: 'manual es simple, se prende y empieza a pegar'): tampoco 'equipo' (abría el bolso 13 s al
+            # arrancar). El desgaste lo lee de la memoria sin abrir nada y eso dispara el herrero si hace falta.
             for k_ in ("misión cobrar/aceptar", "tienda", "chequeo", "estrategia", "bolso", "auditoría",
-                       "plan", "mejoras", "nidos"):
+                       "plan", "mejoras", "nidos", "equipo"):
                 w[k_] = -1000
         elif md_ == "caza":
             # CAZA (Juan): solo matar en el nido; sale a reparar y a pociones (de paso vende) y vuelve
@@ -12050,8 +12061,9 @@ class Bot:
         """Cada minuto miro la barra de comida. Con menos de 40% lleno y sin bichos pegados, como ya (sin esperar
         a la revisión del bolso de cada 20 minutos)."""
         now = time.time()
-        if now - getattr(self, "_hb_t", 0) < 60 or getattr(self, "_busy_ui", False) or cfgmod.server_slug(self.cfg) == "abaddon":
-            return
+        if now - getattr(self, "_hb_t", 0) < 60 or getattr(self, "_busy_ui", False) or cfgmod.server_slug(self.cfg) == "abaddon" \
+                or self.bot_mode() == "manual":
+            return  # (Manual: no abro el bolso para comer; solo pega)
         self._hb_t = now
         fill = self._hunger_bar()
         if fill is None:
@@ -12089,6 +12101,8 @@ class Bot:
 
     def _eat_food(self):
         """Como lo que tenga de comida en el bolso (lo busco por nombre con el cartelito): doble clic por unidad."""
+        if self.bot_mode() == "manual":
+            return  # Manual: no abro el bolso para nada
         fp = getattr(self, "_food_pending", None)
         self._food_pending = None
         hun = getattr(self, "_hunger", None)
