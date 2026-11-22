@@ -6676,6 +6676,8 @@ class Bot:
         """Ritmo de golpe: cuánto tardo en matar cada bicho desde que lo tengo pegado, comparado con lo normal para
         ese bicho (lo aprendo solo, para cualquier pj y bicho). Si de golpe tardo mucho más que lo normal, el arma se
         rompió, se salió o está gastada: voy al pueblo (reparo, pociones, misiones, todo junto) y vuelvo."""
+        if self.bot_mode() in ("manual", "caza", "cartografo", "investigar"):
+            return  # modos de orden fija: el ritmo de golpe no me saca de donde me pusieron
         if not (0.3 < ttk < 120) or now < getattr(self, "_rabia_until", 0):
             return  # rodeado, el tiempo por bicho se reparte entre todos: no sirve para medir el arma
         base = self.world.learn.setdefault("ttk_base", {})

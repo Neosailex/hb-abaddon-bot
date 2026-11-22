@@ -1,1 +1,1 @@
-{"version": 489, "notes": "No pegaba: un dato basura de la memoria (un bicho con el reloj 27 h adelantado) me corría la cuenta de 'bichos fantasma' y descartaba a TODOS los orcos reales. Ahora ignoro relojes absurdos. Además en Manual el aviso de 'algo se rompió' tampoco lo saca más de una vez cada 30 min."}
+{"version": 490, "notes": "No pegaba: un dato basura de la memoria me hacía descartar a TODOS los orcos como 'fantasmas'. Arreglado. Y en Manual ya no se va al pueblo por 'pego más lento' ni por el aviso de algo roto (máx. 1 vez cada 30 min)."}
