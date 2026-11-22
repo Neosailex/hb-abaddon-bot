@@ -43,6 +43,9 @@ class Api:
         self._bot.toggle()
         return self._bot.running
 
+    def apply_update(self):
+        return self._bot.apply_update()
+
     def start(self):
         self._bot.start()
         return self._bot.running

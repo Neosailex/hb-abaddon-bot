@@ -171,7 +171,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
       <button data-p="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Eventos</button>
     </nav>
     <div class="foot">
-      <div class="mini" id="mini" title="Prender / apagar (Insert)"><div class="dot"></div><span id="miniTxt">Apagado</span><small>Insert</small></div>
+      <div class="mini" id="mini" title="Prender / apagar (Ctrl+Alt+B)"><div class="dot"></div><span id="miniTxt">Apagado</span><small>Ctrl+Alt+B</small></div>
       <div class="row" style="margin-top:10px"><button class="btn sm" id="openGame" style="flex:1">🎮 Abrir juego</button><button class="btn sm" id="miniBtn" style="flex:1" title="Ventanita siempre arriba que no le saca el foco al juego">🪟 Mini</button></div>
     </div>
   </aside>
@@ -240,6 +240,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
     <section class="page" id="p-calib">
       <h1>Calibración</h1><p class="sub">Le enseñás al bot dónde está cada cosa en tu pantalla. Se hace una vez (repetila si cambiás el tamaño de la ventana).</p>
       <div class="banner" id="calibBanner"></div>
+      <div class="banner" id="updBanner"><span id="updTxt"></span> <button class="btn sm" id="updApply" style="margin-left:10px">⬆ Aplicar</button></div>
       <div class="card" style="margin-bottom:14px">
         <h2>🛠 Puesta a punto</h2>
         <p class="hint">Para un servidor o cliente nuevo: el bot abre una por una las ventanas del juego (subir de nivel, íconos de la barra, teclas F), saca foto, lee los textos y botones y las cierra con click derecho. No gasta nada ni suma stats. Tarda unos 3 minutos; deja <b>puesta_a_punto.zip</b> en la carpeta de datos del servidor.</p>
@@ -376,7 +377,7 @@ input[type=range]{accent-color:var(--gold);width:100%}
             <span>Freno total</span><span><input type="text" data-k="hotkeys.panic_stop" style="width:70px"></span>
             <span>Marcar punto</span><span><input type="text" data-k="hotkeys.calib_point" style="width:70px"></span>
             <span>Capturar</span><span><input type="text" data-k="hotkeys.capture_template" style="width:70px"></span></div>
-          <p class="hint">Usá INSERT, DELETE, HOME, END, PAGEUP, PAGEDOWN o PAUSE: las F abren menús del juego.</p>
+          <p class="hint">Usá combinaciones como CTRL+ALT+B: en Olympia Insert, Delete, Home, End y RePág ya hacen algo (pociones, ataque seguro, chat) y las letras sueltas abren el chat.</p>
           <div class="row" style="margin-top:16px"><button class="btn prim" id="cfgSave">Guardar</button><button class="btn danger" id="cfgReset">Volver a valores de fábrica</button></div>
         </div>
       </div>
@@ -780,6 +781,7 @@ async function poll(){
     const logKey = s.log.length+'|'+(s.log[s.log.length-1]||'');
     if(logKey!==lastLogLen){lastLogLen=logKey;const L=$('#log');const atBottom=L.scrollTop+L.clientHeight>=L.scrollHeight-20;L.innerHTML=s.log.map(l=>`<div>${esc(l)}</div>`).join('');if(atBottom)L.scrollTop=L.scrollHeight}
     const b=$('#calibBanner'); if(s.calib_msg){b.textContent=s.calib_msg;b.classList.add('show')}else b.classList.remove('show');
+    {const u=$('#updBanner'); if(s.update){$('#updTxt').textContent=`Hay una versión nueva lista (v${s.update.version}): ${s.update.notes||''} No se aplica sola.`;u.classList.add('show')}else u.classList.remove('show');}
     if(curPage==='calib' && s.calib_slot!==lastSlot){lastSlot=s.calib_slot;CFG=await API.get_config();renderSteps()}
   }catch(e){console.error(e)}
   setTimeout(poll,450);
@@ -942,6 +944,7 @@ let booted=false;
 async function boot(){
   if(booted)return; booted=true;
   API = window.pywebview ? window.pywebview.api : demoApi();
+  {const b_=$('#updApply'); if(b_) b_.onclick=async()=>{b_.disabled=true; b_.textContent='Aplicando…'; try{await API.apply_update()}catch(e){} b_.disabled=false; b_.textContent='⬆ Aplicar'};}
   [CFG,DB,PATH]=await Promise.all([API.get_config(),API.db(),API.path()]);
   fillCfg(); fillLogin(); renderSteps(); initGuide(); renderDb();
   $('#dbSub').textContent=DB.disclaimer;

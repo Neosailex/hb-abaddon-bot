@@ -115,10 +115,11 @@
  "game_dir": "",
  "pause_on_raid": false,
  "hotkeys": {
-  "toggle": "F12",
-  "panic_stop": "F11",
-  "calib_point": "F9",
-  "capture_template": "F10"
+  "toggle": "CTRL+ALT+B",
+  "panic_stop": "CTRL+ALT+X",
+  "calib_point": "",
+  "capture_template": "",
+  "auto_calib": ""
  },
  "template_size": 80
 }

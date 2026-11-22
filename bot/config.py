@@ -103,7 +103,9 @@ DEFAULTS = {
     # --- Eventos ---
     "pause_on_raid": False,
     # --- Hotkeys globales ---
-    "hotkeys": {"toggle": "INSERT", "panic_stop": "END", "calib_point": "PAGEUP", "capture_template": "PAGEDOWN", "auto_calib": "HOME"},
+    # Olympia usa Insert (poción roja), Home (ataque seguro), End (chat), RePág (activación) y las letras sueltas abren
+    # el chat: el bot usa combinaciones que el juego no tiene (solo usa Ctrl+Alt+F y Ctrl+Alt+P)
+    "hotkeys": {"toggle": "CTRL+ALT+B", "panic_stop": "CTRL+ALT+X", "calib_point": "", "capture_template": "", "auto_calib": ""},
     "template_size": 80,
 }
 
@@ -146,9 +148,12 @@ def load():
                 cfg = _merge(DEFAULTS, json.load(f))
             # F12 minimiza Helbreath: pasar las teclas viejas a las nuevas
             hk = cfg.setdefault("hotkeys", {})
-            if str(hk.get("toggle", "")).startswith("F") or str(hk.get("calib_point", "")).startswith("F"):
-                hk.update({"toggle": "INSERT", "panic_stop": "END", "auto_calib": "HOME",
-                           "calib_point": "PAGEUP", "capture_template": "PAGEDOWN"})
+            if str(hk.get("toggle", "")).startswith("F") or str(hk.get("calib_point", "")).startswith("F") \
+                    or (hk.get("toggle") == "INSERT" and hk.get("panic_stop") == "END") \
+                    or (hk.get("toggle") == "PAUSE" and hk.get("panic_stop") == "SCROLLLOCK"):
+                # las teclas viejas (Insert/End/Home/RePág/AvPág) también hacen cosas en Olympia: paso a las nuevas
+                hk.update({"toggle": "CTRL+ALT+B", "panic_stop": "CTRL+ALT+X", "auto_calib": "",
+                           "calib_point": "", "capture_template": ""})
             return cfg
         except Exception:
             pass

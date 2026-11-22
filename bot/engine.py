@@ -18,7 +18,20 @@ import difflib
 import numpy as np
 
 VK = {f"F{i}": 0x6F + i for i in range(1, 13)}
-VK.update({"INSERT": 0x2D, "DELETE": 0x2E, "HOME": 0x24, "END": 0x23, "PAGEUP": 0x21, "PAGEDOWN": 0x22, "PAUSE": 0x13, "SCROLLLOCK": 0x91})
+VK.update({"INSERT": 0x2D, "DELETE": 0x2E, "HOME": 0x24, "END": 0x23, "PAGEUP": 0x21, "PAGEDOWN": 0x22, "PAUSE": 0x13, "SCROLLLOCK": 0x91,
+           "CTRL": 0x11, "ALT": 0x12, "SHIFT": 0x10})
+VK.update({c: ord(c) for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"})
+
+
+def hotkey_vks(key):
+    """'CTRL+ALT+B' -> [0x11, 0x12, 0x42]; tecla sola -> [vk]; desconocida o vacía -> None."""
+    parts = [p_.strip().upper() for p_ in str(key or "").split("+") if p_.strip()]
+    vks = [VK.get(p_) for p_ in parts]
+    return vks if vks and all(vks) else None
+
+
+def hotkey_name(key):
+    return str(key or "").upper().replace("CTRL", "Ctrl").replace("ALT", "Alt").replace("SHIFT", "Shift")
 DIRS = {"N": (0, -1), "NE": (1, -1), "E": (1, 0), "SE": (1, 1), "S": (0, 1), "SW": (-1, 1), "W": (-1, 0), "NW": (-1, -1)}
 POINT_SLOTS = {"char_center", "hp_pot_slot", "mp_pot_slot", "sp_pot_slot", "food_slot", "recall_slot",
                "char_button", "plus_str", "plus_dex", "plus_vit", "plus_int", "plus_mag", "plus_chr", "stat_confirm"}
@@ -92,7 +105,8 @@ class Bot:
         for t in self.threads:
             t.start()
         hk = self.cfg.get("hotkeys", {})
-        self.log(f"Bot listo. {hk.get('toggle')} prende/apaga, {hk.get('panic_stop')} frena todo, {hk.get('auto_calib')} autocalibra.")
+        self.log(f"Bot listo. {hotkey_name(hk.get('toggle'))} prende/apaga, {hotkey_name(hk.get('panic_stop'))} frena todo."
+                 + (f" {hk.get('auto_calib')} autocalibra." if hk.get('auto_calib') else ""))
         if winapi.IS_WIN and not winapi.is_admin():
             self.log("Tip: si el juego no responde a los clicks, abrí el bot como administrador.")
 
@@ -173,7 +187,7 @@ class Bot:
         cal = self.cfg.get("calib", {}) or {}
         okc = bool(cal.get("tile")) and bool(cal.get("char_center")) and bool(cal.get("hp_bar"))
         add("calibracion", "Calibración de pantalla", "ok" if okc else "ask", "Hecha." if okc else "Falta calibrar (baldosa, centro del personaje, barras).",
-            "" if okc else "Apretá HOME con el juego abierto: se calibra solo.")
+            "" if okc else "Tocá Autocalibrar (pestaña Calibración) con el juego abierto: se calibra solo.")
         n_ok = sum(1 for i in items if i["state"] == "ok")
         return {"server": sv.get("name") or "Abaddon", "slug": slug, "folder": pdir, "items": items, "ok": n_ok, "total": len(items),
                 "ready": all(i["state"] != "ask" for i in items)}
@@ -340,6 +354,40 @@ class Bot:
             out[fp] = os.path.getmtime(fp)
         return out
 
+    def _updater(self):
+        import importlib.util
+        sp = importlib.util.spec_from_file_location("actualizar", os.path.join(cfgmod.BASE, "actualizar.py"))
+        mod = importlib.util.module_from_spec(sp)
+        sp.loader.exec_module(mod)
+        return mod
+
+    def update_pending(self):
+        """Actualización bajada que espera que Juan la aplique: {'version', 'notes', ...} o None."""
+        t = getattr(self, "_updp", None)
+        if t and time.time() - t[0] < 15:
+            return t[1]
+        try:
+            p = self._updater().pending()
+            p = {"version": p.get("version"), "notes": p.get("notes", ""), "files": len(p.get("files") or [])} if p else None
+        except Exception:
+            p = None
+        self._updp = (time.time(), p)
+        return p
+
+    def apply_update(self):
+        """Aplica la actualización pendiente (solo a pedido de Juan). El bot se reinicia solo cuando esté tranquilo."""
+        try:
+            p = self._updater().pending()
+            if not p:
+                return "No hay ninguna actualización pendiente."
+            ch = self._updater().apply_staged(self.log)
+            self._updp = None
+            self.log(f"⬆ Apliqué la versión {p.get('version')} ({len(ch or [])} archivos): {p.get('notes', '')} Me reinicio cuando esté tranquilo.")
+            return f"aplicada v{p.get('version')}"
+        except Exception as e:
+            self.log(f"⬆ No pude aplicar la actualización: {e!r}")
+            return f"error: {e!r}"
+
     def _control_loop(self):
         """Funciona solo, sin tocar la PC:
         - arranca a cazar apenas aparece el juego (y retoma si se reinició),
@@ -360,7 +408,7 @@ class Bot:
             if r.get("manual_off") and not r.get("running"):
                 want_start = False  # lo apagaste vos: no me prendo solo por actualizarme
                 self._manual_off = True
-                self.log("Me actualicé, pero me habías apagado a mano: sigo apagado hasta que me prendas (INSERT).")
+                self.log("Me actualicé, pero me habías apagado a mano: sigo apagado hasta que me prendas (Ctrl+Alt+B o el botón del panel).")
         except Exception:
             pass
         last_id = None
@@ -462,6 +510,8 @@ class Bot:
                    "proc": self.mem.proc, "DATA": cfgmod.DATA}
             exec(cmd.get("code", ""), env)
             return env.get("result")
+        if c == "apply":
+            return self.apply_update()
         if c == "set":
             with self.lock:
                 for k, v in (cmd.get("values") or {}).items():
@@ -605,10 +655,10 @@ class Bot:
         while self.alive:
             hk = self.cfg.get("hotkeys", {})
             for action, key in hk.items():
-                vk = VK.get(str(key).upper())
-                if not vk:
+                vks = hotkey_vks(key)
+                if not vks:
                     continue
-                down = winapi.key_pressed(vk)
+                down = all(winapi.key_pressed(v) for v in vks)
                 if down and not prev.get(action):
                     try:
                         self._on_hotkey(action)
@@ -1178,7 +1228,7 @@ class Bot:
                 tl = " ".join(w[0].lower() for w in wl)
                 if sum(k in tl for k in ("entrar", "crear cuenta", "recordar", "salir", "discord")) >= 3:
                     self._release()
-                    self.log("⛔ El juego está en la pantalla de ingreso (sesión cerrada): me apago. Entrá vos y prendeme con INSERT.")
+                    self.log("⛔ El juego está en la pantalla de ingreso (sesión cerrada): me apago. Entrá vos y prendeme (Ctrl+Alt+B o el botón del panel).")
                     self.stop("manual")
                     return
         except Exception:
@@ -4755,6 +4805,28 @@ class Bot:
         dk = next((k for k in known if self._same(k, dest)), None)
         return bool(dk and self.world.route(cur, dk, forbidden=avoid, cost=self._map_cost))
 
+    @staticmethod
+    def ghost_filter(raw, gtc, tk, fresh_ms=6000):
+        """Devuelve f(id) -> True si el bicho está vivo (su reloj está al día), o None si no puedo decidir.
+        tk = {"off": ...} guarda la diferencia entre mi reloj y el del juego entre llamadas.
+        Solo cuento relojes razonables (entre 1 min adelantado y 10 min atrasado): un dato basura con el reloj
+        27 h adelantado me corría la cuenta y TODOS los bichos reales quedaban como fantasmas (v489)."""
+        sg = lambda v: ((v + 0x80000000) & 0xFFFFFFFF) - 0x80000000  # diferencia con signo (el reloj da la vuelta)
+        ds = [sg(gtc - int(r_[4])) for r_ in raw]
+        ds = [d_ for d_ in ds if -60000 < d_ < 600000]
+        if ds:
+            o_ = min(ds)
+            if tk.get("off") is None or o_ < tk["off"] or tk["off"] > 600000 or tk["off"] < -60000:
+                tk["off"] = o_
+        if tk.get("off") is None:
+            return None
+        off = tk["off"]
+
+        def alive(oid):
+            d_ = sg(gtc - off - int(oid))
+            return -60000 <= d_ <= fresh_ms
+        return alive
+
     def _oly_ents(self):
         """Bichos alrededor según la memoria de Olympia: [(x, y, criatura, id)]. [] si no hay."""
         if cfgmod.server_slug(self.cfg) == "abaddon" or not getattr(self.mem, "proc", None):
@@ -4799,36 +4871,24 @@ class Bot:
         generic = {"name": "bicho", "type": -1, "dmg_avg": 0, "hit": 0, "hp": 0} if self.oly.sig.get("type_off") is None else None
         # fantasmas: el juego deja en memoria bichos que ya no están (muertos hace horas, o de otro mapa). El campo
         # "id" es en realidad el reloj de su última actualización (en milisegundos): los vivos lo tienen al día.
-        live_after = None
+        alive_fn = None
         try:
             if self.oly.sig.get("id_off") is not None and raw:
                 import ctypes
                 gtc = int(ctypes.windll.kernel32.GetTickCount()) & 0xFFFFFFFF
-                sg = lambda v: ((v + 0x80000000) & 0xFFFFFFFF) - 0x80000000  # diferencia con signo (el reloj da la vuelta)
-                # solo relojes razonables: entre 1 min adelantado y 10 min atrasado. Antes un dato basura con el reloj
-                # 27 h adelantado me corría la cuenta y TODOS los bichos reales quedaban como fantasmas.
-                ds = [sg(gtc - int(r_[4])) for r_ in raw]
-                ds = [d_ for d_ in ds if -60000 < d_ < 600000]
-                tk = self.__dict__.setdefault("_oly_tk", {"off": None})
-                if ds:
-                    o_ = min(ds)
-                    if tk["off"] is None or o_ < tk["off"] or tk["off"] > 600000 or tk["off"] < -60000:
-                        tk["off"] = o_
-                if tk["off"] is not None:
-                    live_after = (tk["off"], int(self.cfg.get("ent_fresh_ms", 6000)), gtc, sg)
+                alive_fn = self.ghost_filter(raw, gtc, self.__dict__.setdefault("_oly_tk", {"off": None}),
+                                             int(self.cfg.get("ent_fresh_ms", 6000)))
         except Exception:
-            live_after = None
+            alive_fn = None
         ghosts = 0
         allv, seen_all = [], set()
         mypos = (self.pos.get("x"), self.pos.get("y"))
         ox_, oy_ = self._mob_off()
         for x, y, typ, st, oid in raw:
             x, y = x - ox_, y - oy_  # corrimiento aprendido de la memoria (ver _off_learn)
-            if live_after is not None:
-                d_ = live_after[3](live_after[2] - live_after[0] - int(oid))
-                if d_ > live_after[1] or d_ < -60000:
-                    ghosts += 1
-                    continue
+            if alive_fn is not None and not alive_fn(oid):
+                ghosts += 1
+                continue
             if 0 < typ < 500 and (x, y) != (0, 0) and (typ, x, y) not in seen_all and (x, y) != mypos:
                 seen_all.add((typ, x, y))
                 c_ = crs.get(typ) or generic
@@ -5649,6 +5709,22 @@ class Bot:
             g = self.grid = gridmod.Grid()
         return g
 
+    def _at_hunt_spot(self, r=12):
+        """¿Estoy en mi lugar de caza (el nido de Manual/Caza, o la zona buena de este mapa)? Vale en cualquier mapa,
+        también en una ciudad (a nivel 120 el nido de orcos de Aresden City es de los mejores)."""
+        if self.pos.get("x") is None:
+            return False
+        mk = (self.pos.get("map") or "").strip().lower()
+        px, py = self.pos["x"], self.pos["y"]
+        spots = []
+        a = self.cfg.get("mode_anchor") or {}
+        if self._anchored() and a.get("mk") == mk and a.get("x") is not None:
+            spots.append(a)
+        h = (self.world.learn.get("oly_hot") or {}).get(mk)
+        if h and h.get("x") is not None:
+            spots.append(h)
+        return any(max(abs(px - int(s_["x"])), abs(py - int(s_["y"]))) <= r for s_ in spots)
+
     def _grid_mode(self):
         """En qué estoy: eso decide cómo leo la grilla."""
         cur = (self.pos.get("map") or "").lower()
@@ -5658,9 +5734,11 @@ class Bot:
             return "descanso"
         if getattr(self, "_loot_go", None):
             return "recolección"
-        if (getattr(self, "goto", None) or getattr(self, "mission", None) or self._is_travelling() or self._in_town()
+        if (getattr(self, "goto", None) or getattr(self, "mission", None) or self._is_travelling()
                 or getattr(self, "_hot_go", None) or getattr(self, "_pit_go", None)):
             return "viaje"
+        if self._in_town() and not self._at_hunt_spot():
+            return "viaje"  # cruzando la ciudad (un nido DENTRO de la ciudad sí es nido: antes no perseguía a nadie)
         mk = cur.strip()
         if not (self.world.learn.get("oly_hot") or {}).get(mk):
             return "zona nueva"
@@ -5744,7 +5822,7 @@ class Bot:
         for a, v in (("_pit_go", None), ("_loot_go", None), ("_flee_until", 0), ("_flee_best", None), ("_flee_block", 0),
                      ("_rabia_until", 0), ("_elite_ts", []), ("_weak_t", 0), ("_town_until", 0), ("_town_why", ""),
                      ("_worn_seen", 0), ("_broken_t", 0), ("_gm_said", 0), ("_gm_low_t", 0), ("_worn_suspect_until", 0),
-                     ("_rep_last", 0)):
+                     ("_rep_last", now), ("_man_rep_t", 0)):
             setattr(self, a, v)
         try:
             self.nav.pop("path_cache", None)
@@ -11184,7 +11262,9 @@ class Bot:
                 self._town_need("equipo roto")
             # (Manual: si ya fui hace menos de 30 min y no se arregló, no vuelvo a salir corriendo cada 5 min: sigo pegando)
             if not rep_busy and self.bot_mode() not in ("cartografo", "investigar") \
-                    and not (self.bot_mode() == "manual" and now - getattr(self, "_rep_last", 0) < 1800):
+                    and not (self.bot_mode() == "manual" and now - getattr(self, "_man_rep_t", 0) < 1800):
+                if self.bot_mode() == "manual":
+                    self._man_rep_t = now
                 go("equipo roto")  # roto no espera: salgo aunque me peguen (también en Manual)
         elif low and self.bot_mode() not in ("cartografo", "investigar") and (self.bot_mode() != "quest" or self._quest_maint()) and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
             # en un nido lleno nunca estoy 'libre': si estoy peleando espero hasta 60 s a que afloje y salgo igual
@@ -13734,7 +13814,16 @@ class Bot:
                 return
             if self._fresh_skip("aviso de roto", ["aviso"] if worn else []):
                 worn = False
-            if worn and now - self._rep_last >= (1800 if self.bot_mode() == "manual" else 300):
+            if self.bot_mode() == "manual":
+                # Manual: nada de 'mantenimiento' ni 'equipo suelto'. Solo si algo se rompe, y como mucho cada 30 min
+                if worn and now - getattr(self, "_man_rep_t", 0) >= 1800:
+                    self._man_rep_t = now
+                    self._rep_last = now
+                    self._release()
+                    self._rep_th = threading.Thread(target=self._oly_repair_trip, args=("el juego avisó que algo se rompió",), daemon=True)
+                    self._rep_th.start()
+                return
+            if worn and now - self._rep_last >= 300:
                 self._elite_ts = []
                 self._audit_t = now
                 self._rep_last = now
@@ -15391,6 +15480,7 @@ class Bot:
             "running": self.running,
             "stats": s,
             "bars": self.bars,
+            "update": self.update_pending(),
             "window": self.win_title,
             "rect": self.rect,
             "calib_msg": self.calib.get("msg", ""),
