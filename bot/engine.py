@@ -4798,12 +4798,18 @@ class Bot:
             if self.oly.sig.get("id_off") is not None and raw:
                 import ctypes
                 gtc = int(ctypes.windll.kernel32.GetTickCount()) & 0xFFFFFFFF
-                mt = max(int(r_[4]) for r_ in raw)
-                off = (gtc - mt) & 0xFFFFFFFF
+                sg = lambda v: ((v + 0x80000000) & 0xFFFFFFFF) - 0x80000000  # diferencia con signo (el reloj da la vuelta)
+                # solo relojes razonables: entre 1 min adelantado y 10 min atrasado. Antes un dato basura con el reloj
+                # 27 h adelantado me corría la cuenta y TODOS los bichos reales quedaban como fantasmas.
+                ds = [sg(gtc - int(r_[4])) for r_ in raw]
+                ds = [d_ for d_ in ds if -60000 < d_ < 600000]
                 tk = self.__dict__.setdefault("_oly_tk", {"off": None})
-                if tk["off"] is None or off < tk["off"]:
-                    tk["off"] = off  # diferencia entre mi reloj y el del juego, medida cuando hay bichos vivos a la vista
-                live_after = ((gtc - tk["off"]) & 0xFFFFFFFF) - int(self.cfg.get("ent_fresh_ms", 6000))
+                if ds:
+                    o_ = min(ds)
+                    if tk["off"] is None or o_ < tk["off"] or tk["off"] > 600000 or tk["off"] < -60000:
+                        tk["off"] = o_
+                if tk["off"] is not None:
+                    live_after = (tk["off"], int(self.cfg.get("ent_fresh_ms", 6000)), gtc, sg)
         except Exception:
             live_after = None
         ghosts = 0
@@ -4812,9 +4818,11 @@ class Bot:
         ox_, oy_ = self._mob_off()
         for x, y, typ, st, oid in raw:
             x, y = x - ox_, y - oy_  # corrimiento aprendido de la memoria (ver _off_learn)
-            if live_after is not None and int(oid) < live_after:
-                ghosts += 1
-                continue
+            if live_after is not None:
+                d_ = live_after[3](live_after[2] - live_after[0] - int(oid))
+                if d_ > live_after[1] or d_ < -60000:
+                    ghosts += 1
+                    continue
             if 0 < typ < 500 and (x, y) != (0, 0) and (typ, x, y) not in seen_all and (x, y) != mypos:
                 seen_all.add((typ, x, y))
                 c_ = crs.get(typ) or generic
@@ -13653,7 +13661,7 @@ class Bot:
             overdue = now - self._rep_last > float(self.cfg.get("repair_every_min", 150)) * 60 + 480
             if not worn and not overdue and (self.state == "attack" or self._under_attack() or self._fleeing()):
                 return
-            if worn and now - self._rep_last >= 300:
+            if worn and now - self._rep_last >= (1800 if self.bot_mode() == "manual" else 300):
                 self._elite_ts = []
                 self._audit_t = now
                 self._rep_last = now
