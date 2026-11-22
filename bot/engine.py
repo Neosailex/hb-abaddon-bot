@@ -1053,6 +1053,10 @@ class Bot:
             self._zone_goal = None
         mp = self.world.map_for(self.pos.get("map") or "")
         x, y = self.pos.get("x"), self.pos.get("y")
+        if self._anchored():
+            # Manual/Caza: el lugar lo elegiste vos; suelto el blanco trabado pero NO me voy a otra zona
+            self.log(f"⚠ Alerta: {why}. Suelto el objetivo y sigo acá (Manual).")
+            return False
         if mp and x is not None:
             import random as _r
             for _ in range(40):
@@ -1455,7 +1459,8 @@ class Bot:
                 return
         if self._travel():
             return
-        if in_town and not self._attacked_recently():
+        if in_town and not self._attacked_recently() and not self._anchored():
+            # (Manual/Caza: es una orden, cazo donde me dejaste aunque sea en la ciudad — antes salía corriendo)
             self._release()
             self.state, self.target = "seek", None
             self.stats["state"] = "en la ciudad (busco cómo salir a cazar)"

@@ -1,1 +1,1 @@
-{"version": 485, "notes": "Investigar es un modo aparte (como Caza o Manual): solo releva el mapa donde estás (bichos, nidos y, en la ciudad, quién hay en cada local). Todo lo demás apagado: sin pociones, tienda, herrero, stats, misiones ni caza (solo pelea si lo rodean). Al terminar pasa a Automático."}
+{"version": 486, "notes": "Manual en la ciudad: caza donde lo dejaste aunque sea un mapa de ciudad (antes decía 'acá no cazo' y salía corriendo). Las alertas (no gano exp / no me muevo) en Manual sueltan el blanco pero ya no lo mandan a otra zona."}
