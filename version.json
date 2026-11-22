@@ -1,1 +1,1 @@
-{"version": 487, "notes": "Manual simple: se prende y pega. No abre el bolso (ni revisión de equipo, ni comer, ni ordenar), no compra, no hace la preparación del pueblo. Solo va al herrero si el equipo se gasta (lo lee de la memoria) y vuelve."}
+{"version": 488, "notes": "Manual: se iba y volvía cada 5 min porque la Hauberk estaba rota y el herrero de la ciudad fallaba (no sabía dónde estaba el herrero adentro: KeyError npc). Ahora lo busca por tipo y repara. Y en Manual, si ya fue al herrero hace menos de 30 min, no vuelve a salir: sigue pegando."}

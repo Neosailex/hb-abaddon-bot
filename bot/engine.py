@@ -11109,7 +11109,9 @@ class Bot:
             self._worn_seen = now  # lo roto se sale al bolso: después del herrero me lo vuelvo a poner
             if not manual:
                 self._town_need("equipo roto")
-            if not rep_busy and self.bot_mode() not in ("cartografo", "investigar"):
+            # (Manual: si ya fui hace menos de 30 min y no se arregló, no vuelvo a salir corriendo cada 5 min: sigo pegando)
+            if not rep_busy and self.bot_mode() not in ("cartografo", "investigar") \
+                    and not (self.bot_mode() == "manual" and now - getattr(self, "_rep_last", 0) < 1800):
                 go("equipo roto")  # roto no espera: salgo aunque me peguen (también en Manual)
         elif low and self.bot_mode() not in ("cartografo", "investigar") and (self.bot_mode() != "quest" or self._quest_maint()) and now - getattr(self, "_rep_last", 0) > 600 and now - getattr(self, "_gm_said", 0) > 120:
             # en un nido lleno nunca estoy 'libre': si estoy peleando espero hasta 60 s a que afloje y salgo igual
@@ -11692,7 +11694,7 @@ class Bot:
             tw, th = self._tile()
             cx, cy = self._char()
             pl = self._place("shop") or {"npc_type": 15, "npc": [59, 42]}
-            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 else None
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 and pl.get("npc") else None
             menu = menu or self._npc_find("shop", "comerciar")
             com = next((w for w in (menu or []) if norm(w[0]).startswith("comerciar")), None)
             if not com:
@@ -11712,7 +11714,7 @@ class Bot:
                     pass
                 time.sleep(0.8)
                 self._bag_ensure(grab)
-                menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 else None
+                menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 and pl.get("npc") else None
                 menu = menu or self._npc_find("shop", "comerciar")
                 com = next((w for w in (menu or []) if norm(w[0]).startswith("comerciar")), None)
                 if com:
@@ -12819,7 +12821,7 @@ class Bot:
                         self.log(f"🔧 Al llegar, lo más gastado estaba en {int(pre)}%: paso a reparar cada {int(new)} minutos (antes {int(ev)}).")
             except Exception:
                 pass
-            menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 else None
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 and pl.get("npc") else None
             menu = menu or self._npc_find("smith", "reparar")
             if not menu:
                 self.log("🔧 No encontré al herrero.")
@@ -12860,7 +12862,7 @@ class Bot:
                     # segundo intento enseguida (no en 5 minutos: con el arma a 7% se rompía antes): vuelvo a abrir el
                     # menú del herrero, aprieto 'Reparar Todo' y miro el cartel varias veces seguidas
                     try:
-                        menu2 = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 else None
+                        menu2 = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 and pl.get("npc") else None
                         menu2 = menu2 or self._npc_find("smith", "reparar")
                         todo2 = next((w for w in (menu2 or []) if "todo" in norm(w[0])), None)
                         if not todo2 and menu2:
@@ -12952,7 +12954,7 @@ class Bot:
         kx, ky = self.rect[2] / 1920.0, self.rect[3] / 1080.0
         self._ui_clear()
         time.sleep(0.6)
-        menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 else None
+        menu = self._npc_menu(pl["npc_type"], pl["npc"], "reparar") if pl.get("npc_type", -1) >= 0 and pl.get("npc") else None
         menu = menu or self._npc_find("smith", "reparar")
         if not menu:
             self.log("🔧 No pude abrir el menú del herrero para reparar lo suelto.")
@@ -13944,7 +13946,7 @@ class Bot:
             self._busy_t0 = None
             self._release()
             time.sleep(1.5)
-            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 else None
+            menu = self._npc_menu(pl["npc_type"], pl["npc"], "comerciar") if pl.get("npc_type", -1) >= 0 and pl.get("npc") else None
             menu = menu or self._npc_find("smith", "comerciar")
             com = next((w for w in (menu or []) if norm(w[0]).startswith("comerciar")), None)
             if not com:
