@@ -90,6 +90,19 @@ au.world.learn["oly_hot"] = {"aresden city": {"x": 55, "y": 176}}
 au.pos = {"map": "Aresden City", "x": 57, "y": 178}
 t.ok(au._grid_mode() == "nido", "Automático en la zona buena de la ciudad: nido")
 
+# en el nido de la ciudad se CAZA (antes solo peleaba si le pegaban y nunca salía a buscar: 14:00 del 22/11)
+c2 = mk_bot("auto"); c2.set_mode("manual")
+c2.pos = {"map": "Aresden City", "x": 52, "y": 172}
+t.ok(not c2._town_no_hunt(), "Manual en el nido de la ciudad: SÍ caza (no es 'pueblo')")
+c2.pos = {"map": "Aresden City", "x": 150, "y": 190}
+t.ok(c2._town_no_hunt(), "cruzando la ciudad lejos del nido: no caza")
+import inspect
+src = inspect.getsource(type(c2)._run_loop) if hasattr(type(c2), "_run_loop") else ""
+import bot.engine as _E
+code = open(_E.__file__, encoding="utf-8").read()
+t.ok("in_town = self._town_no_hunt()" in code, "la decisión de cazar usa la regla del nido (no 'toda la ciudad')")
+t.ok(code.count("self._in_town()") <= 2, "no quedan otros lugares que traten al nido de la ciudad como pueblo")
+
 # Manual: nada de 'mantenimiento' (v491 lo mandaba al herrero al minuto de prender)
 mm = mk_bot("auto"); mm.set_mode("manual")
 t.ok(time.time() - mm._rep_last < 5, "arranque limpio: el reloj de mantenimiento arranca ahora")

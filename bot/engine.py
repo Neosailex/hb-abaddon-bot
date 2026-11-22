@@ -1428,9 +1428,9 @@ class Bot:
             self.state, self.target = "seek", None
         # Si estoy yendo a algún lado (otro mapa), no me distraigo con cada bicho: solo peleo si me pegan.
         focused = self._is_travelling() and not self._attacked_recently()
-        in_town = self._in_town()
+        in_town = self._town_no_hunt()
         if in_town and not self._attacked_recently():
-            focused = True  # en la ciudad no hay nada que cazar: lo que "veo" ahí son vecinos, gatos y guardias
+            focused = True  # cruzando la ciudad no cazo (vecinos, gatos, guardias); en un nido DENTRO de la ciudad, sí
         if self._carto_go() and not in_building:
             # CARTÓGRAFO: directo, sin cazar ni frenar (salvo que me rodeen). Recorro el mapa y anoto nidos.
             try:
@@ -5562,7 +5562,7 @@ class Bot:
                 return bool(self._oly_kite(ents, force=True))
             except Exception:
                 return False
-        if self.cfg.get("sweep_3x3", True) and (len(adj) >= 3 or now < getattr(self, "_rabia_until", 0)):
+        if self.cfg.get("sweep_3x3", True) and self._sweep_on(now, len(adj), now < getattr(self, "_rabia_until", 0)):
             try:
                 if self._sweep_step(now, ents):
                     return True
@@ -5714,6 +5714,11 @@ class Bot:
         if g is None:
             g = self.grid = gridmod.Grid()
         return g
+
+    def _town_no_hunt(self):
+        """¿Estoy en la ciudad SIN estar en un lugar de caza? (cruzándola, en el pueblo). Un nido dentro de la ciudad
+        (a nivel 120 el de orcos de Aresden City) es lugar de caza: ahí cazo como en cualquier mapa."""
+        return self._in_town() and not self._at_hunt_spot()
 
     def _at_hunt_spot(self, r=12):
         """¿Estoy en mi lugar de caza (el nido de Manual/Caza, o la zona buena de este mapa)? Vale en cualquier mapa,
@@ -5948,7 +5953,7 @@ class Bot:
         bicho a 14 baldosas estando ahí), busca otro."""
         mk = (self.pos.get("map") or "").strip().lower()
         a = self.cfg.get("mode_anchor") or {}
-        if self.pos.get("x") is None or self._in_town() or any(k in mk for k in ("shop", "blacksmith", "hall", "warehouse")):
+        if self.pos.get("x") is None or self._town_no_hunt() or any(k in mk for k in ("shop", "blacksmith", "hall", "warehouse")):
             return
         if a.get("x") is None:
             h = (self.world.learn.get("oly_hot") or {}).get(mk)
@@ -6117,7 +6122,7 @@ class Bot:
         """Cada bicho que mato le suma al nido donde estoy: 1 muerte y su experiencia de la base del juego."""
         na = getattr(self, "_nest_active", None)
         mk = (self.pos.get("map") or "").strip().lower()
-        if not na or na.get("mk") != mk or self._in_town():
+        if not na or na.get("mk") != mk or self._town_no_hunt():
             return
         r = self._nest_rec(mk, na["x"], na["y"], na.get("mob"))
         r["kills"] = int(r.get("kills", 0)) + 1
@@ -6154,7 +6159,7 @@ class Bot:
             lg.pop(0)
         na = getattr(self, "_nest_active", None)
         mk = (self.pos.get("map") or "").strip().lower()
-        if na and na.get("mk") == mk and not self._in_town():
+        if na and na.get("mk") == mk and not self._town_no_hunt():
             r = self._nest_rec(mk, na["x"], na["y"], na.get("mob"))
             if not r.get("real"):
                 # desde ahora mido con la experiencia real: empiezo el nido de cero
@@ -6254,8 +6259,8 @@ class Bot:
         dt = min(60.0, now - getattr(self, "_nt_t", now)) if getattr(self, "_nt_t", 0) else 0.0
         self._nt_t = now
         mk = (self.pos.get("map") or "").strip().lower()
-        if self._in_town() or getattr(self, "_busy_ui", False) or self._ui_th_alive():
-            return  # pueblo/tienda: no es tiempo de ningún nido
+        if self._town_no_hunt() or getattr(self, "_busy_ui", False) or self._ui_th_alive():
+            return  # pueblo/tienda: no es tiempo de ningún nido (salvo un nido dentro de la ciudad)
         px, py = self.pos["x"], self.pos["y"]
         pits = [p for p in self._pits() if (p.get("mob") or p.get("guess"))]
         pg = getattr(self, "_pit_go", None)
@@ -7819,7 +7824,7 @@ class Bot:
                 # del centro que calculo). Antes le sumaba de nuevo ese tercio y el clic caía en el borde de abajo.
                 tx_, ty_ = pt[0], pt[1]
                 rab_ = now < getattr(self, "_rabia_until", 0)
-                if self.cfg.get("sweep_3x3", True) and (rab_ or sum(1 for o in ents if d(o) == 1) >= 3):
+                if self.cfg.get("sweep_3x3", True) and self._sweep_on(now, sum(1 for o in ents if d(o) == 1), rab_):
                     try:
                         if self._sweep_step(now, ents):
                             return True
@@ -8363,7 +8368,7 @@ class Bot:
         if force_dest:
             pass
         elif (self.state in ("attack", "loot", "lootq") or time.time() - getattr(self, "_last_enemy", 0) < 6) and not self._is_travelling() \
-                and not self._in_town():
+                and not self._town_no_hunt():
             return False  # ya estoy en mi mapa de caza: si está peleando o acaba de ver un monstruo, que siga cazando
         elif self._under_attack():
             self._defend_until = time.time() + 8
@@ -8751,20 +8756,57 @@ class Bot:
 
     SWEEP_RING = ((0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1))
 
+    def _sweep_state(self):
+        return self.__dict__.setdefault("_sweep", {"active": False, "cur": None, "since": 0.0, "click": 0.0,
+                                                    "kill": 0.0, "kills": 0, "cool": 0.0})
+
+    def _sweep_on(self, now, n_adj, rab=False):
+        """¿Estoy (o entro) en el cuadrado grande? Entra rodeado (3+ pegados o rabia). REGLA DE JUAN: una vez
+        adentro no sale hasta que alrededor quede 1 solo (o ninguno), contado con el mouse; si se suman bichos, sigue."""
+        sw = self._sweep_state()
+        if sw["active"]:
+            return True
+        if (n_adj >= 3 or rab) and now >= sw["cool"]:
+            sw.update(active=True, cur=None, kill=now, kills=int(self.stats.get("kills", 0)), enter=now)
+            if now - getattr(self, "_sweep_said", 0) > 30:
+                self._sweep_said = now
+                self.log(f"🟥 Rodeado ({n_adj} pegados): cuadrado grande hasta que quede 1 solo alrededor.")
+            return True
+        return False
+
+    def _sweep_off(self, now, cool, why=""):
+        sw = self._sweep_state()
+        sw.update(active=False, cur=None, cool=now + cool)
+        self._sweep_draw = None
+        if why and now - getattr(self, "_sweep_off_said", 0) > 30:
+            self._sweep_off_said = now
+            self.log(f"🟥 Salgo del cuadrado grande: {why}.")
+
     def _sweep_step(self, now=None, ents=None):
-        """RODEADO (idea de Juan): cuadrado rojo grande de 3x3 alrededor del pj y le pego a las 8 baldosas de
-        alrededor. Las baldosas salen del PROPIO pj (que está bien ubicado), no de la memoria de los bichos (que a
-        veces llega tarde o corrida). Antes de pegar paso el mouse: si aparece la barra de vida, ahí HAY un bicho.
-        Le sigo pegando mientras su barra esté, y después busco el siguiente. True = usé la vuelta pegando."""
+        """CUADRADO GRANDE (idea de Juan): 3x3 alrededor del pj. Las baldosas salen del PROPIO pj (bien ubicado), no
+        de la memoria de los bichos (que a veces llega tarde o corrida). Paso el mouse: si aparece la barra de vida,
+        ahí HAY un bicho; le pego hasta que muere y paso al siguiente.
+        Frenos para no quedar en un loop: (1) salgo cuando la vuelta con el mouse encuentra 1 o ninguno;
+        (2) 15 s sin matar a nadie → salgo; (3) al salir espero unos segundos antes de volver a entrar.
+        True = usé la vuelta pegando; False = no estoy en el cuadrado grande (lo maneja el cuadrado chico)."""
         now = now or time.time()
-        if not self.rect:
+        sw = self._sweep_state()
+        if not sw["active"] or not self.rect:
+            return False
+        k_now = int(self.stats.get("kills", 0))
+        if k_now > sw["kills"]:
+            sw["kills"], sw["kill"] = k_now, now
+        if now - sw["kill"] > float(self.cfg.get("sweep_nokill_s", 15)):
+            self._sweep_off(now, float(self.cfg.get("sweep_cool_stuck_s", 8)), "15 s sin matar a nadie")
             return False
         cx, cy = self._char()
         tw, th = self._tile()
         up = th * 0.3  # el juego dibuja al bicho un tercio de baldosa más arriba del centro de su baldosa
         scr = lambda d_: (int(cx + d_[0] * tw), int(cy + d_[1] * th - up))
-        sw = self.__dict__.setdefault("_sweep", {"cur": None, "since": 0.0, "click": 0.0})
         hit_every = float(self.cfg.get("sweep_hit_s", 0.9))
+
+        def draw(cur):
+            self._sweep_draw = {"t": now, "cx": int(cx), "cy": int(cy - up), "tw": tw, "th": th, "cur": cur}
 
         def hit(d_, sx, sy):
             self._release()
@@ -8773,7 +8815,7 @@ class Bot:
             self._atk_t = self._last_enemy = now
             self.state = "seek"
             self.stats["state"] = "rodeado: le pego a todo lo de alrededor"
-            self._sweep_draw = {"t": now, "cx": int(cx), "cy": int(cy - up), "tw": tw, "th": th, "cur": d_}
+            draw(d_)
             self._trk_draw = {"x": sx, "y": sy, "tw": tw, "th": th, "name": "", "t": now, "d": 1}
 
         cur = sw.get("cur")
@@ -8783,10 +8825,10 @@ class Bot:
                 if now - sw["click"] >= hit_every:
                     hit(cur, sx, sy)
                 else:
-                    self._sweep_draw = {"t": now, "cx": int(cx), "cy": int(cy - up), "tw": tw, "th": th, "cur": cur}
+                    draw(cur)
                 return True
         sw["cur"] = None
-        # el siguiente: primero donde la memoria ve bichos pegados, después el resto del anillo
+        # vuelta completa con el mouse: cuántos hay alrededor DE VERDAD (primero donde la memoria ve bichos)
         px, py = self.pos.get("x"), self.pos.get("y")
         occ = set()
         if px is not None:
@@ -8794,16 +8836,24 @@ class Bot:
                 if max(abs(o[0] - px), abs(o[1] - py)) == 1:
                     occ.add((o[0] - px, o[1] - py))
         order = [d_ for d_ in self.SWEEP_RING if d_ in occ] + [d_ for d_ in self.SWEEP_RING if d_ not in occ]
+        found = []
         for d_ in order:
             sx, sy = scr(d_)
             winapi.move(*self.abs_pt(sx, sy))
             time.sleep(float(self.cfg.get("sweep_hover_s", 0.11)))
             if self._bar_read(sx, sy) is not None:
-                sw.update(cur=d_, since=now)
-                hit(d_, sx, sy)
-                return True
-        self._sweep_draw = None
-        return False  # alrededor no hay nadie: vuelvo a buscarlos de a uno
+                found.append(d_)
+        if len(found) <= 1:
+            self._sweep_off(now, float(self.cfg.get("sweep_cool_s", 3)),
+                            "queda 1 solo alrededor" if found else "no queda nadie alrededor")
+            return False  # el último (si hay) lo termina el cuadrado chico
+        d_ = found[0]
+        sx, sy = scr(d_)
+        winapi.move(*self.abs_pt(sx, sy))
+        time.sleep(0.05)
+        sw.update(cur=d_, since=now)
+        hit(d_, sx, sy)
+        return True
 
     def _defend(self):
         """Me pegan y no veo a quién: pego alrededor (las 8 casillas)."""
