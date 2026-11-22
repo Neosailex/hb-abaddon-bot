@@ -273,6 +273,8 @@ class Bot:
             if not c.get("hp_bar"):
                 self.log("Ojo: sin barra de HP calibrada no tomo pociones ni hago pánico.")
             self._reset_session()
+            if self.bot_mode() in self.FIXED_MODES:
+                self._fresh_start("prendido")
             self.stats["started"] = time.time()
             self.running = True
             self.stats["state"] = "buscando"
@@ -1836,11 +1838,15 @@ class Bot:
         return [z for z in d if z[0] == mk]
 
     def _is_danger(self, x, y, r=None, mapname=None):
+        if self.bot_mode() == "manual":
+            return False  # Manual: donde lo pongas. Las zonas peligrosas son memoria de Automático
         r = r or self.cfg.get("danger_radius_tiles", 35)
         return any(max(abs(x - z[1]), abs(y - z[2])) <= r for z in self._dangers(mapname))
 
     def _pit_deadly(self, p, hours=8):
         """¿Me mataron cerca de ese nido en las últimas horas? Entonces no voy (ni por misión ni por experiencia)."""
+        if self.bot_mode() == "manual":
+            return False
         now = time.time()
         return any(max(abs(p["x"] - z[1]), abs(p["y"] - z[2])) <= max(15, int(p.get("r", 15))) and now - z[3] < hours * 3600
                    for z in self._dangers() if len(z) >= 4)
@@ -5713,6 +5719,57 @@ class Bot:
                     pass
 
     # ---------- MODOS (botones debajo del encendido) ----------
+    # modos de orden fija: hacen lo que se les pide desde cero, sin arrastrar pendientes ni memoria de Automático
+    FIXED_MODES = ("manual", "caza", "quest", "cartografo", "investigar")
+
+    def _fresh_start(self, why=""):
+        """Arranque limpio (regla de Juan): al prender o pasar a un modo fijo se cancela TODO lo pendiente
+        (viajes, herrero/tienda en curso, objetivo, huida, alertas) y lo que ya estaba roto, gastado o faltante
+        al arrancar NO lo saca de donde está: arranca a pegar igual. Solo cuenta lo que pase después."""
+        now = time.time()
+        alive = [t for t in (getattr(self, a, None) for a in ("_shop_th", "_rep_th", "_inv_th", "_gear_th", "_audit_th", "_town_th"))
+                 if t is not None and t.is_alive()]
+        if alive and self.running:
+            self.running = False  # los encargos en otro hilo miran 'running' y se cortan solos
+            for t in alive:
+                t.join(timeout=4)
+            self.running = True
+        try:
+            self._release()
+            winapi.left_up()
+        except Exception:
+            pass
+        self.goto = None
+        self.mission = None
+        for a, v in (("_pit_go", None), ("_loot_go", None), ("_flee_until", 0), ("_flee_best", None), ("_flee_block", 0),
+                     ("_rabia_until", 0), ("_elite_ts", []), ("_weak_t", 0), ("_town_until", 0), ("_town_why", ""),
+                     ("_worn_seen", 0), ("_broken_t", 0), ("_gm_said", 0), ("_gm_low_t", 0), ("_worn_suspect_until", 0),
+                     ("_rep_last", 0)):
+            setattr(self, a, v)
+        try:
+            self.nav.pop("path_cache", None)
+        except Exception:
+            pass
+        self.target = None
+        self.state = "seek"
+        self._fresh_t = now
+        self._fresh_base = {}
+        self.log("🧹 Arranque limpio (" + (why or "modo fijo") + "): sin pendientes de antes, a lo que me pediste.")
+
+    def _fresh_skip(self, kind, names=()):
+        """Modos fijos: ¿esto (roto, gastado, sin arma...) ya estaba así cuando arranqué? Entonces lo ignoro.
+        La primera lectura después de arrancar es la foto de cómo estaba; solo cuenta lo nuevo."""
+        if self.bot_mode() not in self.FIXED_MODES or not getattr(self, "_fresh_t", 0):
+            return False
+        key = lambda n: str(n).split(" (")[0].strip().lower()
+        cur = {key(n) for n in names if n}
+        base = self.__dict__.setdefault("_fresh_base", {})
+        if kind not in base:
+            base[kind] = set(cur)  # la foto se saca SIEMPRE en la primera lectura (aunque esté todo bien)
+            if cur:
+                self.log(f"🧹 Ya estaba así al arrancar ({kind}: {', '.join(sorted(cur))}): no me saca, sigo pegando.")
+        return bool(cur) and cur <= base[kind]
+
     MODES = {"auto": "Automático", "caza": "Caza", "manual": "Manual", "quest": "Quest", "economico": "Económico",
              "cartografo": "Cartógrafo", "investigar": "Investigar"}
 
@@ -5756,6 +5813,8 @@ class Bot:
         self._nest_probe = None
         self._mode_since = time.time()
         cfgmod.save(self.cfg)
+        if m != prev and m in self.FIXED_MODES:
+            self._fresh_start(f"modo {self.MODES[m]}")
         if m != prev:
             self.log(f"🎛 Modo {self.MODES[m]}" + (f" ({why})" if why else "") + "."
                      + (f" Mi nido: {self.pos.get('map')} ({self.pos.get('x')},{self.pos.get('y')})." if m == "manual" else ""))
@@ -11112,6 +11171,10 @@ class Bot:
             self._rep_last = now
             self._rep_th = threading.Thread(target=self._oly_repair_trip, args=(why,), daemon=True)
             self._rep_th.start()
+        if self._fresh_skip("roto", broke):
+            broke = []
+        if self._fresh_skip("gastado", low):
+            low = []
         if broke and now - getattr(self, "_gm_said", 0) > 300:
             self._gm_said = now
             self.log("⛔ Se rompió " + ", ".join(broke) + " (memoria): voy al herrero.")
@@ -11288,6 +11351,12 @@ class Bot:
                 weapon = None
         except Exception:
             pass
+        if self._fresh_skip("sin arma", [] if weapon else ["arma"]):
+            weapon = {"name": "(sin arma al arrancar)"}
+        if self._fresh_skip("falta", missing):
+            missing = []
+        if self._fresh_skip("gastado ficha", [d.get("name") for d in low]):
+            low = []
         if not weapon:
             self.log("⛔ SIN ARMA: no peleo así. Voy al pueblo a reparar/ponerme una.")
             self._worn_suspect_until = now + 900
@@ -13663,6 +13732,8 @@ class Bot:
             overdue = now - self._rep_last > float(self.cfg.get("repair_every_min", 150)) * 60 + 480
             if not worn and not overdue and (self.state == "attack" or self._under_attack() or self._fleeing()):
                 return
+            if self._fresh_skip("aviso de roto", ["aviso"] if worn else []):
+                worn = False
             if worn and now - self._rep_last >= (1800 if self.bot_mode() == "manual" else 300):
                 self._elite_ts = []
                 self._audit_t = now
