@@ -112,3 +112,52 @@ def quest_db(game_dir, nation, display, mob_name):
                     "repeatable": q.get("repeatable", True), "map_only": bool(maps), "kind": kind, "nation": None,
                     "notes": ("Entregar: " + ", ".join(notes)) if notes else ""})
     return {"source": "contents/quests.json del juego", "npcs": npcs, "quests": out}
+
+
+# Categorías para elegir qué levantar del piso (casillas del panel). Salen del tipo que trae items.dat:
+# 1 = equipo; 7 = consumibles (con "Potion" en el nombre = pociones, el resto comida); 5 = partes de bicho (pieles,
+# dientes...); el oro aparte; todo lo demás (zemstones, tablets, gemas, manuales, pergaminos, tickets...) = misc.
+LOOT_CATS = ("oro", "equipo", "pociones", "partes", "comida", "misc")
+
+
+def loot_cat(item):
+    name = (item.get("name") or "")
+    t = item.get("type")
+    if name == "Gold":
+        return "oro"
+    if t == 1:
+        return "equipo"
+    if t == 7:
+        return "pociones" if "potion" in name.lower() else "comida"
+    if t == 5:
+        return "partes"
+    return "misc"
+
+
+def ground_catalog(game_dir):
+    """{(hoja, cuadro): [(nombre, categoría)]}: qué objetos usan cada dibujo del piso."""
+    cd = contents_dir(game_dir)
+    if not cd:
+        return {}
+    items = load_items(game_dir)
+    out = {}
+    try:
+        d = open(os.path.join(cd, "items.dat"), "rb").read()
+        n = struct.unpack_from("<I", d, 8)[0]
+        off = 16
+        for _ in range(n):
+            iid, ln = struct.unpack_from("<HH", d, off)
+            off += 4 + ln
+            l2 = struct.unpack_from("<H", d, off)[0]
+            off += 2 + l2
+            r = d[off:off + 56]
+            off += 56
+            if len(r) < 56:
+                break
+            it = items.get(iid)
+            if it:
+                key = (struct.unpack_from("<H", r, 5)[0], struct.unpack_from("<H", r, 7)[0])
+                out.setdefault(key, []).append((it["name"], loot_cat(it)))
+    except Exception:
+        return {}
+    return out

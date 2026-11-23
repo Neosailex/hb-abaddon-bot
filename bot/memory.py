@@ -635,3 +635,166 @@ def discover_entities(proc, px, py, rounds=4, wait=1.5, log=print):
         if i_off is None and len(set(M[:, j].tolist())) == len(M) and (M[:, j] > 0x10000).all():
             i_off = o
     return {"sig": sig, "type_off": t_off, "id_off": i_off, "found": len(cand)}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# PISO (Olympia): el juego guarda una grilla de 51 x 37 baldosas centrada en el pj (índice = columna*37 + fila;
+# el pj está en la columna 25, fila 18). Cada baldosa ocupa 44 bytes; en +22/+24 están la hoja y el cuadro del
+# dibujo del objeto tirado ARRIBA de todo (si hay varios en la misma baldosa, solo se ve el de arriba), en +36
+# quién está parado ahí. Hay dos copias seguidas (separadas 83072 bytes) y no siempre están iguales: uso la que
+# coincide con los bichos que veo. Investigado el 22/11 con Juan (poción, oro, martillo; Aresden City y Eternal
+# Field). Solo lectura.
+GRID_W, GRID_H, GRID_REC = 51, 37, 44
+GRID_CX, GRID_CY = 25, 18
+GRID_N = GRID_W * GRID_H
+GRID_GAP = 83072
+
+
+def grid_rec_ok(rec):
+    """¿Estos 44 bytes parecen una baldosa de la grilla del piso?"""
+    return len(rec) >= GRID_REC and rec[21] >= 0xE0 and rec[34] == 0x94 and rec[35] == 0x01
+
+
+def grid_items(data, px, py):
+    """[(x, y, hoja, cuadro)] de lo tirado, desde los bytes de una copia de la grilla."""
+    out = []
+    if not data or len(data) < GRID_N * GRID_REC:
+        return out
+    a = np.frombuffer(data[:GRID_N * GRID_REC], np.uint8).reshape(GRID_N, GRID_REC)
+    sh = a[:, 22].astype(np.int32) | (a[:, 23].astype(np.int32) << 8)
+    fr = a[:, 24].astype(np.int32) | (a[:, 25].astype(np.int32) << 8)
+    for i in np.nonzero((sh | fr) != 0)[0]:
+        i = int(i)
+        out.append((px + i // GRID_H - GRID_CX, py + i % GRID_H - GRID_CY, int(sh[i]), int(fr[i])))
+    return out
+
+
+def grid_owners(data, px, py):
+    """{(x, y)} baldosas con alguien parado (bicho, jugador)."""
+    out = set()
+    if not data or len(data) < GRID_N * GRID_REC:
+        return out
+    a = np.frombuffer(data[:GRID_N * GRID_REC], np.uint8).reshape(GRID_N, GRID_REC)
+    for i in np.nonzero(a[:, 36:40].any(axis=1))[0]:
+        i = int(i)
+        out.add((px + i // GRID_H - GRID_CX, py + i % GRID_H - GRID_CY))
+    return out
+
+
+def find_grid_runs(blob, min_run=300):
+    """Corridas de baldosas seguidas (de a 44 bytes) en un bloque de memoria: [(offset, cantidad)]."""
+    a = np.frombuffer(blob, np.uint8)
+    if len(a) < GRID_REC * 2:
+        return []
+    m = np.zeros(len(a), bool)
+    n = len(a) - GRID_REC
+    m[:n] = (a[21:21 + n] >= 0xE0) & (a[34:34 + n] == 0x94) & (a[35:35 + n] == 0x01)
+    idx = np.nonzero(m)[0]
+    if len(idx) == 0:
+        return []
+    s_ = set(idx.tolist())
+    runs = []
+    for i in idx.tolist():
+        if (i - GRID_REC) in s_:
+            continue
+        k = 1
+        while (i + GRID_REC * k) in s_:
+            k += 1
+        if k >= min_run:
+            runs.append((i, k))
+    return runs
+
+
+def pick_grid_base(runs):
+    """De las corridas (dirección, cantidad) elijo los inicios de grilla: corridas alineadas que juntas no pasan
+    de una grilla entera. La primera corrida de cada grupo es el inicio (si el pj no está pegado al borde del
+    mapa). Devuelve [dirección] ordenadas."""
+    runs = sorted(runs)
+    bases, i = [], 0
+    while i < len(runs):
+        a0, k0 = runs[i]
+        end = a0 + k0 * GRID_REC
+        j = i + 1
+        while j < len(runs) and (runs[j][0] - a0) % GRID_REC == 0 and runs[j][0] + runs[j][1] * GRID_REC - a0 <= GRID_N * GRID_REC:
+            end = runs[j][0] + runs[j][1] * GRID_REC
+            j += 1
+        if (end - a0) // GRID_REC >= GRID_N * 0.5:
+            bases.append(a0)
+        i = j
+    return bases
+
+
+class GroundGrid:
+    """Lo tirado en el piso, leído de la memoria (Olympia)."""
+
+    def __init__(self):
+        self.bases, self.t_find, self.fail_t = [], 0.0, 0.0
+        self.copy = 0  # cuál de las dos copias está al día
+
+    def find(self, proc, step=8 << 20):
+        runs = []
+        for base, size in proc.regions():
+            off = 0
+            while off < size:
+                n = min(step, size - off)
+                d = proc.read(base + off, n + GRID_REC * 2 if off + n < size else n)
+                if not d:
+                    break
+                for o, k in find_grid_runs(d):
+                    if o < n:
+                        runs.append((base + off + o, k))
+                off += n
+        bases = pick_grid_base(runs)
+        # las dos copias van seguidas: si veo una y la otra a GRID_GAP, me quedo con ese par
+        pair = [b for b in bases if b + GRID_GAP in bases]
+        self.bases = [pair[0], pair[0] + GRID_GAP] if pair else bases[:2]
+        self.t_find = time.time()
+        return self.bases
+
+    def valid(self, proc):
+        if not self.bases:
+            return False
+        d = proc.read(self.bases[0], GRID_REC * 40)
+        if not d or len(d) < GRID_REC * 40:
+            return False
+        ok = sum(1 for i in range(40) if grid_rec_ok(d[i * GRID_REC:(i + 1) * GRID_REC]))
+        return ok >= 20
+
+    def read(self, proc, px, py, mobs=()):
+        """[(x, y, hoja, cuadro)] o None si no encuentro la grilla. mobs: baldosas con bichos (para elegir la
+        copia al día)."""
+        now = time.time()
+        if self.bases and now - self.t_find > 30:
+            if self.valid(proc):
+                self.t_find = now
+            else:
+                self.bases = []
+        if not self.bases:
+            # buscarla tarda un par de segundos: lo hago en otro hilo para no frenar al bot
+            th = getattr(self, "_th", None)
+            if not (th and th.is_alive()) and now - self.fail_t > 20:
+                self.fail_t = now
+
+                def _f():
+                    try:
+                        self.find(proc)
+                    except Exception:
+                        self.bases = []
+                self._th = threading.Thread(target=_f, daemon=True)
+                self._th.start()
+                if getattr(self, "sync", False):
+                    self._th.join()
+            if not self.bases:
+                return None
+        datas = [proc.read(b, GRID_N * GRID_REC) for b in self.bases]
+        datas = [d if d and len(d) >= GRID_N * GRID_REC else None for d in datas]
+        if not any(datas):
+            self.bases = []
+            return None
+        if len(datas) > 1 and all(datas) and mobs:
+            mset = set(mobs)
+            score = [len(grid_owners(d, px, py) & mset) for d in datas]
+            if score[0] != score[1]:
+                self.copy = 0 if score[0] > score[1] else 1
+        d = datas[self.copy] if self.copy < len(datas) and datas[self.copy] else next(x for x in datas if x)
+        return grid_items(d, px, py)

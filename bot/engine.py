@@ -91,6 +91,7 @@ class Bot:
         self._last_ocr_xy = None
         self.ents = memory.Entities(self.log)
         self.oly = memory.OlyEntities()
+        self.ground = memory.GroundGrid()  # lo tirado en el piso, leído de la memoria
         self.learner = learnmod.Learner(self)
         self._ent_bl = {}
         self._last_ocr = 0
@@ -6929,6 +6930,131 @@ class Bot:
         d = getattr(self, "_loot_draw", None)
         return d["list"] if d and time.time() - d["t"] < 2.0 else ()
 
+    # ---------------- PISO DESDE LA MEMORIA (v498) ----------------
+    def _ground_mode(self):
+        m = str(self.cfg.get("loot_mem", "sombra") or "off").lower()
+        if m not in ("sombra", "activo") or cfgmod.server_slug(self.cfg) == "abaddon":
+            return "off"
+        return m
+
+    def _ground_cat_db(self):
+        gd = getattr(self.world, "game_dir", None)
+        c = getattr(self, "_gcat", None)
+        if c is None or c[0] != gd:
+            try:
+                from . import gamedata as _gd
+                db = _gd.ground_catalog(gd) if gd else {}
+            except Exception:
+                db = {}
+            self._gcat = c = (gd, db)
+        return c[1]
+
+    def _bag_is_full(self, now=None):
+        bs = getattr(self, "_bag_slots", None)
+        now = now or time.time()
+        return bool(bs and now - bs[2] < 1800 and bs[0] >= bs[1])
+
+    def _ground_want(self, cats, bag_full=False):
+        """¿Levanto algo de estas categorías? (casillas del panel; con el bolso lleno solo oro)."""
+        sel = self.cfg.get("loot_cats") or {}
+        cats = set(cats or ())
+        if not cats:
+            cats = {"misc"}
+        if bag_full:
+            return "oro" in cats and bool(sel.get("oro", True))
+        return any(bool(sel.get(c, True)) for c in cats)
+
+    def _ground_mem(self, ents=None):
+        """Lo tirado cerca según la memoria: {(x, y): {"sh","fr","names","cats","want"}} o None si no se puede leer."""
+        if self._ground_mode() == "off" or not getattr(self.mem, "proc", None) or self.pos.get("x") is None:
+            return None
+        now = time.time()
+        c = getattr(self, "_gmem", None)
+        if c and now - c[0] < 0.4 and c[2] == (self.pos.get("x"), self.pos.get("y")):
+            return c[1]
+        px, py = self.pos["x"], self.pos["y"]
+        mobs = [(e[0], e[1]) for e in (ents if ents is not None else (self._oly_ents() or []))]
+        try:
+            raw = self.ground.read(self.mem.proc, px, py, mobs)
+        except Exception:
+            raw = None
+        if raw is None:
+            self._gmem = (now, None, (px, py))
+            if not getattr(self, "_gmem_fail_said", False):
+                self._gmem_fail_said = True
+                self.log("🔎 Piso: todavía no encontré la grilla en la memoria (sigo levantando como antes).")
+            return None
+        if not getattr(self, "_gmem_ok_said", False):
+            self._gmem_ok_said = True
+            self.log(f"🔎 Piso: leo lo tirado desde la memoria (modo {self._ground_mode()}).")
+        db = self._ground_cat_db()
+        full = self._bag_is_full(now)
+        out = {}
+        for x, y, sh, fr in raw:
+            lst = db.get((sh, fr)) or []
+            names = sorted({n for n, _c in lst})
+            cats = sorted({c_ for _n, c_ in lst})
+            out[(x, y)] = {"sh": sh, "fr": fr, "names": names, "cats": cats, "want": self._ground_want(cats, full)}
+        self._gmem = (now, out, (px, py))
+        return out
+
+    @staticmethod
+    def _ground_label(g):
+        if not g:
+            return "nada"
+        n = g["names"]
+        if not n:
+            return f"objeto ({g['sh']},{g['fr']})"
+        return n[0] if len(n) == 1 else f"{n[0]} u otro ({len(n)} posibles)"
+
+    def _ground_shadow(self, why, x, y, mem):
+        """Modo sombra: anoto qué hace el loot de hoy y qué diría la memoria (data/suelo_sombra.log)."""
+        if mem is None:
+            return
+        g = mem.get((x, y))
+        verdict = ("iría igual" if g and g["want"] else ("no iría: hay " + self._ground_label(g) + " pero no está tildado" if g else "no iría: está vacía"))
+        st = self.stats.setdefault("suelo", {"igual": 0, "ahorro": 0, "extra": 0})
+        st["igual" if g and g["want"] else "ahorro"] += 1
+        self._ground_write(f"{why} → ({x},{y}): memoria ve {self._ground_label(g)} ⇒ {verdict}")
+
+    def _ground_write(self, line):
+        try:
+            with open(os.path.join(cfgmod.DATA, "suelo_sombra.log"), "a", encoding="utf-8") as f:
+                f.write(time.strftime("%H:%M:%S ") + line + "\n")
+        except Exception:
+            pass
+
+    def _ground_shadow_scan(self, mem, ents, reach, tried):
+        """Sombra: lo que la memoria ve y el loot de hoy no fue a buscar (anoto cada cosa una vez)."""
+        if mem is None:
+            return
+        px, py = self.pos["x"], self.pos["y"]
+        seen = self.__dict__.setdefault("_gshadow_seen", {})
+        now = time.time()
+        for k in [k for k, t in seen.items() if now - t > 300]:
+            del seen[k]
+        for (x, y), g in mem.items():
+            if not g["want"] or max(abs(x - px), abs(y - py)) > reach:
+                continue
+            key = (x, y, g["sh"], g["fr"])
+            if key in seen:
+                continue
+            seen[key] = now
+            self.stats.setdefault("suelo", {"igual": 0, "ahorro": 0, "extra": 0})["extra"] += 1
+            self._ground_write(f"memoria ve {self._ground_label(g)} en ({x},{y}) a {max(abs(x - px), abs(y - py))} baldosas")
+
+    def _ground_pick(self, mem, ents, reach, tried):
+        """Modo activo: la cosa tildada más cercana que vale la pena ir a buscar, o None."""
+        if not mem:
+            return None
+        px, py = self.pos["x"], self.pos["y"]
+        occ = {(e[0], e[1]) for e in ents}
+        c = [(x, y, g) for (x, y), g in mem.items() if g["want"] and (x, y) not in tried and (x, y) not in occ
+             and max(abs(x - px), abs(y - py)) <= reach]
+        if not c:
+            return None
+        return min(c, key=lambda t: max(abs(t[0] - px), abs(t[1] - py)))
+
     def _loot_pass(self, ents, reach=None):
         """Levanto lo que hay tirado cerca (pociones y oro: siempre convienen) cuando no tengo ningún bicho pegado.
         Lo veo en pantalla, lo paso a la baldosa de la grilla y voy con Shift+clic. True = estoy en eso."""
@@ -6937,6 +7063,9 @@ class Bot:
         now = time.time()
         px, py = self.pos["x"], self.pos["y"]
         tried = self.__dict__.setdefault("_loot_tried", {})
+        if self._ground_mode() == "activo":
+            for k_ in [k_ for k_, v_ in tried.items() if v_ < now]:
+                del tried[k_]
         go = getattr(self, "_loot_go", None)
         hp_ = self.bars.get("hp")
         adj_ = any(max(abs(e[0] - px), abs(e[1] - py)) <= 1 for e in ents)
@@ -6962,6 +7091,15 @@ class Bot:
             arrived = (px, py) == (go["x"], go["y"])
             if arrived or now - go["t"] > go.get("max", 5.0):
                 tried[(go["x"], go["y"])] = now + (120 if arrived else 60)
+                if go.get("mem"):
+                    # por memoria: si quedó algo más abajo, vuelvo enseguida (hasta 4 veces por baldosa)
+                    na = self.__dict__.setdefault("_gmem_tries", {})
+                    kk = (go["x"], go["y"])
+                    na[kk] = na.get(kk, 0) + 1
+                    if arrived and na[kk] < 4:
+                        tried[kk] = now + 1.5
+                    if len(na) > 200:
+                        na.clear()
                 self._loot_go = None
                 got = []
                 if arrived:
@@ -6988,9 +7126,19 @@ class Bot:
             return True
         # recién maté algo acá al lado: voy a su baldosa con Shift+clic aunque no vea nada (el equipo tirado no lo
         # distingo por color). Si había algo, lo agarro.
+        gmode = self._ground_mode()
+        mem = self._ground_mem(ents) if gmode != "off" else None
         if self._kill_pick_ready(now, px, py, hp_):
             kp = self._kill_pick
             self._kill_pick = None
+            if gmode == "activo" and mem is not None and not (mem.get((kp[0], kp[1])) or {}).get("want"):
+                if now - kp[2] < 2.0:
+                    self._kill_pick = kp  # lo que cae tarda un instante en aparecer: lo reviso de nuevo enseguida
+                    return False
+                tried[(kp[0], kp[1])] = now + 20  # la memoria dice que ahí no hay nada que quiera: no pierdo el paso
+                return False
+            if gmode == "sombra":
+                self._ground_shadow(f"a ciegas (murió {kp[3]} hace {now - kp[2]:.1f} s)", kp[0], kp[1], mem)
             self._loot_go = {"x": kp[0], "y": kp[1], "kind": "lo que dejó el " + str(kp[3]), "t": now, "click": now,
                              "max": 2.5 + 1.0 * max(abs(kp[0] - px), abs(kp[1] - py)), "blind": True, "mob": kp[3]}
             if (kp[0], kp[1]) == (px, py):
@@ -7014,9 +7162,13 @@ class Bot:
                    and not any((e[0], e[1]) == (k_[0], k_[1]) for e in ents)
                    and (str(k_[3]) in qmobs_  # bicho de misión: sus partes caen poco, igual paso siempre
                         or not ((lbd.get(k_[3]) or {}).get("n", 0) >= 80 and (lbd.get(k_[3]) or {}).get("ok", 0) < 0.03 * (lbd.get(k_[3]) or {}).get("n", 0)))]
+            if gmode == "activo" and mem is not None:
+                ok_ = [k_ for k_ in ok_ if (mem.get((k_[0], k_[1])) or {}).get("want")]
             if ok_:
                 kp = min(ok_, key=lambda k_: max(abs(k_[0] - px), abs(k_[1] - py)))
                 self._kill_q = [k_ for k_ in kq if k_ is not kp]
+                if gmode == "sombra":
+                    self._ground_shadow("pasada por muertes (" + str(kp[3]) + ")", kp[0], kp[1], mem)
                 dist_ = max(abs(kp[0] - px), abs(kp[1] - py))
                 self._loot_go = {"x": kp[0], "y": kp[1], "kind": "lo que dejó el " + str(kp[3]), "t": now, "click": now,
                                  "max": (0.6 if dist_ == 0 else 2.5 + 1.0 * dist_), "blind": True, "mob": kp[3]}
@@ -7027,6 +7179,23 @@ class Bot:
                 self.stats["state"] = f"paso a levantar ({kp[0]},{kp[1]})"
                 return True
             self._kill_q = [k_ for k_ in kq if (k_[0], k_[1]) not in tried]
+        reach_ = int(reach or self.cfg.get("loot_reach", 7))
+        if gmode == "activo" and mem is not None:
+            gp = self._ground_pick(mem, ents, reach_, tried)
+            if not gp:
+                return False  # la memoria manda: no hay nada tildado cerca (no miro colores)
+            gx, gy, g = gp
+            lab = self._ground_label(g)
+            self._loot_go = {"x": gx, "y": gy, "kind": lab, "t": now, "click": now,
+                             "max": 4.0 + 1.3 * max(abs(gx - px), abs(gy - py)), "mem": True}
+            if now - getattr(self, "_loot_said", 0) > 20:
+                self._loot_said = now
+                self.log(f"🎒 Veo {lab} tirado en ({gx},{gy}): lo levanto.")
+            click_tile(gx, gy)
+            self.stats["state"] = f"levanto {lab} ({gx},{gy})"
+            return True
+        if gmode == "sombra":
+            self._ground_shadow_scan(mem, ents, reach_, tried)
         if now - getattr(self, "_loot_scan_t", 0) < 0.6:
             return False
         self._loot_scan_t = now
@@ -7060,6 +7229,8 @@ class Bot:
         if not cand:
             return False
         k = min(cand, key=lambda k: max(abs(k[0] - px), abs(k[1] - py)))
+        if gmode == "sombra":
+            self._ground_shadow("por colores (" + str(k[2]) + ")", k[0], k[1], mem)
         self._loot_go = {"x": k[0], "y": k[1], "kind": k[2], "t": now, "click": now,
                          "max": 4.0 + 1.3 * max(abs(k[0] - px), abs(k[1] - py))}
         if now - getattr(self, "_loot_said", 0) > 20:

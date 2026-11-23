@@ -326,6 +326,17 @@ input[type=range]{accent-color:var(--gold);width:100%}
           <div class="row"><label class="f">Esperar (seg)<input type="number" step="0.1" data-k="loot_delay"></label>
             <label class="f">Radio (tiles)<input type="number" data-k="loot_radius_tiles"></label></div>
           <p class="hint">En Abaddon el raro aparece cuando se desvanece el cuerpo: dejá ~2,5 seg.</p>
+          <h2 style="margin-top:16px">Qué levantar (lectura del piso)</h2>
+          <label class="f">Lectura del piso<select data-k="loot_mem"><option value="sombra">Sombra (solo anota qué haría)</option><option value="activo">Activa (decide con la memoria)</option><option value="off">Apagada (como antes)</option></select></label>
+          <div class="row">
+            <label class="check"><input type="checkbox" data-k="loot_cats.oro"> Oro</label>
+            <label class="check"><input type="checkbox" data-k="loot_cats.equipo"> Equipo</label>
+            <label class="check"><input type="checkbox" data-k="loot_cats.pociones"> Pociones</label></div>
+          <div class="row">
+            <label class="check"><input type="checkbox" data-k="loot_cats.partes"> Partes de bicho</label>
+            <label class="check"><input type="checkbox" data-k="loot_cats.comida"> Comida</label>
+            <label class="check"><input type="checkbox" data-k="loot_cats.misc"> Misc (zemstones, tablets, gemas, el resto)</label></div>
+          <p class="hint">Con el bolso lleno solo levanta oro.</p>
         </div>
         <div class="card">
           <h2>Movimiento</h2>

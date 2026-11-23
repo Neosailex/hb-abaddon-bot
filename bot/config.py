@@ -77,6 +77,10 @@ DEFAULTS = {
     "loot_delay": 2.0,             # en Abaddon el raro aparece cuando se desvanece el cuerpo
     "loot_radius_tiles": 3,
     "loot_max_clicks": 4,
+    # lectura del piso desde la memoria (Olympia): "sombra" = solo anota qué haría; "activo" = decide con ella;
+    # "off" = como antes. Las casillas eligen qué levantar.
+    "loot_mem": "sombra",
+    "loot_cats": {"oro": True, "equipo": True, "pociones": True, "partes": True, "comida": True, "misc": True},
     # --- Movimiento ---
     "roam_enabled": True,
     "roam_after": 6,                # seg sin objetivo -> camina
